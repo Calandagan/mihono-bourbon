@@ -318,6 +318,22 @@ class U2AndroidController(AndroidController):
         _ = self.execute_adb_shell("shell input swipe " + str(x1) + " " + str(y1) + " " + str(x2) + " " + str(y2) + " " + str(duration), True)
         time.sleep(self.config.delay)
 
+    def swipe_and_hold(self, x1, y1, x2, y2, swipe_duration, hold_duration, name=""):
+        if INPUT_BLOCKED:
+            return
+        
+        x1 += random.randint(-5, 5)
+        y1 += random.randint(-5, 5)
+        x2 += random.randint(-5, 5)
+        y2 += random.randint(-5, 5)
+        
+        reverse_y = y2 - 28 if y2 > y1 else y2 + 28
+        
+        _ = self.execute_adb_shell("shell input swipe " + str(x1) + " " + str(y1) + " " + str(x2) + " " + str(y2) + " " + str(swipe_duration), True)
+        _ = self.execute_adb_shell("shell input swipe " + str(x2) + " " + str(y2) + " " + str(x2) + " " + str(reverse_y) + " " + str(hold_duration), True)
+        
+        time.sleep(self.config.delay)
+
     # ===== common =====
 
     # execute_adb_shell 执行adb命令

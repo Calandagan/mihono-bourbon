@@ -1144,8 +1144,7 @@ def script_follow_support_card_select(ctx: UmamusumeContext):
                     return
             except Exception:
                 pass
-            ctx.ctrl.swipe(x1=350, y1=1000, x2=350, y2=400, duration=600, name="scroll down list")
-            time.sleep(0.5)
+            ctx.ctrl.swipe_and_hold(x1=350, y1=1000, x2=350, y2=400, swipe_duration=211, hold_duration=211, name="scroll down list")
             img = ctx.ctrl.get_screen()
         for __ in range(3):
             if find_support_card(ctx, img):
@@ -1162,8 +1161,7 @@ def script_follow_support_card_select(ctx: UmamusumeContext):
                     return
             except Exception:
                 pass
-            ctx.ctrl.swipe(x1=350, y1=400, x2=350, y2=1000, duration=600, name="scroll up list")
-            time.sleep(0.5)
+            ctx.ctrl.swipe_and_hold(x1=350, y1=400, x2=350, y2=1000, swipe_duration=211, hold_duration=211, name="scroll up list")
             img = ctx.ctrl.get_screen()
         ctx.ctrl.click_by_point(FOLLOW_SUPPORT_CARD_SELECT_REFRESH)
         time.sleep(1.2)
@@ -1782,8 +1780,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if not compare_color_equal(img[1006, 701], [211, 209, 219]):
             break
-        ctx.ctrl.swipe(x1=23, y1=1000, x2=23, y2=636, duration=1000, name="")
-        time.sleep(1)
+        ctx.ctrl.swipe_and_hold(x1=23, y1=1000, x2=23, y2=563, swipe_duration=211, hold_duration=211, name="")
         
         # Additional safety check after each swipe
         if (ctx.task.detail.manual_purchase_at_end and 
@@ -1901,8 +1898,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
             ctx.task.detail.scenario_config.ura_config.removeSkillFromList(skill)
 
     # Move up to align
-    ctx.ctrl.swipe(x1=23, y1=950, x2=23, y2=968, duration=100, name="")
-    time.sleep(1)
+    ctx.ctrl.swipe_and_hold(x1=23, y1=950, x2=23, y2=972, swipe_duration=211, hold_duration=211, name="")
 
     # Remove already learned skills
     for skill in target_skill_list_raw:
@@ -1965,8 +1961,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         if not compare_color_equal(img[488, 701], [211, 209, 219]):
             log.debug("🔍 Reached end of skill list page")
             break
-        ctx.ctrl.swipe(x1=23, y1=636, x2=23, y2=1000, duration=1000, name="")
-        time.sleep(1)
+        ctx.ctrl.swipe_and_hold(x1=23, y1=563, x2=23, y2=1000, swipe_duration=211, hold_duration=211, name="")
 
     log.debug("Skills to learn: " + str(ctx.cultivate_detail.learn_skill_list))
     log.debug("Skills learned: " + str([skill['skill_name'] for skill in skill_list if not skill['available']]))
