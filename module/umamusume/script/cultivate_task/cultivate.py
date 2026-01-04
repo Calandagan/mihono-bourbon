@@ -718,16 +718,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
             se_lane = spirit_counts[idx]
             if se_lane > 0 and se_w != 0.0:
-                try:
-                    d = int(ctx.cultivate_detail.turn_info.date)
-                except Exception:
-                    d = -1
-                if isinstance(d, int) and d >= 46:
-                    pct = min(30, d - 45)
-                else:
-                    pct = 0
-                mult = 1.0 - (float(pct) / 100.0)
-                se_bonus = se_w * mult
+                se_bonus = se_w
                 log.info(f"  Spirit explosion bonus: +{se_bonus:.3f}")
                 score += se_bonus
 
