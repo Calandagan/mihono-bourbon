@@ -80,7 +80,6 @@ As single run mode is deprecated if you wish to emulated it you can enable "Manu
 ## 🔧 Troubleshooting
 - **Stuck in menu**: disable keep alive in background in emulator settings
 
-
 #### Connection Problems
 
 - **ADB connection fails**: Close accelerators, kill adb.exe, restart emulator
@@ -101,7 +100,12 @@ As single run mode is deprecated if you wish to emulated it you can enable "Manu
 ![uma](docs/flower.gif)  
 
 
-## Changelogs
+## Changelogs 
+- **11/1/2025**
+Go to races instead of wit training when low training score and energy is near full
+Base scores for training facilities
+
+
 - **27/12/2025**  
 Event list updated.    
 Cache to improve speed.    
