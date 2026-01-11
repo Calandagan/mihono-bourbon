@@ -397,23 +397,113 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         return
 
     if not ctx.cultivate_detail.turn_info.parse_train_info_finish:
-        def _parse_training_in_thread(ctx, img, train_type):
-            """Helper function to run parsing in a separate thread."""
-            parse_training_result(ctx, img, train_type)
+        class _TrainingDetectionResult:
+            def __init__(self):
+                self.support_card_info_list = []
+                self.has_hint = False
+                self.failure_rate = -1
+                self.speed_incr = 0
+                self.stamina_incr = 0
+                self.power_incr = 0
+                self.will_incr = 0
+                self.intelligence_incr = 0
+                self.skill_point_incr = 0
+
+        def _detect_training_once(ctx, img, train_type):
+            result = _TrainingDetectionResult()
             try:
-                parse_failure_rates(ctx, img, train_type)
+                train_incr = ctx.cultivate_detail.scenario.parse_training_result(img)
+                result.speed_incr = train_incr[0]
+                result.stamina_incr = train_incr[1]
+                result.power_incr = train_incr[2]
+                result.will_incr = train_incr[3]
+                result.intelligence_incr = train_incr[4]
+                result.skill_point_incr = train_incr[5]
             except Exception:
                 pass
-            parse_training_support_card(ctx, img, train_type)
+            try:
+                parse_failure_rates(ctx, img, train_type)
+                til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
+                result.failure_rate = getattr(til, 'failure_rate', -1)
+            except Exception:
+                pass
+            try:
+                result.support_card_info_list = ctx.cultivate_detail.scenario.parse_training_support_card(img)
+            except Exception:
+                pass
             try:
                 from module.umamusume.asset.template import REF_TRAINING_HINT
                 import cv2 as _cv2
                 roi = img[181:769, 666:690]
                 roi_gray = _cv2.cvtColor(roi, _cv2.COLOR_BGR2GRAY)
-                til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
-                til.has_hint = image_match(roi_gray, REF_TRAINING_HINT).find_match
+                result.has_hint = image_match(roi_gray, REF_TRAINING_HINT).find_match
             except Exception:
                 pass
+            return result
+
+        def _compare_detection_results(result1, result2):
+            if len(result1.support_card_info_list) != len(result2.support_card_info_list):
+                return False
+            for sc1, sc2 in zip(result1.support_card_info_list, result2.support_card_info_list):
+                if getattr(sc1, "card_type", None) != getattr(sc2, "card_type", None):
+                    return False
+                if getattr(sc1, "favor", None) != getattr(sc2, "favor", None):
+                    return False
+            if result1.has_hint != result2.has_hint:
+                return False
+            if result1.failure_rate != result2.failure_rate:
+                return False
+            if result1.speed_incr != result2.speed_incr:
+                return False
+            if result1.stamina_incr != result2.stamina_incr:
+                return False
+            if result1.power_incr != result2.power_incr:
+                return False
+            if result1.will_incr != result2.will_incr:
+                return False
+            if result1.intelligence_incr != result2.intelligence_incr:
+                return False
+            if result1.skill_point_incr != result2.skill_point_incr:
+                return False
+            return True
+
+        def _apply_detection_result(ctx, train_type, result):
+            til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
+            til.support_card_info_list = result.support_card_info_list
+            til.has_hint = result.has_hint
+            til.failure_rate = result.failure_rate
+            til.speed_incr = result.speed_incr
+            til.stamina_incr = result.stamina_incr
+            til.power_incr = result.power_incr
+            til.will_incr = result.will_incr
+            til.intelligence_incr = result.intelligence_incr
+            til.skill_point_incr = result.skill_point_incr
+            from module.umamusume.define import SupportCardType
+            tt_map = {
+                TrainingType.TRAINING_TYPE_SPEED: SupportCardType.SUPPORT_CARD_TYPE_SPEED,
+                TrainingType.TRAINING_TYPE_STAMINA: SupportCardType.SUPPORT_CARD_TYPE_STAMINA,
+                TrainingType.TRAINING_TYPE_POWER: SupportCardType.SUPPORT_CARD_TYPE_POWER,
+                TrainingType.TRAINING_TYPE_WILL: SupportCardType.SUPPORT_CARD_TYPE_WILL,
+                TrainingType.TRAINING_TYPE_INTELLIGENCE: SupportCardType.SUPPORT_CARD_TYPE_INTELLIGENCE,
+            }
+            target = tt_map.get(train_type)
+            relevant_count = 0
+            for sc in result.support_card_info_list:
+                if getattr(sc, "card_type", None) == target:
+                    relevant_count += 1
+            til.relevant_count = relevant_count
+
+        def _parse_training_with_retry(ctx, img, train_type):
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                result1 = _detect_training_once(ctx, img, train_type)
+                time.sleep(0.1)
+                result2 = _detect_training_once(ctx, img, train_type)
+                if _compare_detection_results(result1, result2):
+                    _apply_detection_result(ctx, train_type, result1)
+                    return
+                time.sleep(0.1)
+            _apply_detection_result(ctx, train_type, result2)
 
         def _clear_training(ctx: UmamusumeContext, train_type: 'TrainingType'):
             til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
@@ -451,7 +541,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         viewed = train_type.value
 
         if extra_weight[viewed - 1] > -1:
-            thread = threading.Thread(target=_parse_training_in_thread, args=(ctx, img, train_type))
+            thread = threading.Thread(target=_parse_training_with_retry, args=(ctx, img, train_type))
             threads.append(thread)
             time.sleep(0.1)
             thread.start()
@@ -477,7 +567,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                         _clear_training(ctx, TrainingType(i + 1))
                         continue
 
-                    thread = threading.Thread(target=_parse_training_in_thread, args=(ctx, img, TrainingType(i + 1)))
+                    thread = threading.Thread(target=_parse_training_with_retry, args=(ctx, img, TrainingType(i + 1)))
                     threads.append(thread)
                     time.sleep(0.1)
                     thread.start()
