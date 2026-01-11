@@ -837,11 +837,40 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         if blocked_count == 4 and len(available_trainings) == 1:
             chosen_idx = available_trainings[0]
         else:
-            wit_fallback_threshold = getattr(ctx.cultivate_detail, 'wit_fallback_threshold', 0.01)
-            if all(s < wit_fallback_threshold for s in computed_scores):
-                log.info(f"no good training option (all scores < {wit_fallback_threshold:.2f}). umamusume is a wit game")
-                chosen_idx = 4
-            elif date >= 61 and sum(rbc_counts) == 0:
+            if not hasattr(ctx.cultivate_detail.turn_info, 'race_search_attempted'):
+                wit_race_threshold = getattr(ctx.cultivate_detail, 'wit_race_search_threshold', 0.15)
+                
+                from bot.conn.fetch import read_energy
+                current_energy = read_energy()
+                if current_energy == 0:
+                    time.sleep(0.37)
+                    current_energy = read_energy()
+                
+                from module.umamusume.asset.race_data import get_races_for_period
+                next_date = ctx.cultivate_detail.turn_info.date + 1
+                available_races = get_races_for_period(next_date)
+                has_extra_race_next = len([r for r in ctx.cultivate_detail.extra_race_list 
+                                           if r in available_races]) > 0
+                
+                wit_score = computed_scores[4] if len(computed_scores) == 5 else 0.0
+                
+                if (wit_score < wit_race_threshold and 
+                    current_energy > 90 and 
+                    not has_extra_race_next):
+                    
+                    log.info(f"Race search: Wit {wit_score:.3f}<{wit_race_threshold}, Energy {current_energy}>90, No races next turn")
+                    
+                    ctx.cultivate_detail.turn_info.race_search_attempted = True
+                    
+                    op = TurnOperation()
+                    op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+                    op.race_id = 0
+                    ctx.cultivate_detail.turn_info.turn_operation = op
+                    
+                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
+                    return
+            
+            if date >= 61 and sum(rbc_counts) == 0:
                 chosen_idx = 4
             else:
                 if date in (35, 36, 59, 60):
@@ -858,7 +887,6 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     ties = [i for i, v in enumerate(computed_scores) if abs(v - max_score) < eps]
                     chosen_idx = 4 if 4 in ties else (min(ties) if len(ties) > 0 else int(np.argmax(computed_scores)))
         local_training_type = TrainingType(chosen_idx + 1)
-
 
     from module.umamusume.script.cultivate_task.ai import get_operation
     op_ai = get_operation(ctx)
@@ -1271,9 +1299,36 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
         log.warning("Turn information not initialized")
         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
         return
+    
+    turn_op = ctx.cultivate_detail.turn_info.turn_operation
+    if turn_op and turn_op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
+        race_id = turn_op.race_id
+        
+        if race_id == 0:
+            log.info("Suitable race search mode")
+            time.sleep(1)
+            
+            img_gray = ctx.ctrl.get_screen(to_gray=True)
+            from module.umamusume.asset.template import REF_SUITABLE_RACE
+            
+            suitable_match = image_match(img_gray, REF_SUITABLE_RACE)
+            
+            if suitable_match.find_match:
+                log.info("Found suitable race")
+                center_x = suitable_match.center_point[0]
+                center_y = suitable_match.center_point[1]
+                ctx.ctrl.click(center_x, center_y, "Suitable race")
+                time.sleep(1)
+                ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
+                return
+            else:
+                log.info("No suitable race, continuing with wit training")
+                ctx.cultivate_detail.turn_info.turn_operation = None
+                ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
+                return
+    
     img = cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
     
-    # Debug template matching
     goal_match = image_match(img, REF_RACE_LIST_GOAL_RACE).find_match
     ura_match = image_match(img, REF_RACE_LIST_URA_RACE).find_match
     

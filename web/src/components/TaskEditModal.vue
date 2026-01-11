@@ -689,8 +689,8 @@
                   </div>
                   <div class="col-md-3 col-6">
                     <div class="form-group">
-                      <label for="inputWitFallbackThreshold">Wit Fallback Threshold</label>
-                      <input v-model.number="witFallbackThreshold" type="number" step="0.01" min="0" max="1" class="form-control" id="inputWitFallbackThreshold">
+                      <label for="inputWitRaceSearchThreshold">Race (>90% energy)/Wit training fallback</label>
+                      <input v-model.number="witRaceSearchThreshold" type="number" step="0.01" min="0" max="1" class="form-control" id="inputWitRaceSearchThreshold">
                     </div>
                   </div>
                 </div>
@@ -1867,7 +1867,7 @@ export default {
       restTreshold: 48,
       compensateFailure: true,
       summerScoreThreshold: 0.34,
-      witFallbackThreshold: 0.01,
+      witRaceSearchThreshold: 0.15,
       learnSkillThreshold: 888,
       cureAsapConditions: 'Migraine,Night Owl,Skin Outbreak,Slacker,Slow Metabolism,(Practice poor isn\'t worth a turn to cure)',
       recoverTP: 0,
@@ -2882,7 +2882,7 @@ export default {
           "rest_treshold": this.restTreshold,
           "compensate_failure": this.compensateFailure,
           "summer_score_threshold": this.summerScoreThreshold,
-          "wit_fallback_threshold": this.witFallbackThreshold,
+          "wit_race_search_threshold": this.witRaceSearchThreshold,
           "use_last_parents": this.useLastParents,
           "learn_skill_only_user_provided": this.learnSkillOnlyUserProvided,
           "extra_weight": [this.extraWeight1, this.extraWeight2, this.extraWeight3, this.extraWeightSummer],
@@ -2999,7 +2999,7 @@ export default {
         this.clockUseLimit = this.presetsUse.clock_use_limit,
         this.restTreshold = (this.presetsUse.rest_treshold || this.presetsUse.fast_path_energy_limit || 48),
         this.summerScoreThreshold = (this.presetsUse.summer_score_threshold !== undefined ? this.presetsUse.summer_score_threshold : 0.34),
-        this.witFallbackThreshold = (this.presetsUse.wit_fallback_threshold !== undefined ? this.presetsUse.wit_fallback_threshold : 0.01),
+        this.witRaceSearchThreshold = (this.presetsUse.wit_race_search_threshold !== undefined ? this.presetsUse.wit_race_search_threshold : 0.15),
       this.compensateFailure = (this.presetsUse.compensate_failure !== false)
       this.useLastParents = (this.presetsUse.use_last_parents === true)
       this.overrideInsufficientFansForcedRaces = (this.presetsUse.override_insufficient_fans_forced_races === true)
@@ -3352,7 +3352,7 @@ export default {
         clock_use_limit: this.clockUseLimit,
         rest_treshold: this.restTreshold,
         summer_score_threshold: this.summerScoreThreshold,
-        wit_fallback_threshold: this.witFallbackThreshold,
+        wit_race_search_threshold: this.witRaceSearchThreshold,
         learn_skill_threshold: this.learnSkillThreshold,
         race_tactic_1: this.selectedRaceTactic1,
         race_tactic_2: this.selectedRaceTactic2,

@@ -92,7 +92,7 @@ def build_task(task_execute_mode: TaskExecuteMode, task_type: int,
     td.cure_asap_conditions = attachment_data.get("cure_asap_conditions", "")
     td.rest_treshold = attachment_data.get('rest_treshold', attachment_data.get('fast_path_energy_limit', 48))
     td.summer_score_threshold = attachment_data.get('summer_score_threshold', 0.34)
-    td.wit_fallback_threshold = attachment_data.get('wit_fallback_threshold', 0.01)
+    td.wit_race_search_threshold = attachment_data.get('wit_race_search_threshold', 0.15)
     
     td.motivation_threshold_year1 = attachment_data.get('motivation_threshold_year1', 3)
     td.motivation_threshold_year2 = attachment_data.get('motivation_threshold_year2', 4)
