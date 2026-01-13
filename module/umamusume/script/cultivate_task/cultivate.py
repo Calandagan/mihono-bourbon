@@ -319,8 +319,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                         ctx.ctrl.click_by_point(CULTIVATE_RACE)
                 else:
                     log.info(f"⏳ URA {ura_phase} not yet available - continuing with normal flow")
-                    # Continue with normal flow - let AI decide what to do next
-                    # This will trigger the normal AI logic for training/rest/recreation
+                    ctx.cultivate_detail.turn_info.turn_operation = None
                     if not ctx.cultivate_detail.turn_info.parse_train_info_finish:
                         ctx.cultivate_detail.turn_info.parse_train_info_finish = True
                         return
