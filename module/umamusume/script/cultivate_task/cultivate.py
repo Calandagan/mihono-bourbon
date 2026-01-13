@@ -1411,6 +1411,7 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 return
             else:
                 log.info("No suitable race, continuing with wit training")
+                ctx.cultivate_detail.turn_info.race_search_attempted = True
                 ctx.cultivate_detail.turn_info.turn_operation = None
                 ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
                 return

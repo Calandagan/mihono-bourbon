@@ -52,7 +52,8 @@ def _get_races_for_period_cached(period: int) -> list[int]:
 def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
     turn_operation = TurnOperation()
     if not ctx.cultivate_detail.debut_race_win:
-        turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+        if not hasattr(ctx.cultivate_detail.turn_info, 'race_search_attempted'):
+            turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
     state = fetch_state()
     energy = state.get("energy", 0)
     mood_raw = state.get("mood")
