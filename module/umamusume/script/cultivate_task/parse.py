@@ -27,7 +27,7 @@ from module.umamusume.script.cultivate_task.const import DATE_YEAR, DATE_MONTH
 log = logger.get_logger(__name__)
 
 class LRUCache:
-    def __init__(self, maxsize=1000):
+    def __init__(self, maxsize=2000):
         self.cache = OrderedDict()
         self.maxsize = maxsize
     
@@ -50,16 +50,16 @@ class LRUCache:
     def __contains__(self, key):
         return key in self.cache
 
-_parse_event_cache = LRUCache(maxsize=1000)
-_ocr_cache = LRUCache(maxsize=1500)
-_gray_image_cache = LRUCache(maxsize=600)
-_template_match_cache = LRUCache(maxsize=1500)
+_parse_event_cache = LRUCache(maxsize=2000)
+_ocr_cache = LRUCache(maxsize=3000)
+_gray_image_cache = LRUCache(maxsize=1200)
+_template_match_cache = LRUCache(maxsize=3000)
 
 def _compute_image_hash(img):
     try:
         if img is None:
             return None
-        h = hashlib.md5(img.tobytes()).hexdigest()
+        h = hash(img.tobytes())
         return h
     except:
         return None
@@ -635,7 +635,9 @@ def parse_failure_rates(ctx: UmamusumeContext, img, train_type: TrainingType | N
 
 def find_support_card(ctx: UmamusumeContext, img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    while True:
+    iterations = 0
+    while iterations < 50:
+        iterations += 1
         match_result = image_match(img, REF_FOLLOW_SUPPORT_CARD_DETECT_LABEL)
         if match_result.find_match:
             pos = match_result.matched_area
@@ -711,9 +713,10 @@ def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
     else:
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # Method 1: Original Chinese server template matching
     img_temp = img_gray.copy()
-    while True:
+    iterations = 0
+    while iterations < 20:
+        iterations += 1
         match_result = image_match(img_temp, REF_SELECTOR)
         if match_result.find_match:
             event_selector_list.append(match_result.center_point)
@@ -754,7 +757,9 @@ def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
         
         for template in dialogue_templates:
             try:
-                while True:
+                iterations = 0
+                while iterations < 10:
+                    iterations += 1
                     match_result = image_match(search_img, template)
                     if match_result.find_match:
                         abs_pt = (match_result.center_point[0] + x1, match_result.center_point[1] + y1)
@@ -858,7 +863,9 @@ def find_race(ctx: UmamusumeContext, img, race_id: int = 0) -> bool:
         log.warning(f"❌ No template found for race ID {race_id}")
         return False
     
-    while True:
+    iterations = 0
+    while iterations < 100:
+        iterations += 1
         match_result = image_match(img, REF_RACE_LIST_DETECT_LABEL)
         if match_result.find_match:
             pos = match_result.matched_area
@@ -956,7 +963,9 @@ def find_skill(ctx: UmamusumeContext, img, skill: list[str], learn_any_skill: bo
     log.debug(f"🔍 find_skill called with {len(skill)} skills: {skill}")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     find = False
-    while True:
+    iterations = 0
+    while iterations < 100:
+        iterations += 1
         match_result = image_match(img, REF_SKILL_LIST_DETECT_LABEL)
         if match_result.find_match:
             pos = match_result.matched_area
@@ -1060,7 +1069,9 @@ def get_skill_list(img, skill: list[str], skill_blacklist: list[str]) -> list:
     origin_img = img
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     res = []
-    while True:
+    iterations = 0
+    while iterations < 150:
+        iterations += 1
         all_skill_scanned = True
         match_result = image_match(img, REF_SKILL_LIST_DETECT_LABEL)
         if match_result.find_match:
@@ -1197,7 +1208,9 @@ def parse_factor(ctx: UmamusumeContext):
     origin_img = ctx.ctrl.get_screen()
     img = cv2.cvtColor(origin_img, cv2.COLOR_BGR2GRAY)
     factor_list = []
-    while True:
+    iterations = 0
+    while iterations < 50:
+        iterations += 1
         match_result = image_match(img, REF_FACTOR_DETECT_LABEL)
         if match_result.find_match:
             factor_info = ['unknown', 0]

@@ -74,7 +74,7 @@ class U2AndroidController(AndroidController):
     repetitive_click_count = 0
     repetitive_other_clicks = 0
     last_click_time = 0.0
-    min_click_interval = 0.3
+    min_click_interval = 0.15
 
     def __init__(self):
         self.recent_click_buckets = []
@@ -231,26 +231,23 @@ class U2AndroidController(AndroidController):
 
     # get_screen 获取图片
     def get_screen(self, to_gray=False):
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 cur_screen = self.u2client.screenshot(format='opencv')
                 if cur_screen is None or getattr(cur_screen, 'size', 0) == 0:
-                    if attempt < 2:
-                        time.sleep(0.1)
+                    if attempt < 1:
                         continue
                     return None
                 h, w = cur_screen.shape[:2]
                 if h < 100 or w < 100:
-                    if attempt < 2:
-                        time.sleep(0.1)
+                    if attempt < 1:
                         continue
                     return None
                 if to_gray:
                     return cv2.cvtColor(cur_screen, cv2.COLOR_BGR2GRAY)
                 return cur_screen
             except Exception:
-                if attempt < 2:
-                    time.sleep(0.1)
+                if attempt < 1:
                     continue
                 return None
         return None
@@ -342,8 +339,7 @@ class U2AndroidController(AndroidController):
         proc = os.run_cmd(cmd_str)
         if sync:
             try:
-                # Add a broad 30s timeout to prevent hanging the main loop
-                proc.communicate(timeout=30)
+                proc.communicate(timeout=10)
             except subprocess.TimeoutExpired:
                 log.error(f"ADB command timed out: {cmd_str}")
                 proc.kill()

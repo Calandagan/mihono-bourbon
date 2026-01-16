@@ -4,13 +4,11 @@ import os.path
 from bot.base.resource import Template
 from module.umamusume.asset import REF_SUITABLE_RACE
 
-RACE_LIST: list[list] = []
+RACE_LIST: dict[int, list] = {}
 UMAMUSUME_RACE_TEMPLATE_PATH = "/umamusume/race"
 
 
 def load_race_data():
-    for i in range(10000):
-        RACE_LIST.append([])
     with open('resource/umamusume/data/race.csv', 'r', encoding="utf-8") as file:
         reader = csv.reader(file)
         for row in reader:

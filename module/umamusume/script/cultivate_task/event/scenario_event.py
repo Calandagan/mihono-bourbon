@@ -33,7 +33,9 @@ def scenario_event_2(ctx: UmamusumeContext) -> int:
 def aoharuhai_team_name_event(ctx: UmamusumeContext) -> int:
     img = ctx.ctrl.get_screen(to_gray=True)
     event_selector_list = []
-    while True:
+    iterations = 0
+    while iterations < 10:
+        iterations += 1
         match_result = image_match(img, REF_SELECTOR)
         if match_result.find_match:
             event_selector_list.append(match_result)

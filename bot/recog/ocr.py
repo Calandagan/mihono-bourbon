@@ -17,7 +17,7 @@ _USE_GPU = False
 _GPU_INITIALIZED = False
 
 class LRUCache:
-    def __init__(self, maxsize=7000):
+    def __init__(self, maxsize=12000):
         self.cache = OrderedDict()
         self.maxsize = maxsize
     
@@ -40,11 +40,11 @@ class LRUCache:
     def __contains__(self, key):
         return key in self.cache
 
-_ocr_result_cache = LRUCache(maxsize=7000)
+_ocr_result_cache = LRUCache(maxsize=12000)
 
 def _compute_ocr_cache_key(img, lang):
     try:
-        h = hashlib.md5(img.tobytes()).hexdigest()
+        h = hash(img.tobytes())
         return f"{lang}:{h}"
     except:
         return None

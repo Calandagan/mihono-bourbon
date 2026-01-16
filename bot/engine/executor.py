@@ -87,6 +87,12 @@ class Executor:
 
     def detect_ui(self, ui_list: list[UI], target) -> UI:
         target = cv2.cvtColor(target, cv2.COLOR_BGR2GRAY)
+        if len(ui_list) < 3:
+            for ui in ui_list:
+                result = self.detect_ui_sub(ui, target)
+                if result:
+                    return ui
+            return NOT_FOUND_UI
         self.ensure_pool()
         if self.executor is None or getattr(self.executor, "_shutdown", False):
             return NOT_FOUND_UI
@@ -321,14 +327,10 @@ class Executor:
                         ctx.current_screen = None
                     except Exception:
                         pass
-                    try:
-                        gc.collect()
-                    except Exception:
-                        pass
                 else:
                     break
                 try:
-                    sleep_ms = int(os.getenv("UAT_EXECUTOR_LOOP_SLEEP_MS", "500"))
+                    sleep_ms = int(os.getenv("UAT_EXECUTOR_LOOP_SLEEP_MS", "200"))
                     time.sleep(max(0.0, sleep_ms / 1000.0))
                 except Exception:
                     time.sleep(0.5)

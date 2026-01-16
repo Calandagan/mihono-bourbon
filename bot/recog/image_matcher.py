@@ -12,7 +12,7 @@ from bot.recog.timeout_tracker import reset_timeout
 log = logger.get_logger(__name__)
 
 class LRUCache:
-    def __init__(self, maxsize=4500):
+    def __init__(self, maxsize=8000):
         self.cache = OrderedDict()
         self.maxsize = maxsize
     
@@ -35,12 +35,12 @@ class LRUCache:
     def __contains__(self, key):
         return key in self.cache
 
-_image_match_cache = LRUCache(maxsize=4500)
+_image_match_cache = LRUCache(maxsize=8000)
 
 def _compute_match_cache_key(img, template):
     try:
-        img_hash = hashlib.md5(img.tobytes()).hexdigest()
-        template_hash = hashlib.md5(template.template_img.tobytes()).hexdigest() if hasattr(template, 'template_img') and template.template_img is not None else str(id(template))
+        img_hash = hash(img.tobytes())
+        template_hash = hash(template.template_img.tobytes()) if hasattr(template, 'template_img') and template.template_img is not None else id(template)
         area = template.image_match_config.match_area
         if area:
             roi_key = f"{area.x1},{area.y1},{area.x2},{area.y2}"
