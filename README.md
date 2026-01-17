@@ -1,4 +1,5 @@
-usually on /uma/ during 9-11am+pm UTC
+usually on /uma/ during 9-11am+pm UTC.   
+(should I make a cord)    
 
 ![uma musume](docs/umabike.gif)
 
