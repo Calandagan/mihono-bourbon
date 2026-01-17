@@ -433,6 +433,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             except Exception:
                 se_w = 0.0
 
+            if current_energy is not None and se_w != 0.0 and idx != 4:
+                if current_energy >= 90:
+                    se_w *= 1.1
+                elif 40 <= current_energy <= 50:
+                    se_w *= 0.9
+
             try:
                 is_aoharu = (ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_AOHARUHAI)
             except Exception:
@@ -454,7 +460,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                         se_w = 0.0
                     else:
                         log.info("Energy not full prioritizing wit spirit explosion")
-                        se_w = se_w * 2.0
+                        se_w = se_w * 1.37
 
             se_lane = spirit_counts[idx]
             if se_lane > 0 and se_w != 0.0:

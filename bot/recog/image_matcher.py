@@ -153,3 +153,14 @@ def compare_color_equal(p: list, target: list, tolerance: int = 10) -> bool:
     d1 = target[1] - p[1]
     d2 = target[2] - p[2]
     return (d0*d0 + d1*d1 + d2*d2) < tol_sq
+
+
+def multi_template_match(templates, threshold=0.82):
+    best_score = 0.0
+    for template, sub_roi in templates:
+        try:
+            result = image_match(sub_roi, template)
+            best_score = max(best_score, result.score)
+        except Exception:
+            pass
+    return best_score >= threshold, best_score

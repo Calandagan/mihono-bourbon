@@ -7,7 +7,7 @@ from .base_scenario import BaseScenario
 from module.umamusume.asset import *
 from module.umamusume.define import ScenarioType, SupportCardFavorLevel, SupportCardType
 from module.umamusume.types import SupportCardInfo
-from bot.recog.image_matcher import image_match, compare_color_equal
+from bot.recog.image_matcher import image_match, compare_color_equal, multi_template_match
 from module.umamusume.asset.template import *
 from bot.recog.ocr import ocr_line, find_similar_text, ocr_digits
 
@@ -146,32 +146,21 @@ class AoharuHaiScenario(BaseScenario):
 
             arrow_roi3 = roi_gray[max(ay1 - 10, 0):ay2, ax1:ax2]
 
-            can_incr_special_training = False
-            for ref, sub_roi in (
+            special_train_templates = [
                 (REF_AOHARU_SPECIAL_TRAIN, arrow_roi),
                 (REF_AOHARU_SPECIAL_TRAIN2, arrow_roi),
                 (REF_AOHARU_SPECIAL_TRAIN3, arrow_roi3),
-            ):
-                try:
-                    if image_match(sub_roi, ref).find_match:
-                        can_incr_special_training = True
-                        break
-                except Exception:
-                    pass
+            ]
+            can_incr_special_training, _ = multi_template_match(special_train_templates)
 
             spirit_explosion = False
             if not can_incr_special_training:
-                for ref, sub_roi in (
+                spirit_templates = [
                     (REF_SPIRIT_EXPLOSION, arrow_roi),
                     (REF_SPIRIT_EXPLOSION2, arrow_roi),
                     (REF_SPIRIT_EXPLOSION3, arrow_roi3),
-                ):
-                    try:
-                        if image_match(sub_roi, ref).find_match:
-                            spirit_explosion = True
-                            break
-                    except Exception:
-                        pass
+                ]
+                spirit_explosion, _ = multi_template_match(spirit_templates)
 
             favor_process_check_list = [roi[106, 56], roi[106, 60]]
             support_card_favor_process = SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_UNKNOWN
