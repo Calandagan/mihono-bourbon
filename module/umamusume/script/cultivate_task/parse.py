@@ -300,11 +300,11 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
             turn_to_race_text = DIGITS_ONLY.sub("", turn_to_race_text)
             if turn_to_race_text == '':
                 log.warning("Debut race date recognition exception")
-                return 12 - (len(ctx.cultivate_detail.turn_info_history) + 1)
+                return max(1, 12 - (len(ctx.cultivate_detail.turn_info_history) + 1))
             date_id = 12 - int(turn_to_race_text)
             if date_id < 1:
                 log.warning("Debut race date recognition exception")
-                return 12 - (len(ctx.cultivate_detail.turn_info_history) + 1)
+                return max(1, 12 - (len(ctx.cultivate_detail.turn_info_history) + 1))
         return date_id
     else:
         # URA scenario date parsing
@@ -382,11 +382,11 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
             turn_to_race_text = DIGITS_ONLY.sub("", turn_to_race_text)
             if turn_to_race_text == '':
                 log.warning("URA Debut race date recognition exception")
-                return 12 - (len(ctx.cultivate_detail.turn_info_history) + 1)
+                return max(1, 12 - (len(ctx.cultivate_detail.turn_info_history) + 1))
             date_id = 12 - int(turn_to_race_text)
             if date_id < 1:
                 log.warning("URA Debut race date recognition exception")
-                return 12 - (len(ctx.cultivate_detail.turn_info_history) + 1)
+                return max(1, 12 - (len(ctx.cultivate_detail.turn_info_history) + 1))
         return date_id
 
 
