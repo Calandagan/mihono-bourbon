@@ -21974,6 +21974,570 @@
       }
     }
   },
+  "This Shamrock Is My Oath": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 20.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 20.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "There, There, Your Highness": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 20.0
+      }
+    }
+  },
+  "Her Highness's Movie Night": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 15.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      }
+    }
+  },
+  "Who Will Escort Me?": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2",
+      "3": "Choice 3",
+      "4": "Choice 4"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      },
+      "3": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "4": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Her Highness's Growth": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      }
+    }
+  },
+  "A Very Invigorating Royal Tea Party": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 5.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 5.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 5.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 5.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Flowers from a Distant Land": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 15.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 1.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Love Ramen": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2",
+      "3": "Choice 3"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 30.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 10.0,
+        "Speed": -10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 20.0,
+        "Wisdom": 0.0
+      },
+      "3": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 3.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Nostalgic Irish Cuisine": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 10.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 5.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 30.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 5.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 10.0,
+        "Speed": -5.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Nothing Like a Good Mystery!": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "No Such Thing as a Bad Time Abroad": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Official Duties": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2",
+      "3": "Choice 3"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      },
+      "3": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Her Highness Visits the Flea Market!": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Her Highness Learns to Stan": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
   "To Keep, or Not to Keep?": {
     "choices": {
       "1": "Choice 1",
