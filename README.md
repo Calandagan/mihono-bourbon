@@ -4,7 +4,7 @@ usually on /uma/ during 9-11am+pm UTC.
 https://umamusume.com/news/100068/
 turn this shit off for a few days. (I'll still be running this 24/7 on a alt will report back in a week)
 
-will be improving anti detection measures meanwhile. until then just play manually 
+will be improving anti detection measures meanwhile. Until then just play manually. Still in theory unless you run this 27/4 it should still be undetectable.
 
 ![uma musume](docs/umabike.gif)
 
