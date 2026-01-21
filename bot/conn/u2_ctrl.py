@@ -118,6 +118,9 @@ class U2AndroidController(AndroidController):
             repetitive_threshold = 11
             update_repetitive = None
 
+        if isinstance(click_key, str):
+            click_key = click_key.strip()
+
         if self.repetitive_click_name is None:
             self.repetitive_click_name = click_key
             self.repetitive_click_count = 1
@@ -128,7 +131,14 @@ class U2AndroidController(AndroidController):
             except Exception:
                 pass
             return False
-        if click_key == self.repetitive_click_name:
+
+        current_name = self.repetitive_click_name.strip() if isinstance(self.repetitive_click_name, str) else self.repetitive_click_name
+        is_same_key = (click_key == current_name) or (
+            isinstance(click_key, str) and isinstance(current_name, str) and
+            click_key.lower() == current_name.lower()
+        )
+
+        if is_same_key:
             self.repetitive_click_count += 1
         else:
             self.repetitive_other_clicks += 1
