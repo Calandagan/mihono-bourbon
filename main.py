@@ -4,11 +4,41 @@ import subprocess
 import os
 import yaml
 import time
-import cv2
 import random
 import datetime
-import urllib.request
-import tempfile
+
+def check_vcredist():
+    if sys.platform != 'win32':
+        return True
+    try:
+        import winreg
+        vc_keys = [
+            r"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+            r"SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+        ]
+        for key_path in vc_keys:
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
+                winreg.CloseKey(key)
+                return True
+            except FileNotFoundError:
+                continue
+        return False
+    except Exception:
+        return True
+
+if sys.platform == 'win32' and not check_vcredist():
+    print("\nERROR: Microsoft Visual C++ Redistributable is required")
+    print("\nThis application requires VC++ Redistributable to run on Windows.")
+    print("\nPlease download and install from:")
+    print("https://aka.ms/vs/17/release/vc_redist.x64.exe")
+    print("\nAfter installation, restart this application.\n")
+    input("Press Enter to exit...")
+    sys.exit(1)
+
+import torch
+
+import cv2
 import bot.base.log as logger
 import bot.base.gpu_utils as gpu_utils
 
@@ -40,48 +70,6 @@ from uvicorn import run
 log = logger.get_logger(__name__)
 _gpu_available = gpu_utils.detect_gpu_capabilities()
 _opencv_gpu = gpu_utils.configure_opencv_gpu()
-
-def ensure_vcredist():
-    if sys.platform != "win32":
-        return
-    try:
-        import torch
-        return
-    except OSError as e:
-        if "127" not in str(e) and "shm.dll" not in str(e):
-            return
-    except Exception:
-        return
-    
-    log.info("VC++ Redistributable missing, attempting install...")
-    vc_url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-    
-    try:
-        temp_dir = tempfile.gettempdir()
-        installer_path = os.path.join(temp_dir, "vc_redist.x64.exe")
-        
-        log.info(f"Downloading VC++ Redistributable to {installer_path}")
-        urllib.request.urlretrieve(vc_url, installer_path)
-        
-        log.info("Running VC++ Redistributable installer...")
-        result = subprocess.run(
-            [installer_path, "/install", "/quiet", "/norestart"],
-            capture_output=True,
-            timeout=300
-        )
-        
-        if result.returncode == 0:
-            log.info("VC++ Redistributable installed successfully")
-            log.info("Please restart the application")
-            sys.exit(0)
-        elif result.returncode == 1638:
-            log.info("VC++ Redistributable already installed")
-        else:
-            log.warning(f"VC++ installer returned code: {result.returncode}")
-            log.error("Please install manually: https://aka.ms/vs/17/release/vc_redist.x64.exe")
-    except Exception as e:
-        log.error(f"Failed to install VC++ Redistributable: {e}")
-        log.error("Please install manually: https://aka.ms/vs/17/release/vc_redist.x64.exe")
 
 start_time = 0
 end_time = 24
@@ -329,8 +317,6 @@ def time_window_enforcer(device_id: str):
         time.sleep(60)
 
 if __name__ == '__main__':
-    ensure_vcredist()
-    
     try:
         from bot.base.purge import acquire_instance_lock
         acquire_instance_lock()

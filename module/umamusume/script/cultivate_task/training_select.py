@@ -99,11 +99,9 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             result.facility_name = facility_map.get(train_type)
             result.scenario_name = "ura" if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_URA else "aoharuhai"
             result.stat_results = {}
-            log.info(f"detect_training_once: train_type={train_type}, facility={result.facility_name}, scenario={result.scenario_name}")
             try:
                 if result.facility_name:
                     result.stat_results = scan_facility_stats(img, result.facility_name, result.scenario_name)
-                    log.info(f"detect_training_once: stat_results={result.stat_results}")
                 train_incr = ctx.cultivate_detail.scenario.parse_training_result(img)
                 result.speed_incr = train_incr[0]
                 result.stamina_incr = train_incr[1]
@@ -111,8 +109,8 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 result.will_incr = train_incr[3]
                 result.intelligence_incr = train_incr[4]
                 result.skill_point_incr = train_incr[5]
-            except Exception as e:
-                log.error(f"detect_training_once exception: {e}")
+            except Exception:
+                pass
             try:
                 parse_failure_rates(ctx, img, train_type)
                 til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
@@ -404,7 +402,6 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     score += w_lv2
             
             stat_results = getattr(til, 'stat_results', {})
-            log.info(f"{names[idx]} stat_results from til: {stat_results}")
             stat_score = 0.0
             stat_parts = []
             for sk_idx, sk in enumerate(stat_keys):

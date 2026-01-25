@@ -120,12 +120,10 @@ def extract_digit_mask(mask, region):
 
 def recognize_digits_cnn(roi, max_value=100):
     if roi is None or roi.size == 0:
-        log.info("recognize_digits_cnn: roi is None or empty")
         return 0
     mask = create_color_mask(roi)
     regions = find_digit_regions(mask)
     if not regions:
-        log.info("recognize_digits_cnn: no digit regions found")
         return 0
     digit_masks = []
     valid_regions = []
@@ -173,33 +171,24 @@ def scan_stat_gain(img, stat_name, scenario="aoharuhai"):
     else:
         areas = STAT_AREAS_AOHARUHAI
     if stat_name not in areas:
-        log.info(f"scan_stat_gain: stat_name '{stat_name}' not in areas")
         return 0
     h, w = img.shape[:2]
-    log.info(f"scan_stat_gain: img shape h={h}, w={w}")
     x1, y1, x2, y2 = areas[stat_name]
     x1 = max(0, min(x1, w))
     x2 = max(0, min(x2, w))
     y1 = max(0, min(y1, h))
     y2 = max(0, min(y2, h))
-    log.info(f"scan_stat_gain: ROI coords ({x1},{y1})-({x2},{y2})")
     roi = img[y1:y2, x1:x2]
-    log.info(f"scan_stat_gain: ROI shape {roi.shape if roi is not None else 'None'}")
     return recognize_digits_cnn(roi)
 
 def scan_facility_stats(img, facility_type, scenario="aoharuhai"):
-    log.info(f"scan_facility_stats called: facility={facility_type}, scenario={scenario}")
     if facility_type not in FACILITY_STATS:
-        log.warning(f"facility_type '{facility_type}' not in FACILITY_STATS")
         return {}
     stats_to_scan = FACILITY_STATS[facility_type]
-    log.info(f"stats_to_scan: {stats_to_scan}")
     results = {}
     for stat in stats_to_scan:
         value = scan_stat_gain(img, stat, scenario)
-        log.info(f"scan_stat_gain({stat}): {value}")
         results[stat] = value
-    log.info(f"scan_facility_stats results: {results}")
     return results
 
 def log_facility_stats(facility_type, results):
