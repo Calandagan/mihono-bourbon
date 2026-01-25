@@ -61,7 +61,8 @@ def _compute_image_hash(img):
     try:
         if img is None:
             return None
-        return (id(img), img.shape[0], img.shape[1])
+        h = hash(img.tobytes())
+        return h
     except:
         return None
 

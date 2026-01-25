@@ -43,7 +43,8 @@ _ocr_result_cache = LRUCache(maxsize=12000)
 
 def _compute_ocr_cache_key(img, lang):
     try:
-        return (lang, id(img), img.shape[0] if img is not None else 0, img.shape[1] if img is not None else 0)
+        h = hash(img.tobytes())
+        return f"{lang}:{h}"
     except:
         return None
 
