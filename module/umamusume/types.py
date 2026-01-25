@@ -145,16 +145,6 @@ class TurnInfo:
             self.uma_attribute.intelligence,
             self.uma_attribute.skill_point,
         )
-        log.info("Speed training results:")
-        self.training_info_list[0].log_training_info(scenario_type)
-        log.info("Stamina training results:")
-        self.training_info_list[1].log_training_info(scenario_type)
-        log.info("Power training results:")
-        self.training_info_list[2].log_training_info(scenario_type)
-        log.info("Guts training results:")
-        self.training_info_list[3].log_training_info(scenario_type)
-        log.info("Wit training results:")
-        self.training_info_list[4].log_training_info(scenario_type)
 
 
 class CultivateContextDetail:

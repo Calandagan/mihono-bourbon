@@ -314,18 +314,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         if not isinstance(stat_mult, (list, tuple)) or len(stat_mult) < 6:
             stat_mult = DEFAULT_STAT_VALUE_MULTIPLIER
 
-        log.info("Score:")
-        log.info(f"lv1: {w_lv1}")
-        log.info(f"lv2: {w_lv2}")
-        log.info(f"Rainbow (wit): {w_rainbow}")
-        log.info(f"Hint: {w_hint}")
-        log.info(f"Stat values: spd={stat_mult[0]}, sta={stat_mult[1]}, pow={stat_mult[2]}, guts={stat_mult[3]}, wits={stat_mult[4]}, sp={stat_mult[5]}")
-        try:
-            if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_AOHARUHAI:
-                log.info(f"Special Training score: {w_special}")
-                log.info(f"Spirit Explosion scores: {se_weights}")
-        except Exception:
-            pass
+
 
         from bot.conn.fetch import read_energy
         try:
@@ -411,53 +400,22 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     stat_score += contrib
                     stat_parts.append(f"{sk}:{sv_val}")
             
-            log.info(f"{names[idx]}:")
-            if stat_parts:
-                log.info(f"  stats: {', '.join(stat_parts)} (+{stat_score:.3f})")
             score += stat_score
             try:
                 fr = int(getattr(til, 'failure_rate', -1))
             except Exception:
                 fr = -1
-            if fr >= 0:
-                log.info(f"  failure: {fr}%")
-            log.info(f"  lv1: {lv1c}")
-            log.info(f"  lv2: {lv2c}")
-            if idx == 4:
-                log.info(f"  Rainbows (wit): {rbc}")
-            
-            if npc:
-                log.info(f"  NPCs: {npc}")
-            if pal_count:
-                log.info(f"  Pal cards: {pal_count}")
-            try:
-                if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_AOHARUHAI:
-                    if special_counts[idx] > 0:
-                        log.info(f"  Special training available: {special_counts[idx]} cards")
-                    if spirit_counts[idx] > 0:
-                        try:
-                            d = int(ctx.cultivate_detail.turn_info.date)
-                        except Exception:
-                            d = -1
-                        if isinstance(d, int) and d >= 46:
-                            pct = min(30, d - 45)
-                            log.info(f"  Spirit explosion available: {spirit_counts[idx]} cards (-{pct}% score: date penalty)")
-                        else:
-                            log.info(f"  Spirit explosion available: {spirit_counts[idx]} cards")
-            except Exception:
-                pass
             hint_bonus = 0.0
             try:
                 hint_bonus = w_hint if bool(getattr(til, 'has_hint', False)) else 0.0
             except Exception:
                 hint_bonus = 0.0
-            if hint_bonus > 0:
-                log.info(f"  Hint bonus: +{hint_bonus:.3f}")
             score += hint_bonus
             stc_lane = special_counts[idx]
+            special_bonus = 0.0
             if stc_lane > 0:
-                log.info(f"  Special training bonus: +{w_special:.3f}")
-                score += float(w_special)
+                special_bonus = float(w_special)
+                score += special_bonus
             try:
                 se_w = float(se_weights[idx]) if isinstance(se_weights, (list, tuple)) and len(se_weights) == 5 else 0.0
             except Exception:
@@ -483,57 +441,49 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     energy = None
                 if energy is not None:
                     if energy > 80:
-                        log.info("Energy near full ignoring wit spirit explosion")
                         se_w = 0.0
                     elif energy < 10:
-                        log.info("Energy near 0 ignoring wit spirit explosion")
                         se_w = 0.0
                     else:
-                        log.info("Energy not full prioritizing wit spirit explosion")
                         se_w = se_w * 1.37
 
             se_lane = spirit_counts[idx]
+            spirit_bonus = 0.0
             if se_lane > 0 and se_w != 0.0:
-                se_bonus = se_w
-                log.info(f"  Spirit explosion bonus: +{se_bonus:.3f}")
-                score += se_bonus
+                spirit_bonus = se_w
+                score += spirit_bonus
 
+            pal_mult = 1.0
             if pal_count > 0:
-                base_score = score
                 clamped_multiplier = max(0.0, min(1.0, ctx.cultivate_detail.pal_card_multiplier))
-                multiplier = 1.0 + clamped_multiplier
-                score *= multiplier
-                log.info(f"  Pal card multiplier: x{multiplier:.2f} (Base: {base_score:.3f} -> Final: {score:.3f})")
+                pal_mult = 1.0 + clamped_multiplier
+                score *= pal_mult
+            
+            fail_mult = 1.0
             try:
                 if getattr(ctx.cultivate_detail, 'compensate_failure', True):
                     fr_val = int(getattr(til, 'failure_rate', -1))
                     if fr_val >= 0:
-                        mult_fr = max(0.0, 1.0 - (float(fr_val) / 50.0))
-                        if mult_fr != 1.0:
-                            log.info(f"  Failure compensation: x{mult_fr:.2f}")
-                        score *= mult_fr
+                        fail_mult = max(0.0, 1.0 - (float(fr_val) / 50.0))
+                        score *= fail_mult
             except Exception:
                 pass
 
+            energy_mult = 1.0
             if idx == 4 and current_energy is not None:
-                log.info(f"energy={current_energy}, rest_threshold={rest_threshold}")
                 if current_energy > 90:
                     if date > 72:
-                        score *= 0.35
-                        log.info("finale date & energy > 90, -65% to wit score")
+                        energy_mult = 0.35
                     else:
-                        score *= 0.75
-                        log.info("energy > 90, -25% to wit score")
+                        energy_mult = 0.75
                 elif 85 > current_energy:
                     if rbc > 0:
-                        log.info("85 > energy with rainbows +16% to wit score")
-                        score *= 1.16
+                        energy_mult = 1.16
                     else:
-                        log.info("85 > energy, +10% to wit score")
-                        score *= 1.10
-                elif current_energy > 85:
-                    pass
+                        energy_mult = 1.10
+                score *= energy_mult
 
+            target_mult = 1.0
             try:
                 expect_attr = ctx.cultivate_detail.expect_attribute
                 if isinstance(expect_attr, list) and len(expect_attr) == 5:
@@ -543,37 +493,76 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     curr_val = float(curr_vals[idx])
                     if cap_val > 0:
                         ratio = curr_val / cap_val
-                        label = names[idx]
                         if ratio > 0.95:
-                            log.info(f"{label} >95% of target: -100% to score")
-                            score *= 0.0
+                            target_mult = 0.0
                         elif ratio >= 0.90:
-                            log.info(f"{label} >=90% of target: -30% to score")
-                            score *= 0.7
+                            target_mult = 0.7
                         elif ratio >= 0.80:
-                            log.info(f"{label} >=80% of target: -20% to score")
-                            score *= 0.8
+                            target_mult = 0.8
                         elif ratio >= 0.70:
-                            log.info(f"{label} >=70% of target: -10% to score")
-                            score *= 0.9
+                            target_mult = 0.9
+                        score *= target_mult
             except Exception:
                 pass
+            
+            weight_mult = 1.0
             try:
                 ew = extra_weight[idx] if isinstance(extra_weight, (list, tuple)) and len(extra_weight) == 5 else 0.0
             except Exception:
                 ew = 0.0
             if ew > -1.0:
-                mult = 1.0 + float(ew)
-                if mult < 0.0:
-                    mult = 0.0
-                elif mult > 2.0:
-                    mult = 2.0
-                weight_bonus = (mult - 1.0) * 100.0
-                log.info(f"  Weight bonus: {weight_bonus:+.0f}%")
-                score *= mult
+                weight_mult = 1.0 + float(ew)
+                if weight_mult < 0.0:
+                    weight_mult = 0.0
+                elif weight_mult > 2.0:
+                    weight_mult = 2.0
+                score *= weight_mult
 
             computed_scores[idx] = score
             rbc_counts[idx] = rbc
+            
+            base_val = base_scores[idx] if isinstance(base_scores, (list, tuple)) and len(base_scores) > idx else 0.0
+            lv1_contrib = lv1c * w_lv1
+            lv2_contrib = lv2c * w_lv2
+            rb_contrib = rbc * w_rainbow if idx == 4 and (current_energy is None or current_energy <= HIGH_ENERGY_THRESHOLD) else 0.0
+            npc_contrib = npc * NPC_CARD_SCORE
+            
+            formula_parts = []
+            formula_parts.append(f"base:{base_val:.2f}")
+            if stat_score > 0:
+                formula_parts.append(f"stats:+{stat_score:.3f}")
+            if lv1_contrib > 0:
+                formula_parts.append(f"lv1({lv1c}):+{lv1_contrib:.3f}")
+            if lv2_contrib > 0:
+                formula_parts.append(f"lv2({lv2c}):+{lv2_contrib:.3f}")
+            if rb_contrib > 0:
+                formula_parts.append(f"rb({rbc}):+{rb_contrib:.3f}")
+            if npc_contrib > 0:
+                formula_parts.append(f"npc({npc}):+{npc_contrib:.3f}")
+            if hint_bonus > 0:
+                formula_parts.append(f"hint:+{hint_bonus:.3f}")
+            if special_bonus > 0:
+                formula_parts.append(f"special:+{special_bonus:.3f}")
+            if spirit_bonus > 0:
+                formula_parts.append(f"spirit:+{spirit_bonus:.3f}")
+            
+            mult_parts = []
+            if pal_mult != 1.0:
+                mult_parts.append(f"pal:x{pal_mult:.2f}")
+            if fail_mult != 1.0:
+                mult_parts.append(f"fail:x{fail_mult:.2f}")
+            if energy_mult != 1.0:
+                mult_parts.append(f"energy:x{energy_mult:.2f}")
+            if target_mult != 1.0:
+                mult_parts.append(f"target:x{target_mult:.2f}")
+            if weight_mult != 1.0:
+                mult_parts.append(f"weight:x{weight_mult:.2f}")
+            
+            formula_str = " ".join(formula_parts)
+            if mult_parts:
+                formula_str += " | " + " ".join(mult_parts)
+            
+            log.info(f"{names[idx]}: {score:.3f} = [{formula_str}]")
 
         ctx.cultivate_detail.turn_info.parse_train_info_finish = True
 
