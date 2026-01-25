@@ -18,7 +18,7 @@ from module.umamusume.constants.game_constants import (
 from module.umamusume.constants.scoring_constants import (
     DEFAULT_BASE_SCORES, DEFAULT_SCORE_VALUE, DEFAULT_SPIRIT_EXPLOSION,
     DEFAULT_SPECIAL_WEIGHTS, NPC_CARD_SCORE, DEFAULT_REST_THRESHOLD,
-    HIGH_ENERGY_THRESHOLD
+    HIGH_ENERGY_THRESHOLD, DEFAULT_STAT_VALUE_MULTIPLIER
 )
 from module.umamusume.constants.timing_constants import (
     TRAINING_CLICK_DELAY, TRAINING_WAIT_DELAY, TRAINING_RETRY_DELAY,
@@ -28,7 +28,7 @@ from module.umamusume.constants.timing_constants import (
 from module.umamusume.constants.game_constants import get_date_period_index
 from module.umamusume.script.cultivate_task.parse import parse_train_type, parse_failure_rates
 from module.umamusume.script.cultivate_task.helpers import should_use_pal_outing_simple
-from bot.recog.training_stat_scanner import scan_facility_stats, log_facility_stats
+from bot.recog.training_stat_scanner import scan_facility_stats
 
 log = logger.get_logger(__name__)
 
@@ -158,8 +158,6 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             return True
 
         def apply_detection_result(ctx, train_type, result):
-            if hasattr(result, 'facility_name') and hasattr(result, 'stat_results') and result.stat_results:
-                log_facility_stats(result.facility_name, result.stat_results)
             til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
             til.support_card_info_list = result.support_card_info_list
             til.has_hint = result.has_hint
@@ -170,6 +168,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             til.will_incr = result.will_incr
             til.intelligence_incr = result.intelligence_incr
             til.skill_point_incr = result.skill_point_incr
+            til.stat_results = getattr(result, 'stat_results', {})
             tt_map = {
                 TrainingType.TRAINING_TYPE_SPEED: SupportCardType.SUPPORT_CARD_TYPE_SPEED,
                 TrainingType.TRAINING_TYPE_STAMINA: SupportCardType.SUPPORT_CARD_TYPE_STAMINA,
@@ -204,6 +203,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             til.intelligence_incr = 0
             til.skill_point_incr = 0
             til.support_card_info_list = []
+            til.stat_results = {}
 
         threads: list[threading.Thread] = []
         blocked_trainings = [False] * 5
@@ -304,16 +304,22 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             SupportCardType.SUPPORT_CARD_TYPE_INTELLIGENCE,
         ]
         names = ["Speed", "Stamina", "Power", "Guts", "Wit"]
+        stat_keys = ["speed", "stamina", "power", "guts", "wits", "sp"]
         computed_scores = [0.0, 0.0, 0.0, 0.0, 0.0]
         rbc_counts = [0, 0, 0, 0, 0]
         special_counts = [0, 0, 0, 0, 0]
         spirit_counts = [0, 0, 0, 0, 0]
 
+        stat_mult = getattr(ctx.cultivate_detail, 'stat_value_multiplier', DEFAULT_STAT_VALUE_MULTIPLIER)
+        if not isinstance(stat_mult, (list, tuple)) or len(stat_mult) < 6:
+            stat_mult = DEFAULT_STAT_VALUE_MULTIPLIER
+
         log.info("Score:")
         log.info(f"lv1: {w_lv1}")
         log.info(f"lv2: {w_lv2}")
-        log.info(f"Rainbows: {w_rainbow}")
+        log.info(f"Rainbow (wit): {w_rainbow}")
         log.info(f"Hint: {w_hint}")
+        log.info(f"Stat values: spd={stat_mult[0]}, sta={stat_mult[1]}, pow={stat_mult[2]}, guts={stat_mult[3]}, wits={stat_mult[4]}, sp={stat_mult[5]}")
         try:
             if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_AOHARUHAI:
                 log.info(f"Special Training score: {w_special}")
@@ -382,10 +388,11 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     is_rb = True
                 if is_rb:
                     rbc += 1
-                    if idx == 4 and current_energy is not None and current_energy > HIGH_ENERGY_THRESHOLD:
-                        log.info(f"energy >{HIGH_ENERGY_THRESHOLD}, wit rainbow=0")
-                    else:
-                        score += w_rainbow
+                    if idx == 4:
+                        if current_energy is not None and current_energy > HIGH_ENERGY_THRESHOLD:
+                            log.info(f"energy >{HIGH_ENERGY_THRESHOLD}, wit rainbow=0")
+                        else:
+                            score += w_rainbow
                     continue
                 if favor == SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_1:
                     lv1c += 1
@@ -394,7 +401,20 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     lv2c += 1
                     score += w_lv2
             
+            stat_results = getattr(til, 'stat_results', {})
+            stat_score = 0.0
+            stat_parts = []
+            for sk_idx, sk in enumerate(stat_keys):
+                sv_val = stat_results.get(sk, 0)
+                if sv_val > 0:
+                    contrib = sv_val * stat_mult[sk_idx]
+                    stat_score += contrib
+                    stat_parts.append(f"{sk}:{sv_val}")
+            
             log.info(f"{names[idx]}:")
+            if stat_parts:
+                log.info(f"  stats: {', '.join(stat_parts)} (+{stat_score:.3f})")
+            score += stat_score
             try:
                 fr = int(getattr(til, 'failure_rate', -1))
             except Exception:
@@ -403,13 +423,10 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 log.info(f"  failure: {fr}%")
             log.info(f"  lv1: {lv1c}")
             log.info(f"  lv2: {lv2c}")
-            log.info(f"  Rainbows: {rbc}")
-            
-            if rbc >= 2:
-                rainbow_multiplier = 1.0 + (rbc - 1) * 0.075
-                base_score = score
-                score *= rainbow_multiplier
-                log.info(f"  Multiple rainbows bonus multiplier: x{rainbow_multiplier:.2f} ({rbc} cards) (Base: {base_score:.3f} -> {score:.3f})")
+            if idx == 4:
+                log.info(f"  Rainbows (wit): {rbc}")
+            else:
+                log.info(f"  Rainbows: {rbc}")
             
             if npc:
                 log.info(f"  NPCs: {npc}")
@@ -557,7 +574,6 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 log.info(f"  Weight bonus: {weight_bonus:+.0f}%")
                 score *= mult
 
-            log.info(f"  Total score: {score:.3f}")
             computed_scores[idx] = score
             rbc_counts[idx] = rbc
 

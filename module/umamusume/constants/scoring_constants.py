@@ -1,12 +1,14 @@
 DEFAULT_BASE_SCORES = [0.0, 0.0, 0.0, 0.0, 0.07]
 
 DEFAULT_SCORE_VALUE = [
-    [0.11, 0.10, 0.01, 0.09],  # Junior
-    [0.11, 0.10, 0.09, 0.09],  # Classic
-    [0.11, 0.10, 0.12, 0.09],  # Senior early
-    [0.03, 0.05, 0.15, 0.09],  # Senior late
-    [0, 0, 0.15, 0, 0]         # Post-URA
+    [0.11, 0.10, 0.0025, 0.09],  # Junior
+    [0.11, 0.10, 0.0225, 0.09],  # Classic
+    [0.11, 0.10, 0.03, 0.09],    # Senior early
+    [0.03, 0.05, 0.0375, 0.09],  # Senior late
+    [0, 0, 0.0675, 0, 0]         # Post-URA
 ]
+
+DEFAULT_STAT_VALUE_MULTIPLIER = [0.01, 0.01, 0.01, 0.01, 0.01, 0.005]
 
 DEFAULT_SPIRIT_EXPLOSION = [0.16, 0.16, 0.16, 0.06, 0.11]
 

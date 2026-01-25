@@ -5,7 +5,8 @@ from module.umamusume.define import *
 from module.umamusume.types import TurnInfo
 from module.umamusume.constants.scoring_constants import (
     DEFAULT_BASE_SCORES, DEFAULT_SPIRIT_EXPLOSION, DEFAULT_PAL_FRIENDSHIP_SCORES,
-    DEFAULT_PAL_CARD_MULTIPLIER, DEFAULT_SUMMER_SCORE_THRESHOLD, DEFAULT_WIT_FALLBACK_THRESHOLD
+    DEFAULT_PAL_CARD_MULTIPLIER, DEFAULT_SUMMER_SCORE_THRESHOLD, DEFAULT_WIT_FALLBACK_THRESHOLD,
+    DEFAULT_STAT_VALUE_MULTIPLIER
 )
 import bot.base.log as logger
 
@@ -45,6 +46,7 @@ class CultivateContextDetail:
     base_score: list
     summer_score_threshold: float
     wit_fallback_threshold: float
+    stat_value_multiplier: list
 
     def __init__(self):
         self.expect_attribute = None
@@ -76,6 +78,7 @@ class CultivateContextDetail:
         self.base_score = list(DEFAULT_BASE_SCORES)
         self.summer_score_threshold = DEFAULT_SUMMER_SCORE_THRESHOLD
         self.wit_fallback_threshold = DEFAULT_WIT_FALLBACK_THRESHOLD
+        self.stat_value_multiplier = list(DEFAULT_STAT_VALUE_MULTIPLIER)
 
     def reset_skill_learn(self):
         self.learn_skill_done = False
@@ -160,6 +163,7 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
         detail.base_score = list(getattr(task.detail, 'base_score', DEFAULT_BASE_SCORES))
         detail.summer_score_threshold = float(getattr(task.detail, 'summer_score_threshold', DEFAULT_SUMMER_SCORE_THRESHOLD))
         detail.wit_fallback_threshold = float(getattr(task.detail, 'wit_fallback_threshold', DEFAULT_WIT_FALLBACK_THRESHOLD))
+        detail.stat_value_multiplier = list(getattr(task.detail, 'stat_value_multiplier', DEFAULT_STAT_VALUE_MULTIPLIER))
         # Event overrides
         try:
             eo = getattr(task.detail, 'event_overrides', {})

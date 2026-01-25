@@ -506,7 +506,7 @@
                         <input type="number" step="0.01" v-model.number="scoreValueJunior[1]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
-                        <div class="form-group mb-1"><small>Rainbow</small></div>
+                        <div class="form-group mb-1"><small>Rainbow (wit)</small></div>
                         <input type="number" step="0.01" v-model.number="scoreValueJunior[2]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
@@ -533,7 +533,7 @@
                         <input type="number" step="0.01" v-model.number="scoreValueClassic[1]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
-                        <div class="form-group mb-1"><small>Rainbow</small></div>
+                        <div class="form-group mb-1"><small>Rainbow (wit)</small></div>
                         <input type="number" step="0.01" v-model.number="scoreValueClassic[2]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
@@ -560,7 +560,7 @@
                         <input type="number" step="0.01" v-model.number="scoreValueSenior[1]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
-                        <div class="form-group mb-1"><small>Rainbow</small></div>
+                        <div class="form-group mb-1"><small>Rainbow (wit)</small></div>
                         <input type="number" step="0.01" v-model.number="scoreValueSenior[2]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
@@ -587,7 +587,7 @@
                         <input type="number" step="0.01" v-model.number="scoreValueSeniorAfterSummer[1]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
-                        <div class="form-group mb-1"><small>Rainbow</small></div>
+                        <div class="form-group mb-1"><small>Rainbow (wit)</small></div>
                         <input type="number" step="0.01" v-model.number="scoreValueSeniorAfterSummer[2]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
@@ -614,7 +614,7 @@
                         <input type="number" step="0.01" v-model.number="scoreValueFinale[1]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
-                        <div class="form-group mb-1"><small>Rainbow</small></div>
+                        <div class="form-group mb-1"><small>Rainbow (wit)</small></div>
                         <input type="number" step="0.01" v-model.number="scoreValueFinale[2]" class="form-control">
                       </div>
                       <div class="col-md-2 col-6">
@@ -626,6 +626,38 @@
                         <input type="number" step="0.01" v-model.number="specialFinale" class="form-control">
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <hr style="border-color: var(--accent); opacity: 0.5; margin: 12px 0;">
+                <div class="form-group" style="margin-top: 16px;">
+                  <div style="color: var(--accent);">Stat Value</div>
+                </div>
+                <p>Score bonus per scanned stat gain from training facility</p>
+                <div class="row">
+                  <div class="col-md-2 col-6">
+                    <div class="form-group mb-1"><small>Speed</small></div>
+                    <input type="number" step="0.001" v-model.number="statValueMultiplier[0]" class="form-control">
+                  </div>
+                  <div class="col-md-2 col-6">
+                    <div class="form-group mb-1"><small>Stamina</small></div>
+                    <input type="number" step="0.001" v-model.number="statValueMultiplier[1]" class="form-control">
+                  </div>
+                  <div class="col-md-2 col-6">
+                    <div class="form-group mb-1"><small>Power</small></div>
+                    <input type="number" step="0.001" v-model.number="statValueMultiplier[2]" class="form-control">
+                  </div>
+                  <div class="col-md-2 col-6">
+                    <div class="form-group mb-1"><small>Guts</small></div>
+                    <input type="number" step="0.001" v-model.number="statValueMultiplier[3]" class="form-control">
+                  </div>
+                  <div class="col-md-2 col-6">
+                    <div class="form-group mb-1"><small>Wits</small></div>
+                    <input type="number" step="0.001" v-model.number="statValueMultiplier[4]" class="form-control">
+                  </div>
+                  <div class="col-md-2 col-6">
+                    <div class="form-group mb-1"><small>SP</small></div>
+                    <input type="number" step="0.001" v-model.number="statValueMultiplier[5]" class="form-control">
                   </div>
                 </div>
 
@@ -1981,16 +2013,18 @@ export default {
       eventChoicesSelected: {},
 
       // Score Value per period [lv1, lv2, rainbow, hint] + separate Special fields
-      scoreValueJunior: [0.11, 0.10, 0.01, 0.09],
-      scoreValueClassic: [0.11, 0.10, 0.09, 0.09],
-      scoreValueSenior: [0.11, 0.10, 0.12, 0.09],
-      scoreValueSeniorAfterSummer: [0.03, 0.05, 0.15, 0.09],
-      scoreValueFinale: [0, 0, 0.27, 0],
+      scoreValueJunior: [0.11, 0.10, 0.0025, 0.09],
+      scoreValueClassic: [0.11, 0.10, 0.0225, 0.09],
+      scoreValueSenior: [0.11, 0.10, 0.03, 0.09],
+      scoreValueSeniorAfterSummer: [0.03, 0.05, 0.0375, 0.09],
+      scoreValueFinale: [0, 0, 0.0675, 0],
       specialJunior: 0.095,
       specialClassic: 0.095,
       specialSenior: 0.095,
       specialSeniorAfterSummer: 0.095,
       specialFinale: 0,
+      // Stat Value Multiplier [speed, stamina, power, guts, wits, sp]
+      statValueMultiplier: [0.01, 0.01, 0.01, 0.01, 0.01, 0.005],
           }
   },
   mounted() {
@@ -2901,6 +2935,7 @@ export default {
             (this.selectedScenario === 2 ? [...this.scoreValueSeniorAfterSummer.slice(0,4), this.specialSeniorAfterSummer] : this.scoreValueSeniorAfterSummer.slice(0,4)),
             (this.selectedScenario === 2 ? [...this.scoreValueFinale.slice(0,4), this.specialFinale] : this.scoreValueFinale.slice(0,4))
           ],
+          "stat_value_multiplier": [...this.statValueMultiplier],
           // Motivation thresholds for trip decisions
           "motivation_threshold_year1": this.motivationThresholdYear1,
           "motivation_threshold_year2": this.motivationThresholdYear2,
@@ -3082,6 +3117,13 @@ export default {
         this.baseScore = [...this.presetsUse.baseScore];
       } else {
         this.baseScore = [0, 0, 0, 0, 0.07];
+      }
+
+      if ('statValueMultiplier' in this.presetsUse && Array.isArray(this.presetsUse.statValueMultiplier)) {
+        this.statValueMultiplier = [...this.presetsUse.statValueMultiplier];
+        while (this.statValueMultiplier.length < 6) this.statValueMultiplier.push(0.01);
+      } else {
+        this.statValueMultiplier = [0.01, 0.01, 0.01, 0.01, 0.01, 0.005];
       }
 
       if ('extraWeight' in this.presetsUse && this.presetsUse.extraWeight != []) {
@@ -3385,6 +3427,7 @@ export default {
           this.scoreValueFinale
         ],
         baseScore: [...this.baseScore],
+        statValueMultiplier: [...this.statValueMultiplier],
         // Motivation thresholds for trip decisions
         motivation_threshold_year1: this.motivationThresholdYear1,
         motivation_threshold_year2: this.motivationThresholdYear2,
