@@ -7,35 +7,6 @@ import time
 import random
 import datetime
 
-def check_vcredist():
-    if sys.platform != 'win32':
-        return True
-    try:
-        import winreg
-        vc_keys = [
-            r"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
-            r"SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
-        ]
-        for key_path in vc_keys:
-            try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
-                winreg.CloseKey(key)
-                return True
-            except FileNotFoundError:
-                continue
-        return False
-    except Exception:
-        return True
-
-if sys.platform == 'win32' and not check_vcredist():
-    print("\nERROR: Microsoft Visual C++ Redistributable is required")
-    print("\nThis application requires VC++ Redistributable to run on Windows.")
-    print("\nPlease download and install from:")
-    print("https://aka.ms/vs/17/release/vc_redist.x64.exe")
-    print("\nAfter installation, restart this application.\n")
-    input("Press Enter to exit...")
-    sys.exit(1)
-
 import torch
 
 import cv2

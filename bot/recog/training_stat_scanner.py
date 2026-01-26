@@ -1,24 +1,44 @@
 import cv2
 import numpy as np
 import os
+import sys
 import bot.base.log as logger
 
 log = logger.get_logger(__name__)
 
 MODEL_PATH = "resource/umamusume/digit_model.pth"
 _classifier = None
+_load_failed = False
 
 def get_classifier():
-    global _classifier
+    global _classifier, _load_failed
+    if _load_failed:
+        return None
     if _classifier is None:
         log.info(f"Loading CNN classifier from {MODEL_PATH}")
         try:
             from bot.recog.digit_cnn import DigitClassifier
             _classifier = DigitClassifier(MODEL_PATH)
             log.info("CNN classifier loaded successfully")
+        except OSError as e:
+            err_str = str(e)
+            if "127" in err_str or "shm.dll" in err_str or "DLL" in err_str:
+                _load_failed = True
+                log.error(f"Failed to load CNN classifier: {e}")
+                print("\nERROR: Microsoft Visual C++ Redistributable is required")
+                print("\nThe CNN classifier failed to load due to missing VC++ runtime.")
+                print("\nPlease download and install from:")
+                print("https://aka.ms/vs/17/release/vc_redist.x64.exe")
+                print("\nAfter installation, restart this application.\n")
+                input("Press Enter to exit...")
+                sys.exit(1)
+            log.error(f"Failed to load CNN classifier: {e}")
+            _load_failed = True
+            return None
         except Exception as e:
             log.error(f"Failed to load CNN classifier: {e}")
-            raise
+            _load_failed = True
+            return None
     return _classifier
 
 STAT_AREAS_AOHARUHAI = {
