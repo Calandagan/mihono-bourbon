@@ -1,330 +1,318 @@
-usually on /uma/ during 9-11am+pm UTC.   
+# Sweepy — /vg/'s Uma Musume Bot (UAT REHASHED)
 
+### A umamusume bot that handles all aspects of gameplay including training, races, events, skill purchasing, and starting runs. 
 
-## If you do not see "Stats" in scoring go install/reinstall vcc+ redistributable and update requirements.txt
-<img width="1080" height="171" alt="image" src="https://github.com/user-attachments/assets/1f68af35-cf9d-41ce-9392-c26ecf83cc70" />.    
-   https://aka.ms/vs/17/release/vc_redist.x64.exe
-
-your presets are void again. energy change (+/-) has a big impact on scoring now so things like basescore and witfallback all needs to be changed now
-
-![uma musume](docs/umabike.gif)
-
-## Credits
-- **Original Orginal Repository**: [UmamusumeAutoTrainer](https://github.com/shiokaze/UmamusumeAutoTrainer) by [Shiokaze](https://github.com/shiokaze)
-
-- **This project is a detached fork of**: [UmamusumeAutoTrainer-Global](https://github.com/BrayAlter/UAT-Global-Server) by [BrayAlter](https://github.com/BrayAlter) who first ported the orginal to the global server
-
-![UAT](docs/main.png)
+![Uma Musume Auto Trainer](docs/main.png)
 
 ---
 
-# [GPU acceleration guide (click me later)](#gpu-setup)   
+## Table of Contents
 
-### Things this can do
-- ✅ **Completely hands off**: Recover tp, Starting runs, finding the right guest cards.
-  - **Everything is 100% automated you can just afk for **DAYS** until legacy umas are full**
-  - **Handles everything from disconnections to the game crashing. The show will go on as long as there isn't a new update. (it handles that too now lol)**
-  - **Supports background play as this runs on mobile emulators not the steam release. (You can play another game while this runs)**
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Emulator Setup](#emulator-setup)
+- [Configuration](#configuration)
+- [Stat Caps Guide](#stat-caps-guide)
+- [GPU Acceleration](#gpu-acceleration)
+- [Troubleshooting](#troubleshooting)
+- [Changelog](#changelog)
+- [Credits](#credits)
 
-- ✅ **Able to play every part of every Senario (As of writing this; URA and Unity)**
-  - Is able to perform every action a human would take. From comparing skill hint levels to playing the claw machine and even deciding whether to conserve energy before summer or not. Everything you normally do this bot probably does it.
+---
 
-- ✅ **Supports every single uma and deckType**:
- -Every Aspect of training is customizable, If you're willing to spend time in the settings any playstyle becomes possible. For a quick overview please watch the video below as to what you can edit.      
-  
-(Video is outdated look at changelog or use the github search feature too check if something u want is there)
+## Features
 
-[demo.webm](https://github.com/user-attachments/assets/40a5c402-d154-4b02-8a61-96ba07e29319)
+### Fully Automated Training
+- Completely hands-off operation for days of continuous training
+- Automatic TP recovery and run initialization
+- Handles disconnections, crashes, and game updates automatically
+- Background play support via mobile emulators
+- Able to generate over a dozen 3* parents a week if left to run
+
+### Scenario Support
+- URA Finals scenario
+- Unity Cup (Aoharu)
 
 
-### Emulator Setup
+### Comprehensive Customization
+- Literally everything that can be detected is detected and used for customization.
+- Skill hint levels, Energy Changes, Stat gains.
+- Hundreds of settings for you to tune the bot to your liking.
 
-# DO NOT LOWER YOUR FPS BELOW 30
 
-- **Only tested on bluestacks pie64 (no longer testing on bluestacks its too unreliable) and MuMuPlayer (what I use personally)**
-- **Resolution**: 720 × 1280 (Portrait mode)
-- **DPI**: 180
-- **Graphics**: Standard (not Simple)
-- **ADB**: Must be enabled in emulator settings
+---
 
-## 📦 Installation & Setup
-Just cd into any folder and run 
+## Requirements
+
+- Python 3.10
+- Visual C++ Redistributable ([Download](https://aka.ms/vs/17/release/vc_redist.x64.exe))
+- Android emulator (BlueStacks Pie64 or MuMu Player recommended)
+
+---
+
+## Installation
+
+### Step 1: Clone the Repository
 
 ```bash
 git clone https://github.com/SweepTosher/umamusume-sweepy
+cd umamusume-sweepy
 ```
 
-Then ensure python 3.10 is installed:
+### Step 2: Install Python 3.10
 
 ```bash
-uninstall whatever python version you have
-
 winget install -e --id Python.Python.3.10
+```
 
+### Step 3: Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-After that you can just:
+### Step 4: Run the Bot
 
 ```bash
 python main.py
 ```
-Or just run start.bat
+
+Alternatively, run `start.bat` to launch the bot.
 
 ---
 
-if u can follow then heres a tutorial someone made (I didn't actually watch it lol): https://youtu.be/v1m9Plw7M3Y  
+## Emulator Setup
 
-## ⚠️ Important Notes
+### Display Settings
+- **Resolution**: 720 x 1280 (Portrait mode)
+- **DPI**: 180
+- **FPS**: 30 or higher (do not set below 30)
 
-As single run mode is deprecated if you wish to emulated it you can enable "Manual skill purchase at the end" to achieve the same thing 
+### Graphics Settings
+- **Rendering**: Standard (not Simple/Basic)
+- **ADB**: Must be enabled in emulator settings
 
-### Game Settings
+### Supported Emulators
+- MuMu Player (recommended)
+- BlueStacks Pie64
 
-1. **Graphics**: Must be set to `Standard`, not `Basic`
-2. **Training Setup**: **Manually select** Uma Musume, Legacy, and Support Cards in-game before starting
-3. **Support Cards**: Avoid friend cards (no specific outing strategy)
+---
 
-## 🔧 Troubleshooting
-- **Stuck in menu**: disable keep alive in background in emulator settings
+## Configuration
 
-#### Connection Problems
+1. Set graphics to `Standard` in-game (not `Basic`)
+2. Manually select your Uma Musume, Legacy Uma, and Support Cards before starting
+3. Avoid using friend cards (no specific outing strategy implemented)
 
-- **ADB connection fails**: Close accelerators, kill adb.exe, restart emulator
+---
 
-### STAT CAPS (People keep messing this up)
-- Under normal circumstances you want to just put a large number into all of them like so this way it will always pick the best training option
-  ![alt text](docs/statCaps.png)
-- HOWEVER if you keep maxxing out a stat too early for example 1000+ speed before the 2nd summer you would want to do this
-  ![alt text](docs/capSpeed.png)
-- Stat caps work like this
- - Soft cap  
-  When at 70,80,90% to stat goal -10 20 and 30% to score respectively  
- - Hard cap  
-  95% or higher will now have 0 score (IF YOU SEE THIS THERE IS A ISSUE WITH YOUR DECK AND THE BOT WILL PERFORM POORLY)
- - IT IS ENCOURAGED THAT YOU RE-EVALUATE YOUR DECK INSTEAD. THIS WAY THE BOT CAN CLICK THE BEST OPTION 100% OF THE TIME INSTEAD OF ARTIFICIALLY LIMITING AND CLICKING A WORSE OPTION 
+## Stat Caps Guide
 
+Stat caps control how the bot prioritizes training based on current stat values.
 
-![uma](docs/flower.gif)  
+### Default Configuration
+For normal operation, set large values for all stat caps to always select the optimal training:
 
+![Default Stat Caps](docs/statCaps.png)
 
-## Changelogs 
-- **26/1/2025**
-clicking on gear icon will now stop the task and copy the task info into a new task creation popup     
+### Custom Caps for Specific Builds
+If a stat maxes out too early (e.g., 1000+ speed before second summer), adjust caps accordingly:
 
-- **25/1/2025**
-made even less detectable     
-now relies on stat gains to make decision instead of guessing based on number of rainbows
-fixed clicking the team rank button on accident
+![Speed Cap Example](docs/capSpeed.png)
 
-- **16/1/2025**
-scroll faster    
-trainer test event    
+### How Stat Caps Work
+- **Soft Cap**: At 70%, 80%, 90% of target, applies -10%, -20%, -30% score penalty respectively
+- **Hard Cap**: At 95% or higher, score becomes 0 (indicates deck optimization needed)
 
-- **11/1/2025**
-Go to races instead of wit training when low training score and energy is near full    
-Base scores for training facilities    
+Adjusting your deck composition is recommended over relying on artificial stat caps.
 
+---
 
-- **27/12/2025**  
-Event list updated.    
-Cache to improve speed.    
-More auto recovery.     
-twinturbo.png        
+## GPU Acceleration
 
-- **25/12/2025**  
-Showtime mode ui stuck fix.      
-Always find and click next.png as a last resort     
-made gpu public (due to increase in speed getting stuck due to slow load times are now more common) hence       
-made decision making restart if ocr/template match isnt used for 10 seconds    
+Optional NVIDIA GPU acceleration for improved performance.
 
-- **23/12/2025**  
-fixed date phrasing fail causing a loop.
-go update requirements.txt thx     
+### Prerequisites
+1. NVIDIA GPU with current drivers
+2. CUDA Toolkit 11.8 ([Download](https://developer.nvidia.com/cuda-11-8-0-download-archive))
+3. cuDNN v8.6.0 for CUDA 11.x ([Download](https://developer.nvidia.com/rdp/cudnn-archive))
 
-- **21/12/2025**  
-Logging in from your phone/another device now causes the current task to pause.     
-Forced brightness check again everytime infirmary is pressed.
+### Installation Steps
 
-- **19/12/2025**  
-Exposed event weight to webui for user to configure.     
-<img width="904" height="705" alt="{63DC8091-9B58-4229-B56C-5C8B3A74CA56}" src="https://github.com/user-attachments/assets/69f749bc-e8bb-4edf-b707-52538e64cb6b" />   
-
-
-- **16/12/2025**  
-Event list updated.   
-
-- **14/12/2025**  
-Having 2+ rainbow now applies a 7.5% multiplier for every additional rainbow above 1.    
-Fixed spirit explosions and special training not respecting user inputs.   
-
-- **13/12/2025**  
-Minimum score before conserving energy before summer and minimum score before forcing wit training are now customizable.   
-
-- **12/12/2025**  
-Fixed recreation breaking training (forcing wit) when pal outing is configured with no pal notification. (OH I DIDNT FUCKING PUSH)  
-
-- **11/12/2025**  
-bug fixes I'm not gonna bother listing.   
-
-- **9/12/2025**  
-Fixed outing not having priority over rest  
-
-- **9/12/2025**  
-Pal Cards are good to go  
-Fixed yesterday's infinite loop fuck up
-Custom scoring for Finale dates   
-Made pal outing override rest if all conditions are met and max energy threshold < 90.  
-Added option to override insufficient fans forced races  
-Blacklisted event name '' to prevent misclicks and slightly speed things up  
-
-- **8/12/2025**  
-Updated event list  
-Added custom card names  
-<img width="1210" height="376" alt="image" src="https://github.com/user-attachments/assets/f97186c2-6dc0-4c9c-a583-0b134d1dfa69" />
-
-Added custom thresholds to go outing for pal event chains (DO NOT USE PAL CARDS YET FEEL FREE TO HELP TEST AND DEBUG BUT PAL CARDS STILL SUCK IM NOT DONE WITH THEIR TRAINING FACILITY SCORING)  
-<img width="1036" height="363" alt="{E79E2232-EFF0-4976-8FD8-1278503DFFBB}" src="https://github.com/user-attachments/assets/f0901600-3fb4-49d4-87a5-00ab36efda0e" />
-
-- **5/12/2025**   
-Added a overwrite for event "Training" to click the 5th choice if 5 choices are detected (apparently people are still getting stuck there somehow)
-Training tweaks. Energy management should be more effecient now  
-
-- **30/11/2025**   
-added -10% score penalty to the highest stat in senior year to hopefully balance stats out (experimental might remove).  
-
-- **29/11/2025**   
-Fixed getting stuck at aoharu tutorial event sometimes  
-Updated event list    
-Added Select/Deselect all skills blacklist/priority based on whats being searched  
-Dropped repetitive clicks recovery reset threshold from 5 to 2   
-
-- **28/11/2025**  
-Maybe fixed bot getting stuck sometimes after ending a career.    
-Maybe fixed bot restarting and wasting time sometimes when detecting a event.  
-Skill hint level detection; Will now purchase the highest skill hint level of each priority before moving on to the next priority.  
-
-- **22/11/2025**  
-Added drag and drop of skills between priorities and blacklist (Drag them outside into nothing to deselect completely)  
-
-- **16/11/2025**  
-Attempted to fix some crashes   
-patched up team trials execution mode  
-
-- **15/11/2025**  
-updated some support card names  
-aoharu (unity cup) team name selection works now
-
-- **14/11/2025**  
-updated skill list  
-Fixed getting stuck in support card selection
-Stat cap score calc hard cap
-default target attributes changed  
-
-- **12/11/2025**   
-"Use last selected parents" Option added in webui.  
-support for team trials quick mode
-
-- **10/11/2025 (Game Updated)**  
-Fixed bot breaking
-- **10/11/2025**   (forgot to push lol)  
-Enemy team selection for races 1 2 3 4 (aoharu)  
-Fixed "Auto select team" taking forever (aoharu)  
-- **10/10/2025**   
-Bare minimum aoharu implementation. (60%)
-  - able to reach the end assuming you already beat team zenith
-  - customizable special training parameters
-  - customizable spirit explosion parameters
-  - ignore wit spirit explosions when energy high bonus score to wit spirit explosion if energy low
-
-  Customizable and more intuitive "Stuck" handling 
-- **26/10/2025**   
-Made it easier to customize event choices
-- **25/10/2025**   
-Maybe fixed buying skills  
-Prep for aoharu hai
-- **20/10/2025**   
-Stuck clicking something failsafe part 2
-- **19/10/2025**   
-waste time (UI changes)  
-Fuzzy matching for buying skills (still sucks but should be a little better)
-- **18/10/2025**   
-Customizable energy limit.  
-Option to adjust score based on training failure rate
-- **29/9/2025**   
-Soft reset after every task. Should help with memory issues.  
-- **28/9/2025**   
-Team trials execution mode. not tested and held together by hopes and dreams so its probably gonna break half the time.  
-Maybe fix card selection breaking
-
-## Planned/In progress (In order from top to bottom)
-- starting work on full auto mode gonna have no other updates for a while   
-- im going to uma my musumes 
-
-
-## GPU Setup
-
-This bot can optionally use an NVIDIA GPU to accelerate certain operations. Follow these steps:
-
-1. Install drivers for your NVIDIA GPU.
-2. Install **CUDA Toolkit 11.8**: [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-11-8-0-download-archive)
-3. Install **cuDNN v8.6.0 (October 3rd, 2022) for CUDA 11.x**
-
-   * Download the ZIP folder from [NVIDIA cuDNN](https://developer.nvidia.com/rdp/cudnn-archive)
-4. Extract the ZIP and move its contents to the respective CUDA folders for example:
-
+1. Extract cuDNN and copy contents to CUDA installation folders:
    ```
-   cudnn-windows-x86_64-8.6.0.163_cuda11-archive\cudnn-windows-x86_64-8.6.0.163_cuda11-archive\bin
-   → C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
+   cudnn-windows-x86_64-8.6.0.163_cuda11-archive\bin
+   -> C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
    ```
+   Repeat for all cuDNN folders (bin, include, lib).
 
-   You are to do this for all the folders
-   
-5. Add the following three folders to your system **PATH**:
+2. Add to system PATH:
+   - `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin`
+   - `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\libnvvp`
+   - `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8`
 
-   * `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin`
-   * `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\libnvvp`
-   * `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8`
-6. Copy this file:
-
+3. Copy and rename zlib:
    ```
    C:\Program Files\NVIDIA Corporation\Nsight Systems 2022.4.2\host-windows-x64\zlib.dll
+   -> C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin\zlibwapi.dll
    ```
 
-   and paste it into:
-
+4. Install GPU version of PaddlePaddle:
+   ```bash
+   pip uninstall paddlepaddle
+   pip install paddlepaddle-gpu==2.6.2 -i https://pypi.tuna.tsinghua.edu.cn/simple
    ```
-   C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
+
+5. Update `requirements.txt` line 71:
+   ```
+   paddlepaddle-gpu==2.6.2
    ```
 
-   Rename it to `zlibwapi.dll`.
+6. Reboot system.
 
-7. Uninstall CPU version of PaddlePaddle:
-```bash
-pip uninstall paddlepaddle
-```
+---
 
-8. Install GPU version of PaddlePaddle:
-```bash
-pip install paddlepaddle-gpu==2.6.2 -i https://pypi.tuna.tsinghua.edu.cn/simple
-```
+## Troubleshooting
 
-9. Update `requirements.txt` to prevent reinstalling CPU version:
-```bash
-Open requirements.txt and change line 71 from:
-paddlepaddle==2.6.2
+### Bot Stuck in Menu
+Disable "Keep alive in background" in emulator settings.
 
-to:
-paddlepaddle-gpu==2.6.2
-```
-Reboot
+### ADB Connection Fails
+Restart your machine
 
-That should be all iirc if not go make a issue
+### Stats Not Showing in Scoring
+Install or reinstall Visual C++ Redistributable:
+- [Download vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
+![Stats Display](https://github.com/user-attachments/assets/1f68af35-cf9d-41ce-9392-c26ecf83cc70)
 
-Keep shilling this shit on /vg/ with the retarded forced meme ur making me look good
+---
 
+## Changelog
 
+### 2025-01-26
+- Gear icon now stops task and copies task info to new task creation popup
+
+### 2025-01-25
+- Improved detection methods using stat gains instead of rainbow count
+- Fixed accidental team rank button clicks
+
+### 2025-01-16
+- Faster scrolling
+- Trainer test event support
+
+### 2025-01-11
+- Race fallback when low training score and high energy
+- Base scores for training facilities
+
+### 2024-12-27
+- Event list updated
+- Cache improvements for speed
+- Additional auto recovery options
+
+### 2024-12-25
+- Showtime mode UI fix
+- Improved fallback click handling
+- GPU acceleration public release
+- Decision making restart after 10 seconds of inactivity
+
+### 2024-12-23
+- Fixed date parsing loop issue
+
+### 2024-12-21
+- Pause task when logged in from another device
+- Brightness check on infirmary press
+
+### 2024-12-19
+- Event weight configuration exposed in web UI
+
+### 2024-12-16
+- Event list updated
+
+### 2024-12-14
+- Rainbow training bonus: 7.5% multiplier per additional rainbow above 1
+- Fixed spirit explosions and special training input handling
+
+### 2024-12-13
+- Customizable summer energy conservation threshold
+- Customizable wit training fallback threshold
+
+### 2024-12-12
+- Fixed recreation breaking training with pal outing configuration
+
+### 2024-12-09
+- Fixed outing priority over rest
+- Pal card support improvements
+- Custom scoring for finale dates
+- Pal outing override for rest conditions
+- Option to override insufficient fans forced races
+
+### 2024-12-08
+- Updated event list
+- Custom card names support
+- Pal event chain outing thresholds
+
+### 2024-12-05
+- Event "Training" 5th choice override
+- Improved energy management
+
+### 2024-11-30
+- Highest stat penalty in senior year (-10%) for stat balancing
+
+### 2024-11-29
+- Fixed Aoharu tutorial event loop
+- Updated event list
+- Skill blacklist select/deselect all
+- Reduced repetitive click threshold
+
+### 2024-11-28
+- Post-career completion fix
+- Event detection optimization
+- Skill hint level detection for prioritized purchasing
+
+### 2024-11-22
+- Drag and drop skill management between priorities and blacklist
+
+### 2024-11-16
+- Crash fixes
+- Team trials execution mode improvements
+
+### 2024-11-15
+- Updated support card names
+- Aoharu team name selection fix
+
+### 2024-11-14
+- Updated skill list
+- Fixed support card selection issues
+- Stat cap hard cap calculation
+- Default target attribute changes
+
+### 2024-11-12
+- "Use last selected parents" option
+- Team trials quick mode support
+
+### 2024-11-10
+- Game update compatibility fix
+- Enemy team selection for Aoharu races
+- Fixed auto team selection performance
+
+### 2024-10-10
+- Aoharu implementation (60%)
+- Customizable special training and spirit explosion parameters
+- Improved stuck handling
+
+---
+
+## Credits
+
+- **Original Repository**: [UmamusumeAutoTrainer](https://github.com/shiokaze/UmamusumeAutoTrainer) by [Shiokaze](https://github.com/shiokaze)
+- **Global Server Port**: [UmamusumeAutoTrainer-Global](https://github.com/BrayAlter/UAT-Global-Server) by [BrayAlter](https://github.com/BrayAlter)
+
+---
+
+![Uma Musume](docs/umabike.gif)
+![Uma Musume](docs/flower.gif)
 <img width="190" height="140" alt="image" src="https://github.com/user-attachments/assets/a376b9e0-832e-45ea-add4-499a9f76a284" />
 <img width="190" height="158" alt="image" src="https://github.com/user-attachments/assets/428a7704-0729-4dc3-890f-246fb0a94774" />
 <img width="190" height="140" alt="image" src="https://github.com/user-attachments/assets/65edac1a-91c0-4559-8393-7432418afa18" />
@@ -338,12 +326,3 @@ Keep shilling this shit on /vg/ with the retarded forced meme ur making me look 
 <img width="190" height="140" alt="image" src="https://github.com/user-attachments/assets/cacd2cf3-b880-4b1e-8818-af33a30bcf38" />
 <img width="190" height="140" alt="image" src="https://github.com/user-attachments/assets/3bdd80ec-cb77-4637-9f61-e3f8fab8d85d" />
 <img width="317" height="317" alt="image" src="https://github.com/user-attachments/assets/61c4c0dd-85bc-4517-84c1-021fcf5d47fa" />
-
-
-
-
-
-
-
-
-
