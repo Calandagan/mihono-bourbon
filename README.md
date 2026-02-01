@@ -5,11 +5,7 @@ usually on /uma/ during 9-11am+pm UTC.
 <img width="1080" height="171" alt="image" src="https://github.com/user-attachments/assets/1f68af35-cf9d-41ce-9392-c26ecf83cc70" />.    
    https://aka.ms/vs/17/release/vc_redist.x64.exe
 
-
-
-## Reinstall your device/emulator if you have used this bot before 22/1/2026
-This is to get rid of residual traces of uiautomator2, likewise if your emulator has ever used anything that captures the screen without ADB direct screen capture it is recommended that you reinstall.     
-(Likely uma wont even check for this but just to be safe)
+your presets are void again. energy change (+/-) has a big impact on scoring now
 
 ![uma musume](docs/umabike.gif)
 
