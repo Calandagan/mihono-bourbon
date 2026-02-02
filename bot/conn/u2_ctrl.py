@@ -2,6 +2,7 @@ import time
 import random
 import subprocess
 import struct
+import socket
 from typing import Optional
 
 import cv2
@@ -90,25 +91,59 @@ class U2AndroidController(AndroidController):
         self.trigger_decision_reset = False
         self.last_recovery_time = 0
         self.screencap_lock = threading.Lock()
-        self.screencap_cmd = [self.path + "adb.exe", "-s", self.config.device_name, "exec-out", "screencap"]
+        
+        self._cached_frame = None
+        self._cache_time = 0.0
+        self._cache_max_age = 0.050
+        
+        transport_cmd = f'host:transport:{self.config.device_name}'
+        self._transport_bytes = f'{len(transport_cmd):04x}{transport_cmd}'.encode()
+        self._exec_bytes = b'000eexec:screencap'
+        
         try:
             from bot.base.runtime_state import load_persisted
             load_persisted()
         except Exception:
             pass
 
+    def _capture_via_socket(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2097152)
+        sock.connect(('127.0.0.1', 5037))
+        sock.sendall(self._transport_bytes)
+        sock.recv(4)
+        sock.sendall(self._exec_bytes)
+        sock.recv(4)
+        chunks = []
+        while True:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        sock.close()
+        return b''.join(chunks)
+
     def screencap(self):
-        raw = subprocess.run(self.screencap_cmd, capture_output=True, timeout=5).stdout
+        now = time.time()
+        if self._cached_frame is not None and (now - self._cache_time) < self._cache_max_age:
+            return self._cached_frame
+        raw = self._capture_via_socket()
+        
         w, h, fmt = struct.unpack('<III', raw[:12])
         pixel_size = w * h * 4
         header_size = 16 if len(raw) >= 16 + pixel_size else 12
-        if self.last_dims != (h, w) or self.pixel_buffer is None:
-            self.pixel_buffer = np.empty((h, w, 4), dtype=np.uint8)
-            self.last_dims = (h, w)
-        np.copyto(self.pixel_buffer, np.frombuffer(raw[header_size:header_size + pixel_size], dtype=np.uint8).reshape((h, w, 4)))
+        img = np.frombuffer(raw[header_size:header_size + pixel_size], dtype=np.uint8).reshape((h, w, 4))
+        
         if fmt == 5:
-            return cv2.cvtColor(self.pixel_buffer, cv2.COLOR_BGRA2BGR)
-        return cv2.cvtColor(self.pixel_buffer, cv2.COLOR_RGBA2BGR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        else:
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+        
+        self._cached_frame = img
+        self._cache_time = time.time()
+        
+        return img
 
     def in_fallback_block(self, name):
         if isinstance(name, str) and name == "Default fallback click":
@@ -253,6 +288,8 @@ class U2AndroidController(AndroidController):
         time.sleep(0.2)
         self._screen_width = None
         self._screen_height = None
+        self._cached_frame = None
+        self._cache_time = 0.0
         self.init_env()
 
     def _get_screen_dimensions(self):
@@ -508,4 +545,4 @@ class U2AndroidController(AndroidController):
         return cpu_info
 
     def destroy(self):
-        pass
+        self._cached_frame = None
