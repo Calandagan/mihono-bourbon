@@ -677,22 +677,19 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
                     return
             
-            if date >= 61 and max_score < 0.46:
-                chosen_idx = 4
-            else:
-                if date in (35, 36, 59, 60):
-                    best_idx_tmp = int(np.argmax(computed_scores))
-                    best_score_tmp = computed_scores[best_idx_tmp]
-                    summer_threshold = getattr(ctx.cultivate_detail, 'summer_score_threshold', 0.34)
-                    if best_score_tmp < summer_threshold:
-                        log.info(f"Low training score before summer, conserving energy (score < {summer_threshold:.2f})")
-                        chosen_idx = 4
-                    else:
-                        ties = [i for i, v in enumerate(computed_scores) if abs(v - max_score) < eps]
-                        chosen_idx = 4 if 4 in ties else (min(ties) if len(ties) > 0 else best_idx_tmp)
+            if date in (35, 36, 59, 60):
+                best_idx_tmp = int(np.argmax(computed_scores))
+                best_score_tmp = computed_scores[best_idx_tmp]
+                summer_threshold = getattr(ctx.cultivate_detail, 'summer_score_threshold', 0.34)
+                if best_score_tmp < summer_threshold:
+                    log.info(f"Low training score before summer, conserving energy (score < {summer_threshold:.2f})")
+                    chosen_idx = 4
                 else:
                     ties = [i for i, v in enumerate(computed_scores) if abs(v - max_score) < eps]
-                    chosen_idx = 4 if 4 in ties else (min(ties) if len(ties) > 0 else int(np.argmax(computed_scores)))
+                    chosen_idx = 4 if 4 in ties else (min(ties) if len(ties) > 0 else best_idx_tmp)
+            else:
+                ties = [i for i, v in enumerate(computed_scores) if abs(v - max_score) < eps]
+                chosen_idx = 4 if 4 in ties else (min(ties) if len(ties) > 0 else int(np.argmax(computed_scores)))
         local_training_type = TrainingType(chosen_idx + 1)
 
     from module.umamusume.script.cultivate_task.ai import get_operation
