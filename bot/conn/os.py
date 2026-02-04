@@ -1,7 +1,6 @@
 import subprocess
 from subprocess import Popen
 from typing import Any
-from plyer import notification
 import bot.base.log as logger
 
 log = logger.get_logger(__name__)

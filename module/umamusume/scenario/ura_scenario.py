@@ -8,7 +8,7 @@ from module.umamusume.asset import *
 from module.umamusume.define import ScenarioType, SupportCardFavorLevel, SupportCardType
 from module.umamusume.types import SupportCardInfo
 from bot.recog.image_matcher import image_match, compare_color_equal
-from bot.recog.ocr import ocr_line, find_similar_text, ocr_digits
+from bot.recog.ocr import ocr_line, find_similar_text
 from bot.recog.training_stat_scanner import parse_training_result_template, scan_facility_stats
 
 import bot.base.log as logger

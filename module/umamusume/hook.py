@@ -14,25 +14,6 @@ import bot.base.log as logger
 
 log = logger.get_logger(__name__)
 
-DOUBLE_TOGGLE = {}
-DOUBLE_LAST = {}
-
-def double_click(ctx: UmamusumeContext, first: tuple[int, int, str], second: tuple[int, int, str], key: str = "default"):
-    try:
-        last = DOUBLE_LAST.get(key, 0)
-        if time.time() - last < 0.8:
-            return
-        use_second = DOUBLE_TOGGLE.get(key, False)
-        x, y, desc = (second if use_second else first)
-        ctx.ctrl.click(x, y, desc)
-        DOUBLE_TOGGLE[key] = not use_second
-        DOUBLE_LAST[key] = time.time()
-    except Exception:
-        try:
-            DOUBLE_TOGGLE[key] = not DOUBLE_TOGGLE.get(key, False)
-        except Exception:
-            pass
-
 def tt_next_sequence(ctx: UmamusumeContext):
     try:
         img_gray = ctx.ctrl.get_screen(to_gray=True)

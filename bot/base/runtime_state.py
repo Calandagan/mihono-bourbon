@@ -34,19 +34,6 @@ def set_thresholds(repetitive_threshold: Optional[int] = None,
         _state["last_update_ts"] = time.time()
 
 
-def set_counts(repetitive_count: Optional[int] = None,
-               repetitive_other_clicks: Optional[int] = None,
-               watchdog_unchanged: Optional[int] = None) -> None:
-    with _lock:
-        if isinstance(repetitive_count, int) and repetitive_count >= 0:
-            _state["repetitive_count"] = repetitive_count
-        if isinstance(repetitive_other_clicks, int) and repetitive_other_clicks >= 0:
-            _state["repetitive_other_clicks"] = repetitive_other_clicks
-        if isinstance(watchdog_unchanged, int) and watchdog_unchanged >= 0:
-            _state["watchdog_unchanged"] = watchdog_unchanged
-        _state["last_update_ts"] = time.time()
-
-
 def update_repetitive(repetitive_count: int, repetitive_other_clicks: int) -> None:
     with _lock:
         _state["repetitive_count"] = int(max(0, repetitive_count))

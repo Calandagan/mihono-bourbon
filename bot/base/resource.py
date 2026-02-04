@@ -45,14 +45,4 @@ class UI:
         self.check_non_exist_template_list = check_non_exist_template_list
 
 
-def purge_all_templates():
-    try:
-        for tpl in list(TEMPLATE_INSTANCES):
-            try:
-                tpl.template_img = None
-            except Exception:
-                pass
-    except Exception:
-        pass
-
 NOT_FOUND_UI = UI("NOT_FOUND_UI", [], [])

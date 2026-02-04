@@ -5,7 +5,7 @@ import re
 from typing import Dict, Any
 import subprocess
 
-from fastapi import FastAPI, Path
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from bot.base.log import task_log_handler

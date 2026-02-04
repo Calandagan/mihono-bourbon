@@ -211,27 +211,6 @@ def scan_facility_stats(img, facility_type, scenario="aoharuhai"):
         results[stat] = value
     return results
 
-def log_facility_stats(facility_type, results):
-    if not results:
-        return
-    log.info(f"{facility_type} facility:")
-    for stat, value in results.items():
-        log.info(f"  {stat}: {value}")
-
-def scan_all_stats(img, scenario="aoharuhai"):
-    if scenario == "ura":
-        areas = STAT_AREAS_URA
-    else:
-        areas = STAT_AREAS_AOHARUHAI
-    results = {}
-    for stat_name in areas.keys():
-        value = scan_stat_gain(img, stat_name, scenario)
-        results[stat_name] = value
-    log.info("All stat gains:")
-    for stat, value in results.items():
-        log.info(f"  {stat}: {value}")
-    return results
-
 def parse_training_result_template(img, scenario="aoharuhai"):
     speed = scan_stat_gain(img, "speed", scenario)
     stamina = scan_stat_gain(img, "stamina", scenario)

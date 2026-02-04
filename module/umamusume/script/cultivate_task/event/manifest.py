@@ -1,7 +1,6 @@
 from typing import Union
 import requests
 import re
-from urllib.parse import quote
 import time
 import json
 import os
@@ -9,13 +8,6 @@ from collections import Counter
 import unicodedata
 
 from bot.conn.fetch import *
-
-# For HTML parsing
-try:
-    from bs4 import BeautifulSoup
-    BEAUTIFULSOUP_AVAILABLE = True
-except ImportError:
-    BEAUTIFULSOUP_AVAILABLE = False
 
 from bot.recog.ocr import find_similar_text
 from module.umamusume.context import UmamusumeContext
@@ -35,8 +27,6 @@ event_map: dict[str, Union[callable, int]] = {
     "新手教程": 2,
     "团队成员终于集结完毕!": aoharuhai_team_name_event,
     "A Team at Last": aoharuhai_team_name_event,
-            
-    # Note: Global Server events will be handled by auto_research_event_choice()
 }
 
 event_name_list: list[str] = [*event_map]
@@ -341,130 +331,6 @@ def calculate_optimal_choice_from_db(ctx: UmamusumeContext, event_data: dict) ->
         return first_choice
 
     return 1
-    
-# Cache for automatic event choices to avoid repeated web requests
-auto_choice_cache = {}
-
-# Method 2: Local event database (faster and more reliable)
-local_event_database = {
-    "Bottomless Pit": {
-        "choices": [
-            {"choice": 1, "effects": [{"stat": "energy", "value": 10}]},
-            {"choice": 2, "effects": [{"stat": "speed", "value": 5}, {"stat": "power", "value": 5}]},
-            {"choice": 3, "effects": [{"stat": "motivation", "value": 15}]}
-        ],
-        "optimal": 2,  # Pre-calculated optimal choice
-        "reasoning": "Choice 2 gives balanced Speed+Power bonus"
-    },
-    "Well-Rested!": {
-        "choices": [
-            {"choice": 1, "effects": [{"stat": "energy", "value": 20}]},
-            {"choice": 2, "effects": [{"stat": "stamina", "value": 10}, {"stat": "energy", "value": 10}]}
-        ],
-        "optimal": 1,
-        "reasoning": "Energy restoration is priority after rest"
-    },
-    "Wonderful ☆ Mistake!": {
-        "choices": [
-            {"choice": 1, "effects": [{"stat": "speed", "value": 10}]},
-            {"choice": 2, "effects": [{"stat": "power", "value": 15}]},
-            {"choice": 3, "effects": [{"stat": "guts", "value": 12}]}
-        ],
-        "optimal": 2,
-        "reasoning": "Power has highest value and weight"
-    },
-    "Can't Lose Sight of Number One!": {
-        "choices": "RESEARCH_NEEDED",  # Will be filled by browser automation
-        "optimal": "TBD",
-        "reasoning": "Competitive/Achievement event - likely stat-focused"
-    },
-    "A Hint for Growth": {
-        "choices": [
-            {"choice": 1, "effects": [{"stat": "energy", "value": 15}]},
-            {"choice": 2, "effects": [{"stat": "speed", "value": 10}, {"stat": "stamina", "value": 5}]},
-            {"choice": 3, "effects": [{"stat": "wit", "value": 20}]}
-        ],
-        "optimal": 3,
-        "reasoning": "Wit training event - choice 3 gives best mental stat growth"
-    }
-}
-
-def auto_research_event_choice(event_name: str) -> int:
-    """Multi-layered automatic event choice research system"""
-    
-    # CRITICAL: Handle empty or invalid event names immediately
-    if not event_name or len(event_name.strip()) < 3:
-        return 2  # Quick fallback for empty/invalid names
-    
-    # Layer 1: Check cache first
-    if event_name in auto_choice_cache:
-        log.info(f"💾 Using cached choice for event '{event_name}': {auto_choice_cache[event_name]}")
-        return auto_choice_cache[event_name]
-    
-    # Layer 2: Check local database (most reliable)
-    if event_name in local_event_database:
-        event_data = local_event_database[event_name]
-        optimal_choice = event_data["optimal"]
-        reasoning = event_data["reasoning"]
-        
-        log.info(f"📚 Using local database for event '{event_name}': Choice {optimal_choice}")
-        log.info(f"💡 Reasoning: {reasoning}")
-        
-        # Cache for future use
-        auto_choice_cache[event_name] = optimal_choice
-        return optimal_choice
-    
-    # Advanced AI-like keyword analysis
-    event_lower = event_name.lower()
-    analysis_score = {}
-    
-    # Training-related events (usually stat-focused)
-    if any(word in event_lower for word in ['training', 'practice', 'workout']):
-        analysis_score[2] = 30  # Middle choice often balanced
-        log.info(f"🏋️ Training event detected - favoring balanced choice")
-        
-    # Rest/Recovery events (usually energy-focused)  
-    elif any(word in event_lower for word in ['rest', 'refresh', 'recover', 'tired']):
-        analysis_score[1] = 35  # First choice usually straightforward
-        log.info(f"😴 Recovery event detected - favoring simple choice")
-        
-    # Mistake/Problem events (usually have trade-offs)
-    elif any(word in event_lower for word in ['mistake', 'problem', 'error', 'wrong']):
-        analysis_score[2] = 25  # Middle ground often safest
-        analysis_score[3] = 20  # Sometimes high-risk high-reward
-        log.info(f"⚠️ Problem event detected - analyzing risk/reward")
-        
-    # Social/Friend events (usually relationship-focused)
-    elif any(word in event_lower for word in ['friend', 'talk', 'chat', 'social']):
-        analysis_score[1] = 20
-        analysis_score[2] = 25  # Often about being helpful
-        log.info(f"👥 Social event detected - favoring helpful choices")
-        
-    # Achievement/Success events (usually reward-focused)
-    elif any(word in event_lower for word in ['win', 'victory', 'success', 'achievement', 'number one', 'first', 'lose sight', 'aiming', 'aim', 'goal', 'target']):
-        analysis_score[1] = 30  # Usually straightforward celebration
-        analysis_score[2] = 35  # Sometimes balanced approach is better
-        log.info(f"🏆 Achievement/Competition event detected - analyzing competitive choices")
-        
-    # Special handling for partial/truncated event names
-    elif len(event_name) < 10 or any(word in event_lower for word in ['for', 'ing']):
-        analysis_score[1] = 20  # Conservative choice for unknown events
-        analysis_score[2] = 30  # Slightly favor balanced approach
-        
-    # Mystery/Unknown events
-    else:
-        analysis_score[1] = 15  # Safe default
-        analysis_score[2] = 25  # Often balanced
-        log.info(f"❓ Unknown event type - using balanced heuristic")
-    
-    # Choose highest scoring option
-    if analysis_score:
-        default_choice = 2  # Ultimate fallback
-    else:
-        default_choice = 2  # Ultimate fallback
-        
-    auto_choice_cache[event_name] = default_choice
-    return default_choice
 
 
 def get_event_choice(ctx: UmamusumeContext, event_name: str) -> int:
@@ -514,20 +380,11 @@ def get_event_choice(ctx: UmamusumeContext, event_name: str) -> int:
     if event_name_normalized in ["aoharuhai_team_name_event"]:
         return event_map[event_name_normalized](ctx)
     
-    # NEW: Try local database first (FAST - no web scraping)
+    # Try local database
     log.info(f"🔍 Checking local database for event '{event_name}'...")
     local_choice = get_local_event_choice(ctx, event_name)
     if local_choice is not None:
         return local_choice
     
-        
-    # If not found in local database, use automatic research (SLOW - web scraping)
-    result = 2
-    
-    # CRITICAL: Always ensure we return a valid integer choice
-    if isinstance(result, int) and result > 0:
-        return result
-    else:
-        log.error(f"❌ CRITICAL: auto_research_event_choice returned invalid result: {result}")
-        log.error(f"❌ Falling back to choice 2 for event '{event_name}'")
-        return 2
+    # Fallback to default choice
+    return 2

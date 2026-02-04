@@ -50,21 +50,10 @@ def is_gpu_available():
         detect_gpu_capabilities()
     return _GPU_AVAILABLE
 
-def get_gpu_device_count():
-    if _GPU_AVAILABLE is None:
-        detect_gpu_capabilities()
-    return _GPU_DEVICE_COUNT
-
 def set_gpu_config(memory_fraction=0.5, device_id=0):
     global _GPU_MEMORY_FRACTION, _GPU_DEVICE_ID
     _GPU_MEMORY_FRACTION = memory_fraction
     _GPU_DEVICE_ID = device_id
-
-def get_gpu_memory_fraction():
-    return _GPU_MEMORY_FRACTION
-
-def get_gpu_device_id():
-    return _GPU_DEVICE_ID
 
 def configure_paddle_gpu():
     if not is_gpu_available():

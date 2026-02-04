@@ -1,6 +1,5 @@
 import cv2
 import importlib, sys, threading
-from functools import lru_cache
 from collections import OrderedDict
 paddleocr = None
 from difflib import SequenceMatcher
@@ -316,41 +315,6 @@ def ocr_line(img, lang="en"):
     if _USE_GPU:
         gpu_utils.clear_gpu_cache()
     return text
-
-
-def ocr_digits(img):
-    reset_timeout()
-    cache_key = _compute_ocr_cache_key(img, "en")
-    if cache_key:
-        digit_key = f"digit:{cache_key}"
-        cached = _ocr_result_cache.get(digit_key)
-        if cached is not None:
-            return cached
-    raw = get_ocr("en").ocr(img, cls=False)
-    items = parse_text_items(raw)
-    if _USE_GPU:
-        gpu_utils.clear_gpu_cache()
-    if not items:
-        result = ""
-    else:
-        best, _ = max(items, key=lambda x: x[1])
-        result = best
-    if cache_key:
-        digit_key = f"digit:{cache_key}"
-        _ocr_result_cache.set(digit_key, result)
-    return result
-
-# find_text_pos 查找目标文字在图片中的位置
-def find_text_pos(ocr_result, target):
-    threshold = 0.6
-    result = None
-    for text_info in ocr_result:
-        if len(text_info) > 0:
-            s = SequenceMatcher(None, target, text_info[0][1][0])
-            if s.ratio() > threshold:
-                result = text_info[0]
-                threshold = s.ratio()
-    return result
 
 
 def find_similar_text(target_text, ref_text_list, threshold=0):

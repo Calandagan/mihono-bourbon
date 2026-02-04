@@ -18,7 +18,7 @@ from module.umamusume.constants.game_constants import (
 from module.umamusume.constants.scoring_constants import (
     DEFAULT_BASE_SCORES, DEFAULT_SCORE_VALUE, DEFAULT_SPIRIT_EXPLOSION,
     DEFAULT_SPECIAL_WEIGHTS, DEFAULT_REST_THRESHOLD,
-    HIGH_ENERGY_THRESHOLD, DEFAULT_STAT_VALUE_MULTIPLIER, DEFAULT_NPC_SCORE_VALUE
+    DEFAULT_STAT_VALUE_MULTIPLIER, DEFAULT_NPC_SCORE_VALUE
 )
 from module.umamusume.constants.timing_constants import (
     TRAINING_CLICK_DELAY, TRAINING_WAIT_DELAY, TRAINING_RETRY_DELAY,

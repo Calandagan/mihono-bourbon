@@ -8,7 +8,6 @@ from collections import Counter, OrderedDict
 import unicodedata
 import json
 import os
-from functools import lru_cache
 
 DIGITS_ONLY = re.compile(r"\D")
 
@@ -79,41 +78,6 @@ def clear_parse_caches():
 
 def normalize_skill_name(skill_name: str) -> str:
     return skill_name.replace(" ", "").lower()
-
-
-def find_similar_skill_name(target_text: str, ref_text_list: list[str], threshold: float = 0.7) -> str:
-    result = ""
-    best_ratio = 0
-    
-    # Normalize target text
-    normalized_target = normalize_skill_name(target_text)
-    
-    for ref_text in ref_text_list:
-        # Try exact match first
-        if target_text == ref_text:
-            return ref_text
-        
-        # Try normalized match
-        normalized_ref = normalize_skill_name(ref_text)
-        if normalized_target == normalized_ref:
-            return ref_text
-        
-        # Try similarity matching
-        s = SequenceMatcher(None, target_text, ref_text)
-        ratio = s.ratio()
-        
-        # Also try normalized similarity
-        s_normalized = SequenceMatcher(None, normalized_target, normalized_ref)
-        ratio_normalized = s_normalized.ratio()
-        
-        # Use the better ratio
-        best_ratio_for_this = max(ratio, ratio_normalized)
-        
-        if best_ratio_for_this > threshold and best_ratio_for_this > best_ratio:
-            result = ref_text
-            best_ratio = best_ratio_for_this
-    
-    return result
 
 
 def normalize_text_for_match(text: str) -> str:
@@ -411,15 +375,6 @@ def parse_debut_race(ctx: UmamusumeContext, img):
         ctx.cultivate_detail.debut_race_win = True
 
 
-def parse_motivation(ctx: UmamusumeContext, img):
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    for i in range(len(MOTIVATION_LIST)):
-        result = image_match(img, MOTIVATION_LIST[i])
-        if result.find_match:
-            ctx.cultivate_detail.turn_info.motivation_level = MotivationLevel(i + 1)
-            return
-
-
 def parse_umamusume_basic_ability_value(ctx: UmamusumeContext, img):
     sub_img_speed = img[855:885, 70:139]
     sub_img_speed = cv2.copyMakeBorder(sub_img_speed, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
@@ -484,16 +439,6 @@ def trans_attribute_value(text: str, ctx: UmamusumeContext,
             return 100
     else:
         return int(text)
-
-
-def parse_umamusume_remain_stamina_value(ctx: UmamusumeContext, img):
-    sub_img_remain_stamina = img[160:161, 229:505]
-    stamina_counter = 0
-    for c in sub_img_remain_stamina[0]:
-        if not compare_color_equal(c, [117, 117, 117], tolerance=20):
-            stamina_counter += 1
-    remain_stamina = int(stamina_counter / 276 * 100)
-    ctx.cultivate_detail.turn_info.remain_stamina = remain_stamina
 
 
 def parse_train_main_menu_operations_availability(ctx: UmamusumeContext, img):

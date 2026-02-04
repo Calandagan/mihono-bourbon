@@ -25,15 +25,6 @@ def is_ura_race(race_id):
     return race_id in URA_RACE_IDS
 
 
-def get_year_from_date(date):
-    if date <= JUNIOR_YEAR_END:
-        return "Junior"
-    elif date <= CLASSIC_YEAR_END:
-        return "Classic"
-    else:
-        return "Senior"
-
-
 def get_date_period_index(date):
     if date <= JUNIOR_YEAR_END:
         return 0

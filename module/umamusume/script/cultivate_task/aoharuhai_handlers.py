@@ -37,10 +37,6 @@ def script_aoharuhai_race_select_oponent(ctx: UmamusumeContext):
     return
 
 
-def script_aoharuhai_race_confirm(ctx: UmamusumeContext):
-    ctx.ctrl.click(520, 920, "Confirm battle")
-
-
 def script_aoharuhai_race_inrace(ctx: UmamusumeContext):
     ctx.ctrl.click(520, 1180, "View battle result")
 

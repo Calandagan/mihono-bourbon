@@ -1,7 +1,4 @@
-import re
 import cv2
-import time
-import numpy as np
 
 from .base_scenario import BaseScenario
 from module.umamusume.asset import *
@@ -9,13 +6,10 @@ from module.umamusume.define import ScenarioType, SupportCardFavorLevel, Support
 from module.umamusume.types import SupportCardInfo
 from bot.recog.image_matcher import image_match, compare_color_equal, multi_template_match
 from module.umamusume.asset.template import *
-from bot.recog.ocr import ocr_line, find_similar_text, ocr_digits
-from bot.recog.training_stat_scanner import parse_training_result_template, scan_facility_stats
+from bot.recog.training_stat_scanner import parse_training_result_template
 
 import bot.base.log as logger
 log = logger.get_logger(__name__)
-
-DIGITS_ONLY = re.compile(r"\D")
 
 CARD_TYPE_MAP = (
     (REF_SUPPORT_CARD_TYPE_SPEED, SupportCardType.SUPPORT_CARD_TYPE_SPEED),
@@ -144,27 +138,3 @@ class AoharuHaiScenario(BaseScenario):
         if unknown_count == len(support_card_list_info_result) and len(support_card_list_info_result) > 0:
             return []
         return support_card_list_info_result
-
-
-
-def aoharu_train_not_full(support_card_icon) -> bool:
-    support_card_icon = cv2.cvtColor(support_card_icon, cv2.COLOR_BGR2RGB)
-    avatar_region_x_start = 5
-    avatar_region_x_end = 45
-    avatar_region_y_start = 70
-    avatar_region_y_end = 110
-
-    avatar_region = support_card_icon[avatar_region_y_start:avatar_region_y_end, avatar_region_x_start:avatar_region_x_end]
-
-    total_pixels = avatar_region.shape[0] * avatar_region.shape[1]
-    if total_pixels == 0:
-        return False
-
-    grey_lower = np.array([100, 100, 100])
-    grey_upper = np.array([150, 150, 150])
-    grey_mask = np.all((avatar_region >= grey_lower) & (avatar_region <= grey_upper), axis=2)
-    grey_pixels = int(np.sum(grey_mask))
-
-    grey_ratio = grey_pixels / total_pixels
-
-    return grey_ratio > 0.05

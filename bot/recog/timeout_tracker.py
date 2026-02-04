@@ -59,6 +59,3 @@ def reset_timeout():
 
 def check_and_reset_timeout():
     return tracker.check_and_reset_timeout()
-
-def stop_tracker():
-    tracker.stop()
