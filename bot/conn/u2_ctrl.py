@@ -398,6 +398,8 @@ class U2AndroidController(AndroidController):
     def get_screen(self, to_gray=False):
         with self.screencap_lock:
             img = self.screencap()
+        if img is None:
+            return None
         if to_gray:
             return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img

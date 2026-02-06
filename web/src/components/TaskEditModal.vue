@@ -173,6 +173,21 @@
               </div>
 
               <div class="row">
+                <div class="col-12">
+                  <div class="form-group">
+                    <label>Share Preset</label>
+                    <div class="input-group input-group-sm">
+                      <input v-model="sharePresetText" type="text" class="form-control" placeholder="Paste preset code here or click Export">
+                      <div class="input-group-append">
+                        <button class="btn btn-sm btn-outline-primary" type="button" @click="exportPreset">Export</button>
+                        <button class="btn btn-sm auto-btn" type="button" @click="importPreset">Import</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row">
                 <div class="col-6">
                   <div class="form-group">
                     <label>Friend Support Card Selection</label>
@@ -1854,6 +1869,7 @@ import characterData from '../assets/uma_character_data.json';
 import raceData from '../assets/uma_race_data.json';
 import skillsData from '../assets/umamusume_final_skills_fixed.json';
 import eventNames, { eventOptionCounts } from 'virtual:events';
+import { encodePreset, decodePreset } from '../util/presetCodec.js';
 
 export default {
   name: "TaskEditModal",
@@ -2078,6 +2094,7 @@ export default {
       availableRarities: ['', 'Unique', 'Rare', 'Normal'],
       showSkillList: false
       , showPresetMenu: false,
+      sharePresetText: '',
 
             draggingSkillName: null,
       dragOrigin: null,
@@ -3893,6 +3910,97 @@ export default {
         if (toastBody) toastBody.textContent = 'Preset deleted successfully';
         this.successToast.toast('show')
       });
+    },
+    exportPreset() {
+      var skill_priority_list = [];
+      var skill_blacklist = this.blacklistedSkills.join(", ");
+      const skillsByPriority = {};
+      this.selectedSkills.forEach(skillName => {
+        const priority = this.skillAssignments[skillName] || 0;
+        if (!skillsByPriority[priority]) skillsByPriority[priority] = [];
+        skillsByPriority[priority].push(skillName);
+      });
+      for (let priority = 0; priority <= Math.max(...this.activePriorities, 0); priority++) {
+        if (skillsByPriority[priority] && skillsByPriority[priority].length > 0) {
+          skill_priority_list.push([skillsByPriority[priority].join(", ")]);
+        } else {
+          skill_priority_list.push([""]);
+        }
+      }
+      let preset = {
+        name: 'Shared Preset',
+        event_overrides: this.buildEventChoices(),
+        compensate_failure: this.compensateFailure,
+        use_last_parents: this.useLastParents,
+        override_insufficient_fans_forced_races: this.overrideInsufficientFansForcedRaces,
+        scenario: this.selectedScenario,
+        race_list: this.extraRace,
+        skill_priority_list: skill_priority_list,
+        skill_blacklist: skill_blacklist,
+        event_weights: {
+          junior: { Friendship: this.eventWeightsJunior.Friendship, Speed: this.eventWeightsJunior.Speed, Stamina: this.eventWeightsJunior.Stamina, Power: this.eventWeightsJunior.Power, Guts: this.eventWeightsJunior.Guts, Wisdom: this.eventWeightsJunior.Wits, 'Skill Hint': this.eventWeightsJunior.Hint, 'Skill Pts': this.eventWeightsJunior['Skill Points'] },
+          classic: { Friendship: this.eventWeightsClassic.Friendship, Speed: this.eventWeightsClassic.Speed, Stamina: this.eventWeightsClassic.Stamina, Power: this.eventWeightsClassic.Power, Guts: this.eventWeightsClassic.Guts, Wisdom: this.eventWeightsClassic.Wits, 'Skill Hint': this.eventWeightsClassic.Hint, 'Skill Pts': this.eventWeightsClassic['Skill Points'] },
+          senior: { Friendship: this.eventWeightsSenior.Friendship, Speed: this.eventWeightsSenior.Speed, Stamina: this.eventWeightsSenior.Stamina, Power: this.eventWeightsSenior.Power, Guts: this.eventWeightsSenior.Guts, Wisdom: this.eventWeightsSenior.Wits, 'Skill Hint': this.eventWeightsSenior.Hint, 'Skill Pts': this.eventWeightsSenior['Skill Points'] }
+        },
+        cureAsapConditions: this.cureAsapConditions,
+        expect_attribute: [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
+        follow_support_card: this.selectedSupportCard,
+        follow_support_card_level: this.supportCardLevel,
+        clock_use_limit: this.clockUseLimit,
+        rest_treshold: this.restTreshold,
+        summer_score_threshold: this.summerScoreThreshold,
+        wit_race_search_threshold: this.witRaceSearchThreshold,
+        learn_skill_threshold: this.learnSkillThreshold,
+        learn_skill_only_user_provided: this.learnSkillOnlyUserProvided,
+        allow_recover_tp: this.recoverTP,
+        manual_purchase_at_end: this.manualPurchase,
+        race_tactic_1: this.selectedRaceTactic1,
+        race_tactic_2: this.selectedRaceTactic2,
+        race_tactic_3: this.selectedRaceTactic3,
+        tactic_actions: this.raceTacticConditions,
+        extraWeight: [this.extraWeight1.map(v => Math.max(-1, Math.min(1, v))), this.extraWeight2.map(v => Math.max(-1, Math.min(1, v))), this.extraWeight3.map(v => Math.max(-1, Math.min(1, v))), this.extraWeightSummer.map(v => Math.max(-1, Math.min(1, v)))],
+        spirit_explosion: [this.spiritExplosionJunior.map(v => Math.max(-1, Math.min(1, v))), this.spiritExplosionClassic.map(v => Math.max(-1, Math.min(1, v))), this.spiritExplosionSenior.map(v => Math.max(-1, Math.min(1, v))), this.spiritExplosionSeniorAfterSummer.map(v => Math.max(-1, Math.min(1, v))), this.spiritExplosionFinale.map(v => Math.max(-1, Math.min(1, v)))],
+        specialTraining: [this.specialJunior, this.specialClassic, this.specialSenior, this.specialSeniorAfterSummer, this.specialFinale],
+        scoreValue: [this.scoreValueJunior, this.scoreValueClassic, this.scoreValueSenior, this.scoreValueSeniorAfterSummer, this.scoreValueFinale],
+        baseScore: [...this.baseScore],
+        statValueMultiplier: [...this.statValueMultiplier],
+        motivation_threshold_year1: this.motivationThresholdYear1,
+        motivation_threshold_year2: this.motivationThresholdYear2,
+        motivation_threshold_year3: this.motivationThresholdYear3,
+        prioritize_recreation: this.prioritizeRecreation,
+        pal_selected: this.palSelected,
+        pal_card_store: JSON.parse(JSON.stringify(this.palCardStore)),
+        pal_friendship_score: [...this.palFriendshipScore],
+        pal_card_multiplier: this.palCardMultiplier,
+        npc_score_value: [[...this.npcScoreJunior], [...this.npcScoreClassic], [...this.npcScoreSenior], [...this.npcScoreSeniorAfterSummer], [...this.npcScoreFinale]],
+        selectedSkills: [...this.selectedSkills],
+        blacklistedSkills: [...this.blacklistedSkills],
+        skillAssignments: { ...this.skillAssignments },
+        activePriorities: [...this.activePriorities]
+      };
+      if (this.selectedScenario === 1) {
+        preset.ura_config = { skillEventWeight: [...this.skillEventWeight], resetSkillEventWeightList: this.resetSkillEventWeightList };
+      } else if (this.selectedScenario === 2) {
+        preset.auharuhai_config = { preliminaryRoundSelections: [...this.preliminaryRoundSelections], aoharuTeamNameSelection: this.aoharuTeamNameSelection };
+      }
+      const encoded = encodePreset(preset);
+      if (encoded) {
+        this.sharePresetText = encoded;
+        const toastBody = document.querySelector('#liveToast .toast-body');
+        if (toastBody) toastBody.textContent = 'Preset exported';
+        this.successToast.toast('show');
+      }
+    },
+    importPreset() {
+      if (!this.sharePresetText) return;
+      const preset = decodePreset(this.sharePresetText);
+      if (!preset) return;
+      this.presetsUse = preset;
+      this.applyPresetRace();
+      this.sharePresetText = '';
+      const toastBody = document.querySelector('#liveToast .toast-body');
+      if (toastBody) toastBody.textContent = 'Preset imported successfully';
+      this.successToast.toast('show');
     },
     onExtraWeightInput(arr, idx) {
       // 限制输入范围 [-1, 1]
