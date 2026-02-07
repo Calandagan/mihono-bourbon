@@ -66,14 +66,14 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
         log.warning("Turn information not initialized")
         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
         return
-    
+
     turn_op = ctx.cultivate_detail.turn_info.turn_operation
     if turn_op and turn_op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
         race_id = turn_op.race_id
-        
+
         if race_id == 0:
             log.info("Suitable race search mode")
-            time.sleep(1)
+            time.sleep(0.4)
             
             img_gray = ctx.ctrl.get_screen(to_gray=True)
             
@@ -84,7 +84,7 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 center_x = suitable_match.center_point[0]
                 center_y = suitable_match.center_point[1]
                 ctx.ctrl.click(center_x, center_y, "Suitable race")
-                time.sleep(1)
+                time.sleep(0.58)
                 ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
                 return
             else:
@@ -120,7 +120,7 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 if race_id in [2381, 2382, 2385, 2386, 2387] or race_id == 0:
                     log.info("Detected URA race operation - clicking race button directly")
                     ctx.ctrl.click(319, 1082, "URA Race Button")
-                    time.sleep(1)
+                    time.sleep(0.4)
                     return
         if ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
             swiped = False
@@ -163,9 +163,9 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                         delattr(ti, 'race_search_started_at')
                     if hasattr(ti, 'race_search_id'):
                         delattr(ti, 'race_search_id')
-                    time.sleep(1)
+                    time.sleep(0.58)
                     ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
-                    time.sleep(1)
+                    time.sleep(0.58)
                     return
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 if not compare_color_equal(img[1006, 701], [211, 209, 219]):
@@ -184,7 +184,7 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
                     return
                 ctx.ctrl.swipe(x1=20, y1=1000, x2=20, y2=850, duration=1000, name="")
-                time.sleep(1)
+                time.sleep(0.58)
                 img = ctx.ctrl.get_screen()
         else:
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)

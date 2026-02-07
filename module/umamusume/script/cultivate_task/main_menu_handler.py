@@ -92,7 +92,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             if need_detection:
                 log.info("Opening recreation menu to detect stage")
                 ctx.ctrl.click_by_point(CULTIVATE_TRIP)
-                time.sleep(0.5)
+                time.sleep(0.2)
                 img = ctx.ctrl.get_screen()
                 
                 calculated_stage = detect_pal_stage(ctx, img)

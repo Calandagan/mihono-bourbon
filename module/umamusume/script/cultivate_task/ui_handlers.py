@@ -54,7 +54,7 @@ def script_scenario_select(ctx: UmamusumeContext):
 
         log.debug(f"Scenario does not match, checking next scenario")
         ctx.ctrl.swipe(x1=400, y1=600, x2=500, y2=600, duration=300, name="swipe right")
-        time.sleep(1)
+        time.sleep(0.7)
 
     log.error(f"Could not find specified scenario")
     ctx.task.end_task(TaskStatus.TASK_STATUS_FAILED, EndTaskReason.SCENARIO_NOT_FOUND)
@@ -86,7 +86,7 @@ def script_support_card_select(ctx: UmamusumeContext):
         import bot.conn.u2_ctrl as u2c
         ctx.ctrl.click_by_point(TO_FOLLOW_SUPPORT_CARD_SELECT)
         u2c.INPUT_BLOCKED = True
-        time.sleep(1.6)
+        time.sleep(1.0)
         u2c.INPUT_BLOCKED = False
         return
     ctx.ctrl.click_by_point(TO_CULTIVATE_PREPARE_NEXT)
