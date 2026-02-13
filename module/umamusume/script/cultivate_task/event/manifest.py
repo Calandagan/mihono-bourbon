@@ -4,7 +4,6 @@ import re
 import time
 import json
 import os
-from collections import Counter
 import unicodedata
 
 from bot.conn.fetch import *
@@ -14,6 +13,8 @@ from module.umamusume.context import UmamusumeContext
 from module.umamusume.script.cultivate_task.event.scenario_event import *
 import bot.base.log as logger
 from bot.server.events_state import update_events_load_info
+
+from rapidfuzz import process, fuzz
 
 log = logger.get_logger(__name__)
 
@@ -73,19 +74,16 @@ def load_events_database():
         return {}
 
 def get_local_event_choice(ctx: UmamusumeContext, event_name: str) -> Union[int, None]:
-    """Get optimal choice from local database - if not found, it's auto-skipped"""
     if not event_name or not event_name.strip():
         return None
+
     events_db = load_events_database()
-    
     if not events_db:
         return None
-    
-    # Try exact match only
+
     if event_name in events_db:
-        log.info(f"✅ Found event '{event_name}' in local database")
         return calculate_optimal_choice_from_db(ctx, events_db[event_name])
-    
+
     def normalizeString(text: str) -> str:
         if not text:
             return ""
@@ -95,107 +93,59 @@ def get_local_event_choice(ctx: UmamusumeContext, event_name: str) -> Union[int,
         t = " ".join(t.split())
         return t
 
-    def positionalRatio(left: str, right: str) -> float:
-        length_left = len(left)
-        if length_left == 0:
-            return 0.0
-        match_count = 0
-        for position in range(length_left):
-            if left[position] == right[position]:
-                match_count += 1
-        return match_count / length_left
-
-    def build_bigrams(text: str) -> Counter:
-        return Counter(text[i:i+2] for i in range(len(text) - 1)) if len(text) >= 2 else Counter()
-
-    def jaccard_counter_ratio(a: Counter, b: Counter) -> float:
-        if not a and not b:
-            return 1.0
-        inter = sum((a & b).values())
-        union = sum((a | b).values())
-        return inter / union if union else 0.0
-
     query = normalizeString(event_name)
-    query_length = len(query)
-    query_bigrams = build_bigrams(query)
-    query_tokens = set(query.split())
+
     norm_map = getattr(get_local_event_choice, "cacheNormalizedKeyMap", None)
     if norm_map and query in norm_map:
         key = norm_map[query]
-        log.info(f"detected='{event_name}' matched='{key}'")
         return calculate_optimal_choice_from_db(ctx, events_db[key])
 
-    index_cache = getattr(get_local_event_choice, "cacheIndex", None)
+    choices = getattr(get_local_event_choice, "cacheChoices", None)
     source_cache = getattr(get_local_event_choice, "cacheSource", None)
-    if index_cache is None or source_cache is not events_db:
-        cache_list = []
-        token_index = {}
+    norm_map = getattr(get_local_event_choice, "cacheNormalizedKeyMap", None)
+
+    if choices is None or source_cache is not events_db or norm_map is None:
         norm_map = {}
+        normalized_choices = []
         for original_key in events_db.keys():
             normalized_key = normalizeString(original_key)
-            tokens = set(normalized_key.split())
-            entry = (original_key, normalized_key, len(normalized_key), build_bigrams(normalized_key), tokens)
-            cache_list.append(entry)
-            norm_map[normalized_key] = original_key
-            idx = len(cache_list) - 1
-            for tok in tokens:
-                if tok:
-                    token_index.setdefault(tok, []).append(idx)
-        setattr(get_local_event_choice, "cacheIndex", cache_list)
+            if normalized_key:
+                norm_map[normalized_key] = original_key
+                normalized_choices.append(normalized_key)
+        setattr(get_local_event_choice, "cacheChoices", normalized_choices)
         setattr(get_local_event_choice, "cacheSource", events_db)
-        setattr(get_local_event_choice, "cacheTokenIndex", token_index)
         setattr(get_local_event_choice, "cacheNormalizedKeyMap", norm_map)
-        index_cache = cache_list
+        choices = normalized_choices
 
-    best_key = None
-    best_score = 0.0
-    best_len_ratio = 0.0
-    token_index = getattr(get_local_event_choice, "cacheTokenIndex", None)
-    candidate_indices = set()
-    for tok in query_tokens:
-        if token_index and tok in token_index:
-            for idx in token_index[tok]:
-                candidate_indices.add(idx)
-    if not candidate_indices:
-        iterable = range(len(index_cache))
-    else:
-        iterable = candidate_indices
-    for idx in iterable:
-        original_key, normalized_key, normalized_length, normalized_bigrams, normalized_tokens = index_cache[idx]
-        if not query or not normalized_key:
-            continue
-        if query in normalized_key or normalized_key in query:
-            best_key = original_key
-            best_score = 1.0
-            best_len_ratio = min(query_length, normalized_length) / max(query_length, normalized_length) if max(query_length, normalized_length) else 1.0
-            break
-        token_inter = len(query_tokens & normalized_tokens)
-        token_union = len(query_tokens | normalized_tokens) or 1
-        token_score = token_inter / token_union
-        bigram_score = jaccard_counter_ratio(query_bigrams, normalized_bigrams)
-        if normalized_length == query_length:
-            positional = positionalRatio(query, normalized_key)
-            score = max(bigram_score, token_score, positional)
-            len_ratio = 1.0
-        else:
-            score = max(bigram_score, token_score)
-            len_ratio = min(query_length, normalized_length) / max(query_length, normalized_length)
-        if score > best_score or (score == best_score and len_ratio > best_len_ratio):
-            best_score = score
-            best_len_ratio = len_ratio
-            best_key = original_key
+    if not query or not choices:
+        return None
 
-    if best_key is not None and ((best_score >= 0.85 and best_len_ratio >= 0.8) or best_score >= 0.95):
-        log.info(f"detected='{event_name}' matched='{best_key}'")
-        return calculate_optimal_choice_from_db(ctx, events_db[best_key])
-    
-    log.info(f"🔄 Event '{event_name}' not in database")
-    return None
+    match = process.extractOne(query, choices, scorer=fuzz.WRatio, score_cutoff=85, processor=None)
+    if not match:
+        return None
+
+    matched_normalized = match[0]
+    score = match[1]
+    if score < 95:
+        a_len = len(query)
+        b_len = len(matched_normalized) if matched_normalized else 0
+        if a_len == 0 or b_len == 0:
+            return None
+        len_ratio = min(a_len, b_len) / max(a_len, b_len)
+        if len_ratio < 0.8:
+            return None
+
+    key = norm_map.get(matched_normalized)
+    if not key:
+        return None
+
+    return calculate_optimal_choice_from_db(ctx, events_db[key])
 
 def warmup_event_index():
     events_db = load_events_database()
     if not events_db:
         return False
+
     def normalizeString(text: str) -> str:
         if not text:
             return ""
@@ -204,24 +154,17 @@ def warmup_event_index():
         t = re.sub(r"[^a-z0-9]+", " ", t)
         t = " ".join(t.split())
         return t
-    def build_bigrams(text: str):
-        return Counter(text[i:i+2] for i in range(len(text) - 1)) if len(text) >= 2 else Counter()
-    cache_list = []
-    token_index = {}
+
     norm_map = {}
+    normalized_choices = []
     for original_key in events_db.keys():
         normalized_key = normalizeString(original_key)
-        tokens = set(normalized_key.split())
-        entry = (original_key, normalized_key, len(normalized_key), build_bigrams(normalized_key), tokens)
-        cache_list.append(entry)
-        norm_map[normalized_key] = original_key
-        idx = len(cache_list) - 1
-        for tok in tokens:
-            if tok:
-                token_index.setdefault(tok, []).append(idx)
-    setattr(get_local_event_choice, "cacheIndex", cache_list)
+        if normalized_key:
+            norm_map[normalized_key] = original_key
+            normalized_choices.append(normalized_key)
+
+    setattr(get_local_event_choice, "cacheChoices", normalized_choices)
     setattr(get_local_event_choice, "cacheSource", events_db)
-    setattr(get_local_event_choice, "cacheTokenIndex", token_index)
     setattr(get_local_event_choice, "cacheNormalizedKeyMap", norm_map)
     return True
 

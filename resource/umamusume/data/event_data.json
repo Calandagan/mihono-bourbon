@@ -35012,6 +35012,561 @@
       }
     }
   },
+  "Nothing Quite like Everyday Life": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 20.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Bubble Wrap Your Bubbly Feelings": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 15.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 20.0
+      }
+    }
+  },
+  "A Lady to Rival the Cherry Blossom": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 20.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 20.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Fashion Trends of Yesteryear": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      }
+    }
+  },
+  "The Disciplinary Committee Chairman's Award": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 5.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 5.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Dosukoi! Study through Sumo!": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 5.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 1.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Overly Delicious Manju": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 10.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 5.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 30.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 5.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 10.0,
+        "Speed": -5.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "I Want to Be Dependable!": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 10.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Learning by Example": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "What Dependability Means": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2",
+      "3": "Choice 3"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 10.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "3": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Arcade Buddies": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 10.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 10.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "Umamusume Enka Contest!": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 0.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 10.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 0.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 0.0,
+        "Guts": 5.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 5.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "After the Tenno Sho (Autumn): A Hand to the Sky": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 4.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 45.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 4.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 45.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "After the Tenno Sho (Autumn): A Thick Wall": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 4.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 45.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 4.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 45.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
+  "After the Tenno Sho (Autumn): All My Heart": {
+    "choices": {
+      "1": "Choice 1",
+      "2": "Choice 2"
+    },
+    "stats": {
+      "1": {
+        "Friendship": 4.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 35.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      },
+      "2": {
+        "Friendship": 4.0,
+        "Guts": 0.0,
+        "HP": 0.0,
+        "Max Energy": 0.0,
+        "Mood": 0.0,
+        "Power": 0.0,
+        "Skill": 0.0,
+        "Skill Hint": 0.0,
+        "Skill Pts": 0.0,
+        "Speed": 35.0,
+        "Stamina": 0.0,
+        "Wisdom": 0.0
+      }
+    }
+  },
   "New Year's Shrine Visit": {
     "choices": {
       "1": "Choice 1",
