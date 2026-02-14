@@ -1,10 +1,11 @@
 import time
 import re
+import random
 import cv2
 
 import bot.base.log as logger
 from bot.recog.ocr import ocr_line
-from bot.recog.image_matcher import image_match, compare_color_equal
+from bot.recog.image_matcher import image_match
 from module.umamusume.context import UmamusumeContext
 from module.umamusume.define import ScenarioType
 from module.umamusume.asset.point import (
@@ -17,6 +18,120 @@ from module.umamusume.script.cultivate_task.const import SKILL_LEARN_PRIORITY_LI
 from module.umamusume.script.cultivate_task.parse import get_skill_list, find_skill, find_support_card
 
 log = logger.get_logger(__name__)
+
+TRACK_TOP = 480
+TRACK_BOT = 1010
+SB_X = 701
+
+
+def is_thumb(r, g, b):
+    return abs(r - 125) <= 5 and abs(g - 120) <= 5 and abs(b - 142) <= 5
+
+
+def is_track(r, g, b):
+    return abs(r - 211) <= 5 and abs(g - 209) <= 5 and abs(b - 219) <= 5
+
+
+def find_thumb(img_rgb):
+    top = bot = None
+    for y in range(TRACK_TOP, TRACK_BOT + 1):
+        r, g, b = int(img_rgb[y, SB_X, 0]), int(img_rgb[y, SB_X, 1]), int(img_rgb[y, SB_X, 2])
+        if is_thumb(r, g, b):
+            if top is None:
+                top = y
+            bot = y
+    return (top, bot) if top is not None else None
+
+
+def at_bottom(img_rgb):
+    thumb = find_thumb(img_rgb)
+    if thumb is None:
+        return True
+    for y in range(thumb[1] + 1, TRACK_BOT + 1):
+        r, g, b = int(img_rgb[y, SB_X, 0]), int(img_rgb[y, SB_X, 1]), int(img_rgb[y, SB_X, 2])
+        if is_track(r, g, b):
+            return False
+    return True
+
+
+def at_top(img_rgb):
+    thumb = find_thumb(img_rgb)
+    if thumb is None:
+        return False
+    return thumb[0] <= TRACK_TOP + 10
+
+
+def sb_drag(ctx, from_y, to_y):
+    sx = 700 + random.randint(-3, 3)
+    ex = random.randint(100, 620)
+    dur = random.randint(166, 211)
+    ctx.ctrl.execute_adb_shell(
+        "shell input swipe " + str(sx) + " " + str(from_y) + " " + str(ex) + " " + str(to_y) + " " + str(dur), True)
+    time.sleep(ctx.ctrl.config.delay * 0.5)
+
+
+def trigger_scrollbar(ctx):
+    ctx.ctrl.execute_adb_shell("shell input swipe 350 800 350 750 100", True)
+    time.sleep(0.15)
+    ctx.ctrl.execute_adb_shell("shell input swipe 350 750 350 800 100", True)
+    time.sleep(0.15)
+
+
+def scroll_to_top(ctx):
+    for _ in range(6):
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if at_top(img_rgb):
+            return
+        thumb = find_thumb(img_rgb)
+        if thumb is None:
+            trigger_scrollbar(ctx)
+            continue
+        sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_TOP)
+
+
+def scroll_to_bottom(ctx):
+    for _ in range(6):
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if at_bottom(img_rgb):
+            return
+        thumb = find_thumb(img_rgb)
+        if thumb is None:
+            trigger_scrollbar(ctx)
+            continue
+        sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_BOT)
+
+
+def full_sweep(ctx):
+    scroll_to_top(ctx)
+    scroll_to_bottom(ctx)
+    scroll_to_top(ctx)
+
+
+def measure_step(ctx):
+    img = ctx.ctrl.get_screen()
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    thumb = find_thumb(img_rgb)
+    if thumb is None:
+        trigger_scrollbar(ctx)
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        thumb = find_thumb(img_rgb)
+    if thumb is None:
+        return 45
+    thumb_height = thumb[1] - thumb[0]
+    return max(10, thumb_height)
+
+
+def scroll_down_step(ctx, img_rgb, step):
+    thumb = find_thumb(img_rgb)
+    if thumb is None:
+        trigger_scrollbar(ctx)
+        return
+    center = (thumb[0] + thumb[1]) // 2
+    target = min(TRACK_BOT, center + step)
+    sb_drag(ctx, center, target)
 
 
 def script_follow_support_card_select(ctx: UmamusumeContext):
@@ -215,6 +330,9 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         pass
 
     skill_list = []
+    full_sweep(ctx)
+    scan_step = measure_step(ctx)
+
     while ctx.task.running():
         if (ctx.task.detail.manual_purchase_at_end and 
             ctx.cultivate_detail.cultivate_finish and 
@@ -230,16 +348,16 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         for i in current_screen_skill_list:
             if i not in skill_list:
                 skill_list.append(i)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if not compare_color_equal(img[1006, 701], [211, 209, 219]):
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if at_bottom(img_rgb):
             break
-        ctx.ctrl.swipe_and_hold(x1=23, y1=1000, x2=23, y2=563, swipe_duration=211, hold_duration=211, name="")
+        scroll_down_step(ctx, img_rgb, scan_step)
         
         if (ctx.task.detail.manual_purchase_at_end and 
             ctx.cultivate_detail.cultivate_finish and 
             hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and 
             ctx.cultivate_detail.manual_purchase_completed):
-            log.info("Manual purchase confirmed after swipe - returning to finish UI")
+            log.info("Manual purchase confirmed after scroll - returning to finish UI")
             ctx.cultivate_detail.learn_skill_done = True
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
             return
@@ -333,7 +451,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         for skill in target_skill_list:
             ctx.task.detail.scenario_config.ura_config.removeSkillFromList(skill)
 
-    ctx.ctrl.swipe_and_hold(x1=23, y1=950, x2=23, y2=972, swipe_duration=211, hold_duration=211, name="")
+    scroll_to_top(ctx)
 
     for skill in target_skill_list_raw:
         for prioritylist in ctx.cultivate_detail.learn_skill_list:
@@ -362,6 +480,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
     log.info(f"Starting skill execution for {len(target_skill_list)} skills: {target_skill_list}")
     
     skills_to_process = target_skill_list.copy()
+    click_step = measure_step(ctx)
     
     purchases_made = False
     while True:
@@ -386,11 +505,11 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
             log.info("All target skills have been processed")
             break
             
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if not compare_color_equal(img[488, 701], [211, 209, 219]):
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if at_bottom(img_rgb):
             log.debug("Reached end of skill list page")
             break
-        ctx.ctrl.swipe_and_hold(x1=23, y1=563, x2=23, y2=1000, swipe_duration=211, hold_duration=211, name="")
+        scroll_down_step(ctx, img_rgb, click_step)
 
     log.debug("Skills to learn: " + str(ctx.cultivate_detail.learn_skill_list))
     log.debug("Skills learned: " + str([skill['skill_name'] for skill in skill_list if not skill['available']]))
