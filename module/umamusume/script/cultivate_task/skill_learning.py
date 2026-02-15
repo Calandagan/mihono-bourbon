@@ -2,6 +2,7 @@ import time
 import re
 import random
 import cv2
+from concurrent.futures import ThreadPoolExecutor
 
 import bot.base.log as logger
 from bot.recog.ocr import ocr_line
@@ -22,6 +23,10 @@ log = logger.get_logger(__name__)
 TRACK_TOP = 480
 TRACK_BOT = 1010
 SB_X = 701
+CONTENT_TOP = 475
+CONTENT_BOT = 950
+CONTENT_X1 = 40
+CONTENT_X2 = 670
 
 
 def is_thumb(r, g, b):
@@ -61,77 +66,84 @@ def at_top(img_rgb):
     return thumb[0] <= TRACK_TOP + 10
 
 
+def content_gray(img):
+    return cv2.cvtColor(img[CONTENT_TOP:CONTENT_BOT, CONTENT_X1:CONTENT_X2], cv2.COLOR_BGR2GRAY)
+
+
+def find_content_shift(before, after):
+    bg = content_gray(before)
+    ag = content_gray(after)
+    ch = bg.shape[0]
+    strip_h = 80
+    best_shift = 0
+    best_conf = 0
+    for strip_y in [ch - strip_h - 10, ch - strip_h - 80, ch // 2]:
+        if strip_y < 0 or strip_y + strip_h > ch:
+            continue
+        strip = bg[strip_y:strip_y + strip_h]
+        result = cv2.matchTemplate(ag, strip, cv2.TM_CCOEFF_NORMED)
+        _, mv, _, ml = cv2.minMaxLoc(result)
+        if mv > best_conf:
+            best_conf = mv
+            if mv > 0.85:
+                best_shift = strip_y - ml[1]
+    return best_shift, best_conf
+
+
+def content_same(before, after):
+    b = content_gray(before)
+    a = content_gray(after)
+    diff = cv2.absdiff(b, a)
+    return cv2.mean(diff)[0] < 3
+
+
 def sb_drag(ctx, from_y, to_y):
-    sx = 700 + random.randint(-3, 3)
-    ex = random.randint(100, 620)
+    sx = SB_X + random.randint(-2, 2)
+    ex = sx
     dur = random.randint(166, 211)
     ctx.ctrl.execute_adb_shell(
         "shell input swipe " + str(sx) + " " + str(from_y) + " " + str(ex) + " " + str(to_y) + " " + str(dur), True)
-    time.sleep(ctx.ctrl.config.delay * 0.5)
+    time.sleep(0.15)
 
 
 def trigger_scrollbar(ctx):
-    ctx.ctrl.execute_adb_shell("shell input swipe 350 800 350 750 100", True)
-    time.sleep(0.15)
-    ctx.ctrl.execute_adb_shell("shell input swipe 350 750 350 800 100", True)
-    time.sleep(0.15)
+    ctx.ctrl.execute_adb_shell("shell input swipe 350 800 350 799 400", True)
+    time.sleep(0.2)
 
 
 def scroll_to_top(ctx):
-    for _ in range(6):
+    for _ in range(15):
+        trigger_scrollbar(ctx)
         img = ctx.ctrl.get_screen()
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if at_top(img_rgb):
             return
         thumb = find_thumb(img_rgb)
         if thumb is None:
-            trigger_scrollbar(ctx)
             continue
         sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_TOP)
 
 
 def scroll_to_bottom(ctx):
-    for _ in range(6):
+    for _ in range(15):
+        trigger_scrollbar(ctx)
         img = ctx.ctrl.get_screen()
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if at_bottom(img_rgb):
             return
         thumb = find_thumb(img_rgb)
         if thumb is None:
-            trigger_scrollbar(ctx)
             continue
         sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_BOT)
 
 
-def full_sweep(ctx):
-    scroll_to_top(ctx)
-    scroll_to_bottom(ctx)
-    scroll_to_top(ctx)
-
-
-def measure_step(ctx):
-    img = ctx.ctrl.get_screen()
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    thumb = find_thumb(img_rgb)
-    if thumb is None:
-        trigger_scrollbar(ctx)
-        img = ctx.ctrl.get_screen()
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        thumb = find_thumb(img_rgb)
-    if thumb is None:
-        return 45
-    thumb_height = thumb[1] - thumb[0]
-    return max(10, thumb_height)
-
-
-def scroll_down_step(ctx, img_rgb, step):
-    thumb = find_thumb(img_rgb)
-    if thumb is None:
-        trigger_scrollbar(ctx)
-        return
-    center = (thumb[0] + thumb[1]) // 2
-    target = min(TRACK_BOT, center + step)
-    sb_drag(ctx, center, target)
+def scroll_down_step(ctx):
+    sx = 360 + random.randint(-8, 8)
+    ctx.ctrl.execute_adb_shell(
+        "shell input swipe " + str(sx) + " 850 " + str(sx) + " 500 200", True)
+    ctx.ctrl.execute_adb_shell(
+        "shell input swipe " + str(sx) + " 500 " + str(sx) + " 525 80", True)
+    time.sleep(0.25)
 
 
 def script_follow_support_card_select(ctx: UmamusumeContext):
@@ -330,37 +342,134 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         pass
 
     skill_list = []
-    full_sweep(ctx)
-    scan_step = measure_step(ctx)
+    scan_skill_positions = {}
+    saved_thumb_h = 36
+    drag_ratio = 1.1
 
-    while ctx.task.running():
-        if (ctx.task.detail.manual_purchase_at_end and 
-            ctx.cultivate_detail.cultivate_finish and 
-            hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and 
-            ctx.cultivate_detail.manual_purchase_completed):
-            log.info("Manual purchase confirmed during skill scanning - returning to finish UI")
+    scroll_to_top(ctx)
+    trigger_scrollbar(ctx)
+    img = ctx.ctrl.get_screen()
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    thumb = find_thumb(img_rgb)
+
+    if thumb is not None:
+        thumb_h = thumb[1] - thumb[0]
+        saved_thumb_h = thumb_h
+        thumb_center = (thumb[0] + thumb[1]) // 2
+        if thumb[0] > TRACK_TOP:
+            sb_drag(ctx, thumb_center, TRACK_TOP)
+            trigger_scrollbar(ctx)
+            img = ctx.ctrl.get_screen()
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            thumb = find_thumb(img_rgb)
+            thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2
+
+        before_cal = img
+        sb_drag(ctx, thumb_center, thumb_center + 5)
+        after_cal = ctx.ctrl.get_screen()
+        shift_cal, conf_cal = find_content_shift(before_cal, after_cal)
+        ratio = shift_cal / 5 if (shift_cal > 0 and conf_cal > 0.85) else 14.0
+
+        trigger_scrollbar(ctx)
+        img_dr = ctx.ctrl.get_screen()
+        img_dr_rgb = cv2.cvtColor(img_dr, cv2.COLOR_BGR2RGB)
+        thumb_cal = find_thumb(img_dr_rgb)
+        if thumb_cal:
+            cal_from = (thumb_cal[0] + thumb_cal[1]) // 2
+            cal_dist = 30
+            sb_drag(ctx, cal_from, cal_from + cal_dist)
+            trigger_scrollbar(ctx)
+            img_dr2 = ctx.ctrl.get_screen()
+            img_dr2_rgb = cv2.cvtColor(img_dr2, cv2.COLOR_BGR2RGB)
+            thumb_cal2 = find_thumb(img_dr2_rgb)
+            if thumb_cal2:
+                cal_to = (thumb_cal2[0] + thumb_cal2[1]) // 2
+                actual_move = cal_to - cal_from
+                if actual_move > 3:
+                    drag_ratio = cal_dist / actual_move
+
+        scroll_to_top(ctx)
+        trigger_scrollbar(ctx)
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        thumb = find_thumb(img_rgb)
+        start_y = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2 + 5
+
+        content_h = CONTENT_BOT - CONTENT_TOP
+        track_len = TRACK_BOT - TRACK_TOP
+        total_content = track_len * ratio + content_h
+        desired_overlap = 160
+        desired_shift = content_h - desired_overlap
+        est_frames = total_content / desired_shift
+        swipe_dur = max(5000, min(25000, int(est_frames * 600)))
+
+        swipe_cmd = "shell input swipe " + str(SB_X) + " " + str(start_y) + " " + str(SB_X) + " " + str(TRACK_BOT) + " " + str(swipe_dur)
+        proc = ctx.ctrl.execute_adb_shell(swipe_cmd, False)
+
+        t_swipe_start = time.time()
+        time.sleep(0.3)
+        prev_frame = img
+        scan_deadline = time.time() + 30
+        frame_times = []
+        swipe_dur_s = swipe_dur / 1000.0
+        early_exit = False
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            futures = []
+
+            while ctx.task.running() and time.time() < scan_deadline:
+                if (ctx.task.detail.manual_purchase_at_end and
+                    ctx.cultivate_detail.cultivate_finish and
+                    hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and
+                    ctx.cultivate_detail.manual_purchase_completed):
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+                    early_exit = True
+                    break
+
+                time.sleep(0.06)
+                curr = ctx.ctrl.get_screen()
+                if curr is not None and not content_same(prev_frame, curr):
+                    frame_times.append(time.time() - t_swipe_start)
+                    futures.append(executor.submit(get_skill_list, curr, learn_skill_list, learn_skill_blacklist))
+                    prev_frame = curr
+                if proc.poll() is not None:
+                    break
+
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+            if not early_exit:
+                time.sleep(0.15)
+                final = ctx.ctrl.get_screen()
+                if final is not None and not content_same(prev_frame, final):
+                    frame_times.append(time.time() - t_swipe_start)
+                    futures.append(executor.submit(get_skill_list, final, learn_skill_list, learn_skill_blacklist))
+
+            for i, f in enumerate(futures):
+                frame_skills = f.result()
+                progress = min(1.0, frame_times[i] / swipe_dur_s) if i < len(frame_times) else 1.0
+                sb_y = start_y + (TRACK_BOT - start_y) * progress
+                for s in frame_skills:
+                    if s not in skill_list:
+                        skill_list.append(s)
+                    for key in [s.get('skill_name', ''), s.get('skill_name_raw', '')]:
+                        if key and key not in scan_skill_positions:
+                            scan_skill_positions[key] = sb_y
+
+        if early_exit:
             ctx.cultivate_detail.learn_skill_done = True
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
             return
-            
-        img = ctx.ctrl.get_screen()
+    else:
         current_screen_skill_list = get_skill_list(img, learn_skill_list, learn_skill_blacklist)
         for i in current_screen_skill_list:
             if i not in skill_list:
                 skill_list.append(i)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if at_bottom(img_rgb):
-            break
-        scroll_down_step(ctx, img_rgb, scan_step)
-        
-        if (ctx.task.detail.manual_purchase_at_end and 
-            ctx.cultivate_detail.cultivate_finish and 
-            hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and 
-            ctx.cultivate_detail.manual_purchase_completed):
-            log.info("Manual purchase confirmed after scroll - returning to finish UI")
-            ctx.cultivate_detail.learn_skill_done = True
-            ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
-            return
 
     try:
         purchased = []
@@ -480,36 +589,107 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
     log.info(f"Starting skill execution for {len(target_skill_list)} skills: {target_skill_list}")
     
     skills_to_process = target_skill_list.copy()
-    click_step = measure_step(ctx)
-    
+
     purchases_made = False
-    while True:
-        if (ctx.task.detail.manual_purchase_at_end and 
-            ctx.cultivate_detail.cultivate_finish and 
-            hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and 
-            ctx.cultivate_detail.manual_purchase_completed):
-            log.info("Manual purchase confirmed during skill clicking - returning to finish UI")
-            ctx.cultivate_detail.learn_skill_done = True
-            ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
-            return
-            
-        img = ctx.ctrl.get_screen()
-        log.debug(f"Attempting to find and click skills. Target list: {skills_to_process}")
-        skills_found = find_skill(ctx, img, skills_to_process, learn_any_skill=False)
-        log.debug(f"find_skill result: {skills_found}")
-        if skills_found:
-            ctx.cultivate_detail.learn_skill_selected = True
-            purchases_made = True
-        
-        if len(skills_to_process) == 0:
-            log.info("All target skills have been processed")
-            break
-            
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if at_bottom(img_rgb):
-            log.debug("Reached end of skill list page")
-            break
-        scroll_down_step(ctx, img_rgb, click_step)
+
+    if len(skills_to_process) > 0 and len(scan_skill_positions) > 0:
+        targets_with_pos = []
+        for name in skills_to_process[:]:
+            pos = scan_skill_positions.get(name)
+            if pos is not None:
+                targets_with_pos.append((name, pos))
+        targets_with_pos.sort(key=lambda x: x[1])
+
+        if targets_with_pos:
+            buy_step = max(10, int(saved_thumb_h * 0.7))
+
+            for target_name, target_pos in targets_with_pos:
+                if (ctx.task.detail.manual_purchase_at_end and
+                    ctx.cultivate_detail.cultivate_finish and
+                    hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and
+                    ctx.cultivate_detail.manual_purchase_completed):
+                    ctx.cultivate_detail.learn_skill_done = True
+                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
+                    return
+
+                if target_name not in skills_to_process:
+                    continue
+
+                target_y = max(TRACK_TOP + saved_thumb_h // 2, min(TRACK_BOT - saved_thumb_h // 2, int(target_pos)))
+
+                trigger_scrollbar(ctx)
+                img = ctx.ctrl.get_screen()
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                thumb = find_thumb(img_rgb)
+                cursor = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + saved_thumb_h // 2
+
+                if abs(target_y - cursor) > 3:
+                    needed = target_y - cursor
+                    compensated = int(needed * drag_ratio)
+                    end_y = max(TRACK_TOP, min(TRACK_BOT + 20, cursor + compensated))
+                    sb_drag(ctx, cursor, end_y)
+
+                img = ctx.ctrl.get_screen()
+                if find_skill(ctx, img, skills_to_process, learn_any_skill=False):
+                    ctx.cultivate_detail.learn_skill_selected = True
+                    purchases_made = True
+
+                if target_name in skills_to_process:
+                    for offset in [-buy_step, buy_step, -buy_step * 2, buy_step * 2]:
+                        adj = max(TRACK_TOP + saved_thumb_h // 2, min(TRACK_BOT - saved_thumb_h // 2, target_y + offset))
+
+                        trigger_scrollbar(ctx)
+                        img = ctx.ctrl.get_screen()
+                        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                        thumb = find_thumb(img_rgb)
+                        cursor = (thumb[0] + thumb[1]) // 2 if thumb else target_y
+
+                        if abs(adj - cursor) > 3:
+                            needed = adj - cursor
+                            compensated = int(needed * drag_ratio)
+                            end_y = max(TRACK_TOP, min(TRACK_BOT + 20, cursor + compensated))
+                            sb_drag(ctx, cursor, end_y)
+
+                        img = ctx.ctrl.get_screen()
+                        if find_skill(ctx, img, skills_to_process, learn_any_skill=False):
+                            ctx.cultivate_detail.learn_skill_selected = True
+                            purchases_made = True
+                        if target_name not in skills_to_process:
+                            break
+
+                if len(skills_to_process) == 0:
+                    break
+
+    if len(skills_to_process) > 0:
+        scroll_to_top(ctx)
+        prev_buy = None
+        bottom_stall = 0
+        for _ in range(60):
+            if (ctx.task.detail.manual_purchase_at_end and
+                ctx.cultivate_detail.cultivate_finish and
+                hasattr(ctx.cultivate_detail, 'manual_purchase_completed') and
+                ctx.cultivate_detail.manual_purchase_completed):
+                ctx.cultivate_detail.learn_skill_done = True
+                ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
+                return
+
+            img = ctx.ctrl.get_screen()
+            if find_skill(ctx, img, skills_to_process, learn_any_skill=False):
+                ctx.cultivate_detail.learn_skill_selected = True
+                purchases_made = True
+
+            if len(skills_to_process) == 0:
+                break
+
+            if prev_buy is not None and content_same(prev_buy, img):
+                bottom_stall += 1
+                if bottom_stall >= 2:
+                    break
+            else:
+                bottom_stall = 0
+            prev_buy = img
+
+            scroll_down_step(ctx)
 
     log.debug("Skills to learn: " + str(ctx.cultivate_detail.learn_skill_list))
     log.debug("Skills learned: " + str([skill['skill_name'] for skill in skill_list if not skill['available']]))
