@@ -52,7 +52,7 @@ def should_use_pal_outing_simple(ctx: UmamusumeContext):
     energy_threshold = thresholds[1]
 
     from bot.conn.fetch import fetch_state
-    state = fetch_state()
+    state = fetch_state(img)
     current_energy = state.get("energy", 0)
     current_mood_raw = state.get("mood")
     current_mood = current_mood_raw if current_mood_raw is not None else 4

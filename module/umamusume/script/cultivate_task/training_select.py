@@ -747,7 +747,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     thresholds = pal_data[stage - 1]
                     mood_threshold, energy_threshold, score_threshold = thresholds
                     
-                    state = fetch_state()
+                    state = fetch_state(ctx.current_screen)
                     current_energy = state.get("energy", 0)
                     current_mood_raw = state.get("mood")
                     current_mood = current_mood_raw if current_mood_raw is not None else 4
@@ -777,9 +777,9 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             op.training_type = local_training_type
         
         ctx.ctrl.click_by_point(TRAINING_POINT_LIST[op.training_type.value - 1])
-        time.sleep(0.35)
+        time.sleep(0.15)
         ctx.ctrl.click_by_point(TRAINING_POINT_LIST[op.training_type.value - 1])
-        time.sleep(1.5)
+        time.sleep(0.6)
         return
     
     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)

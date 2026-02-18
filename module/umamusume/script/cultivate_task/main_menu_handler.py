@@ -95,7 +95,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             if need_detection:
                 log.info("Opening recreation menu to detect stage")
                 ctx.ctrl.click_by_point(CULTIVATE_TRIP)
-                time.sleep(0.2)
+                time.sleep(0.15)
                 img = ctx.ctrl.get_screen()
                 
                 calculated_stage = detect_pal_stage(ctx, img)
@@ -110,7 +110,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     log.info(f"Stage {calculated_stage} thresholds - Mood: {mood}, Energy: {energy}, Score: {score}")
 
                 ctx.ctrl.click(5, 5)
-                time.sleep(0.3)
+                time.sleep(0.15)
                 ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
                 return
                 
@@ -175,7 +175,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             from bot.conn.fetch import read_energy
             energy = read_energy()
             if energy == 0:
-                time.sleep(0.37)
+                time.sleep(0.15)
                 energy = read_energy()
         if energy <= limit:
             if should_use_pal_outing_simple(ctx):

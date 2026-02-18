@@ -69,7 +69,7 @@ class U2AndroidController(AndroidController):
     path = "deps\\adb\\"
     recent_point = None
     recent_operation_time = None
-    same_point_operation_interval = 0.27
+    same_point_operation_interval = 0.15
 
     repetitive_click_name = None
     repetitive_click_count = 0
@@ -93,7 +93,7 @@ class U2AndroidController(AndroidController):
         
         self._cached_frame = None
         self._cache_time = 0.0
-        self._cache_max_age = 0.050
+        self._cache_max_age = 0.120
         
         transport_cmd = f'host:transport:{self.config.device_name}'
         self._transport_bytes = f'{len(transport_cmd):04x}{transport_cmd}'.encode()
@@ -287,7 +287,7 @@ class U2AndroidController(AndroidController):
     def wait_click_interval(self, name):
         now = time.time()
         elapsed = now - self.last_click_time if hasattr(self, "last_click_time") else now
-        min_interval = random.uniform(0.12, 0.15)
+        min_interval = random.uniform(0.06, 0.09)
         wait_needed = max(0.0, min_interval - elapsed)
         log.debug(f"click queue: elapsed={elapsed:.3f}s, min_interval={min_interval:.3f}s, wait={wait_needed:.3f}s, name={name}")
         if wait_needed > 0:

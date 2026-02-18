@@ -54,9 +54,15 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
     if not ctx.cultivate_detail.debut_race_win:
         if not hasattr(ctx.cultivate_detail.turn_info, 'race_search_attempted'):
             turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-    state = fetch_state()
-    energy = state.get("energy", 0)
-    mood_raw = state.get("mood")
+    cached_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
+    if cached_energy is not None and cached_energy > 0:
+        state = fetch_state(ctx.current_screen)
+        energy = int(cached_energy)
+        mood_raw = state.get("mood")
+    else:
+        state = fetch_state(ctx.current_screen)
+        energy = state.get("energy", 0)
+        mood_raw = state.get("mood")
     mood_val = mood_raw if mood_raw is not None else 4
 
     date_for_threshold = ctx.cultivate_detail.turn_info.date

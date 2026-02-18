@@ -101,7 +101,8 @@ def scan_energy(ctrl, y=ENERGY_BAR_Y):
     global reference_row, reference_bar_length, reference_gray_count, reference_brightness
     prev_row = None
     prev_valid = False
-    while True:
+    max_attempts = 10
+    for _ in range(max_attempts):
         img = ctrl.get_screen()
         template = get_energy_template()
         match_result = image_match(img, template)
@@ -120,6 +121,16 @@ def scan_energy(ctrl, y=ENERGY_BAR_Y):
             return base_energy, 0, "base_hp"
         prev_row = current_row
         prev_valid = True
+
+    if prev_valid and prev_row is not None:
+        bar_end = find_bar_end(img, y)
+        bar_length = bar_end - ENERGY_BAR_START_X
+        reference_row = prev_row
+        reference_bar_length = bar_length
+        reference_gray_count = gray_count
+        reference_brightness = float(np.mean(prev_row))
+        return base_energy, 0, "base_hp"
+    return 50.0, 0, "base_hp"
 
 
 def scan_training_energy_change_single(img, y=ENERGY_BAR_Y):
@@ -151,12 +162,19 @@ def scan_training_energy_change(ctrl, facility_name, y=ENERGY_BAR_Y, initial_img
     img = initial_img
     if img is not None:
         prev_value = scan_training_energy_change_single(img, y)
-    while True:
+        img2 = ctrl.get_screen()
+        current_value = scan_training_energy_change_single(img2, y)
+        if current_value == prev_value:
+            return current_value, img2
+        prev_value = current_value
+    max_attempts = 8
+    for _ in range(max_attempts):
         img = ctrl.get_screen()
         current_value = scan_training_energy_change_single(img, y)
         if prev_value is not None and current_value == prev_value:
             return current_value, img
         prev_value = current_value
+    return prev_value if prev_value is not None else 0.0, img
 
 
 def scan_base_energy(img, y=ENERGY_BAR_Y):
