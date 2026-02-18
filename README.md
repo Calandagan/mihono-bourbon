@@ -96,9 +96,7 @@ Alternatively, run `start.bat` to launch the bot.
 - **ADB**: Must be enabled in emulator settings
 
 ### Supported Emulators
-- MuMu Player (recommended)
-- BlueStacks Pie64
-
+- MuMu Player (try not to use anything else)
 ---
 
 ## Configuration
@@ -191,6 +189,9 @@ Install or reinstall Visual C++ Redistributable:
 ---
 
 ## Changelog
+### 2025-02-18
+- Option to avoid double cicle skills     
+- Options + ability to focus on wit arrows early game for aoharu (wit arrows raises facility levels faster)     
 
 ### 2025-02-11
 - Styles customizable by date (by ayaliz)    
