@@ -51,6 +51,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         
         from module.umamusume.asset.race_data import get_races_for_period
         available_races = get_races_for_period(ctx.cultivate_detail.turn_info.date)
+        ctx.cultivate_detail.turn_info.cached_available_races = available_races
         has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
                              if race_id in available_races]) != 0
         
@@ -115,8 +116,11 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = True
 
-    from module.umamusume.asset.race_data import get_races_for_period
-    available_races = get_races_for_period(ctx.cultivate_detail.turn_info.date)
+    available_races = getattr(ctx.cultivate_detail.turn_info, 'cached_available_races', None)
+    if available_races is None:
+        from module.umamusume.asset.race_data import get_races_for_period
+        available_races = get_races_for_period(ctx.cultivate_detail.turn_info.date)
+        ctx.cultivate_detail.turn_info.cached_available_races = available_races
     has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
                          if race_id in available_races]) != 0
 
@@ -187,8 +191,9 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
 
     if turn_operation is not None:
         if turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING:
-            base_energy, _, _ = scan_energy(ctx.ctrl)
-            ctx.cultivate_detail.turn_info.base_energy = base_energy
+            if getattr(ctx.cultivate_detail.turn_info, 'base_energy', None) is None:
+                base_energy, _, _ = scan_energy(ctx.ctrl)
+                ctx.cultivate_detail.turn_info.base_energy = base_energy
             ctx.ctrl.click_by_point(TO_TRAINING_SELECT)
         elif turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_REST:
             if should_use_pal_outing_simple(ctx):

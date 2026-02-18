@@ -81,6 +81,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         if energy == 0:
             time.sleep(ENERGY_READ_RETRY_DELAY)
             energy = read_energy()
+    ctx.cultivate_detail.turn_info.cached_energy = energy
     if energy <= limit:
         op = TurnOperation()
         if should_use_pal_outing_simple(ctx):
@@ -377,12 +378,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
 
 
-        from bot.conn.fetch import read_energy
         try:
-            current_energy = int(read_energy())
+            current_energy = int(getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0))
             if current_energy == 0:
-                time.sleep(ENERGY_READ_RETRY_DELAY)
+                from bot.conn.fetch import read_energy
                 current_energy = int(read_energy())
+                ctx.cultivate_detail.turn_info.cached_energy = current_energy
         except Exception:
             current_energy = None
         try:
@@ -651,11 +652,11 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             if not hasattr(ctx.cultivate_detail.turn_info, 'race_search_attempted') and date <= 72:
                 wit_race_threshold = getattr(ctx.cultivate_detail, 'wit_race_search_threshold', 0.15)
                 
-                from bot.conn.fetch import read_energy
-                current_energy = read_energy()
+                current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0)
                 if current_energy == 0:
-                    time.sleep(0.37)
+                    from bot.conn.fetch import read_energy
                     current_energy = read_energy()
+                    ctx.cultivate_detail.turn_info.cached_energy = current_energy
                 
                 from module.umamusume.asset.race_data import get_races_for_period
                 next_date = ctx.cultivate_detail.turn_info.date + 1
