@@ -62,10 +62,11 @@ git clone https://github.com/SweepTosher/umamusume-sweepy
 cd umamusume-sweepy
 ```
 
-### Step 2: Install Python 3.10
+### Step 2: Install Python 3.10 And VC++
 
 ```bash
 winget install -e --id Python.Python.3.10
+Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe
 ```
 
 ### Step 3: Install Dependencies
