@@ -304,7 +304,7 @@ if __name__ == '__main__':
         acquire_instance_lock()
     except Exception:
         pass
-    restart_adb_server()
+
     selected_device = None
     if os.environ.get("UAT_AUTORESTART", "0") == "1":
         try:
