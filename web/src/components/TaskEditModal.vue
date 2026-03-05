@@ -107,8 +107,7 @@
                                  class="mant-item-cell"
                                  draggable="true"
                                  @dragstart="mantDragStart(id, $event)"
-                                 @dragend="mantDragEnd"
-                                 :title="mantItemName(id)">
+                                 @dragend="mantDragEnd">
                               <img :src="getMantItemImg(id)" :alt="id" class="mant-item-img" />
                             </div>
                             <div v-if="mantGetItemsInTier(t).length === 0" class="mant-tier-empty">empty</div>
@@ -2105,84 +2104,21 @@ export default {
       mantDragOverTier: null,
       mantDragItemId: null,
       mantTierCount: 2,
-      mantItemGroups: [
-        { label: 'Stats — Speed', items: [
-          { id: 'speedsmall', name: 'Speed Memo', effect: 'Speed +3' },
-          { id: 'speedmedium', name: 'Speed Tactics Book', effect: 'Speed +7' },
-          { id: 'speedlarge', name: 'Speed Secret Book', effect: 'Speed +15' },
-        ]},
-        { label: 'Stats — Stamina', items: [
-          { id: 'staminasmall', name: 'Stamina Memo', effect: 'Stamina +3' },
-          { id: 'staminamedium', name: 'Stamina Tactics Book', effect: 'Stamina +7' },
-          { id: 'staminalarge', name: 'Stamina Secret Book', effect: 'Stamina +15' },
-        ]},
-        { label: 'Stats — Power', items: [
-          { id: 'powersmall', name: 'Power Memo', effect: 'Power +3' },
-          { id: 'powermedium', name: 'Power Tactics Book', effect: 'Power +7' },
-          { id: 'powerlarge', name: 'Power Secret Book', effect: 'Power +15' },
-        ]},
-        { label: 'Stats — Guts', items: [
-          { id: 'gutssmall', name: 'Guts Memo', effect: 'Guts +3' },
-          { id: 'gutsmedium', name: 'Guts Tactics Book', effect: 'Guts +7' },
-          { id: 'gutslarge', name: 'Guts Secret Book', effect: 'Guts +15' },
-        ]},
-        { label: 'Stats — Wisdom', items: [
-          { id: 'witsmall', name: 'Wisdom Memo', effect: 'Wisdom +3' },
-          { id: 'witmedium', name: 'Wisdom Tactics Book', effect: 'Wisdom +7' },
-          { id: 'witlarge', name: 'Wisdom Secret Book', effect: 'Wisdom +15' },
-        ]},
-        { label: 'Energy & Motivation', items: [
-          { id: 'energydrinksmall', name: 'Vital 20', effect: 'Energy +20' },
-          { id: 'energydrinkmedium', name: 'Vital 40', effect: 'Energy +40' },
-          { id: 'energydrinklarge', name: 'Vital 65', effect: 'Energy +65' },
-          { id: 'greenjuice', name: 'Royal Bitter Juice', effect: 'Energy +100, Motivation -1' },
-          { id: 'maxsmall', name: 'Energy Drink MAX', effect: 'Max Energy +4, Energy +5' },
-          { id: 'maxlarge', name: 'Long Energy Drink MAX', effect: 'Max Energy +8' },
-          { id: 'moodsmall', name: 'Plain Cupcake', effect: 'Motivation +1' },
-          { id: 'moodlarge', name: 'Sweet Cupcake', effect: 'Motivation +2' },
-        ]},
-        { label: 'Bond', items: [
-          { id: 'catfood', name: 'Cat Food', effect: 'Akikawa bond +5' },
-          { id: 'bbq', name: 'BBQ Set', effect: 'All bonds +5' },
-        ]},
-        { label: 'Good Conditions', items: [
-          { id: 'mirror', name: 'Pretty Mirror', effect: 'Charming ○' },
-          { id: 'binoc', name: 'Reporter Binoculars', effect: 'Rising Star' },
-          { id: 'ppbook', name: 'Practice Guide', effect: 'Good Practice ○' },
-          { id: 'hat', name: 'Scholar Hat', effect: 'Sharp' },
-        ]},
-        { label: 'Heal Bad Conditions', items: [
-          { id: 'pillow', name: 'Sleep Pillow', effect: 'Heal Insomnia' },
-          { id: 'scheduler', name: 'Schedule Book', effect: 'Heal Lazy Habit' },
-          { id: 'handcream', name: 'Hand Cream', effect: 'Heal Rough Skin' },
-          { id: 'scale', name: 'Slim Scanner', effect: 'Heal Overweight' },
-          { id: 'aroma', name: 'Aroma Diffuser', effect: 'Heal Migraine' },
-          { id: 'useless2', name: 'Practice DVD', effect: 'Heal Bad Practice' },
-          { id: 'cureall', name: 'Cure-All', effect: 'Heal all negatives' },
-        ]},
-        { label: 'Training Facilities', items: [
-          { id: 'speedpet', name: 'Speed Facility Book', effect: 'Speed Training Lv +1' },
-          { id: 'staminapet', name: 'Stamina Facility Book', effect: 'Stamina Training Lv +1' },
-          { id: 'powerpet', name: 'Power Facility Book', effect: 'Power Training Lv +1' },
-          { id: 'gutspet', name: 'Guts Facility Book', effect: 'Guts Training Lv +1' },
-          { id: 'witpet', name: 'Wisdom Facility Book', effect: 'Wisdom Training Lv +1' },
-          { id: 'shuffle', name: 'Reset Whistle', effect: 'Shuffle support cards' },
-        ]},
-        { label: 'Training Effects', items: [
-          { id: 'megasmall', name: 'Cheer Megaphone', effect: 'Training +20% for 4 turns' },
-          { id: 'megamedium', name: 'Sparta Megaphone', effect: 'Training +40% for 3 turns' },
-          { id: 'megalarge', name: 'Bootcamp Megaphone', effect: 'Training +60% for 2 turns' },
-          { id: 'speedweights', name: 'Speed Ankle Weight', effect: 'Speed +50%, Energy cost +20% (1 turn)' },
-          { id: 'staminaweights', name: 'Stamina Ankle Weight', effect: 'Stamina +50%, Energy cost +20% (1 turn)' },
-          { id: 'powerweights', name: 'Power Ankle Weight', effect: 'Power +50%, Energy cost +20% (1 turn)' },
-          { id: 'gutsweights', name: 'Guts Ankle Weight', effect: 'Guts +50%, Energy cost +20% (1 turn)' },
-          { id: 'prayer', name: 'Prayer Charm', effect: 'Failure rate 0% (1 turn)' },
-        ]},
-        { label: 'Races', items: [
-          { id: 'rb', name: 'Horseshoe Hammer (Craft)', effect: 'Race bonus +20% (1 turn)' },
-          { id: 'rbex', name: 'Horseshoe Hammer (Extreme)', effect: 'Race bonus +35% (1 turn)' },
-          { id: 'penlight', name: 'Tricolor Penlight', effect: 'Fan gain +50% (1 turn)' },
-        ]},
+      mantItemIds: [
+        'speedsmall','speedmedium','speedlarge',
+        'staminasmall','staminamedium','staminalarge',
+        'powersmall','powermedium','powerlarge',
+        'gutssmall','gutsmedium','gutslarge',
+        'witsmall','witmedium','witlarge',
+        'energydrinksmall','energydrinkmedium','energydrinklarge',
+        'greenjuice','maxsmall','maxlarge','moodsmall','moodlarge',
+        'catfood','bbq',
+        'mirror','binoc','ppbook','hat',
+        'pillow','scheduler','handcream','scale','aroma','useless2','cureall',
+        'speedpet','staminapet','powerpet','gutspet','witpet','shuffle',
+        'megasmall','megamedium','megalarge',
+        'speedweights','staminaweights','powerweights','gutsweights','prayer',
+        'rb','rbex','penlight',
       ],
       mantItemTiers: {},
       levelDataList: [],
@@ -3372,18 +3308,9 @@ export default {
     getMantItemImg(id) {
       return new URL(`../assets/img/mant_items/${id}.png`, import.meta.url).href;
     },
-    mantItemName(id) {
-      for (const g of this.mantItemGroups) {
-        for (const i of g.items) {
-          if (i.id === id) return i.name + ' — ' + i.effect;
-        }
-      }
-      return id;
-    },
+
     mantGetAllItemIds() {
-      const ids = [];
-      this.mantItemGroups.forEach(g => g.items.forEach(i => ids.push(i.id)));
-      return ids;
+      return this.mantItemIds;
     },
     mantGetDefaultTiers() {
       const t = {};
