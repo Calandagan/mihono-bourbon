@@ -638,5 +638,7 @@ def script_info(ctx: UmamusumeContext):
             return
 
         if title_text == TITLE[48]:
+            from module.umamusume.script.cultivate_task.skill_learning import script_follow_support_card_select
+            script_follow_support_card_select(ctx)
             return
         time.sleep(1)
