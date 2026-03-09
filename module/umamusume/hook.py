@@ -6,7 +6,7 @@ from module.umamusume.context import UmamusumeContext
 from module.umamusume.script.cultivate_task.ai import get_operation
 from module.umamusume.asset.point import *
 from module.umamusume.asset.template import *
-from module.umamusume.asset.template import UI_INFO
+from module.umamusume.asset.template import UI_INFO, REF_EDIT_TEAM
 from bot.recog.ocr import ocr_line, find_similar_text
 from bot.base.task import TaskStatus, EndTaskReason
 from bot.base.common import Area, ImageMatchConfig
@@ -110,6 +110,17 @@ def before_hook(ctx: UmamusumeContext):
     img = getattr(ctx, 'current_screen_gray', None)
     if img is None:
         img = cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
+    
+    try:
+        if image_match(img, REF_EDIT_TEAM).find_match:
+            import random
+            x = random.randint(276, 452)
+            y = random.randint(1155, 1196)
+            ctx.ctrl.click(x, y, "edit_team")
+            return
+    except Exception:
+        pass
+
     if apply_rules(ctx, img):
         return
     

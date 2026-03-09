@@ -302,6 +302,7 @@ class Executor:
             watchdog_thread.start()
 
             last_frame_hash = None
+            dedup_skip_count = 0
             while self.active:
                 if task.task_status == TaskStatus.TASK_STATUS_RUNNING:
                     if check_and_reset_timeout():
@@ -311,6 +312,7 @@ class Executor:
                         except Exception:
                             pass
                         last_frame_hash = None
+                        dedup_skip_count = 0
                         time.sleep(0.5)
                         continue
                     
@@ -318,13 +320,21 @@ class Executor:
                     if ctx.current_screen is None:
                         log.debug("No image detected")
                         last_frame_hash = None
+                        dedup_skip_count = 0
                         time.sleep(1)
                         continue
                     ctx.current_screen_gray = cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
                     frame_sample = ctx.current_screen_gray[::8, ::8]
                     frame_hash = hash(frame_sample.tobytes())
                     if frame_hash == last_frame_hash and ctx.current_ui is not None and ctx.current_ui is not NOT_FOUND_UI:
-                        continue
+                        dedup_skip_count += 1
+                        if dedup_skip_count < 5:
+                            continue
+                        else:
+                            dedup_skip_count = 0
+                            last_frame_hash = None
+                    else:
+                        dedup_skip_count = 0
                     last_frame_hash = frame_hash
                     ctx.prev_ui = ctx.current_ui
                     ctx.current_ui = self.detect_ui(ui_list, ctx.current_screen_gray, prev_ui=ctx.prev_ui)

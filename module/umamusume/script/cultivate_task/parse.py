@@ -893,7 +893,7 @@ def find_race(ctx: UmamusumeContext, img, race_id: int = 0) -> bool:
         if match_result.find_match:
             pos = match_result.matched_area
             pos_center = match_result.center_point
-            if 685 < pos_center[1] < 1110:
+            if 400 < pos_center[1] < 1110:
                 # Calculate safe bounds for race name extraction
                 y1 = max(0, pos[0][1] - 60)
                 y2 = min(img_height, pos[1][1] + 25)
