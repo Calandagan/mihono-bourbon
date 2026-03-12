@@ -169,11 +169,10 @@ def serialize_umamusume_task(t):
 
         sc = getattr(d, 'scenario_config', None)
         try:
-            ura = getattr(sc, 'ura_config', None) if sc else None
-            attachment['ura_config'] = to_jsonable(ura) if ura is not None else None
+            attachment['skillEventWeight'] = getattr(sc, 'skill_event_weight', [0, 0, 0]) if sc else [0, 0, 0]
+            attachment['resetSkillEventWeightList'] = getattr(sc, 'reset_skill_event_weight_list', []) if sc else []
         except Exception:
-            attachment['ura_config'] = None
-
+            pass
         try:
             aoharu = getattr(sc, 'aoharu_config', None) if sc else None
             attachment['aoharu_config'] = to_jsonable(aoharu) if aoharu is not None else None

@@ -71,13 +71,7 @@
                 </div>
                 </div>
                 </div>
-                <div class="row" v-if="selectedScenario === 1">
-                <div class="col-4">
-                  <div class="form-group">
-                    <span class="btn auto-btn" style="width:100%" v-on:click="openUraConfigModal">URA Configuration</span>
-                  </div>
-                </div>
-              </div>
+              
               <div class="row" v-if="selectedScenario === 2">
                 <div class="col-4">
                   <div class="form-group">
@@ -1627,6 +1621,36 @@
                 </div>
               </div>
             </div>
+          <div class="category-card" id="category-inspiration">
+              <div class="category-title">Support Card Inspiration Weight</div>
+              <div class="form-group mt-3">
+                <p class="text-muted small mb-2">Additional weight for training selection when support cards show inspiration (!). Range [0, 1]. 0 = no impact, 1 = always choose training with inspiration.</p>
+                <div class="row">
+                  <div class="col-4">
+                    <div class="form-group">
+                      <label>Year 1</label>
+                      <input type="number" v-model="skillEventWeight[0]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(0)">
+                    </div>
+                  </div>
+                  <div class="col-4">
+                    <div class="form-group">
+                      <label>Year 2</label>
+                      <input type="number" v-model="skillEventWeight[1]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(1)">
+                    </div>
+                  </div>
+                  <div class="col-4">
+                    <div class="form-group">
+                      <label>Year 3</label>
+                      <input type="number" v-model="skillEventWeight[2]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(2)">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group mt-2">
+                  <label>Reset inspiration weight to 0 after learning these skills</label>
+                  <textarea v-model="resetSkillEventWeightList" class="form-control" placeholder="Corner Acceleration ◯, Slipstream, Speed Star, ... (use commas)" rows="2"></textarea>
+                </div>
+              </div>
+          </div>
           <div class="category-card" id="category-event">
               <div class="category-title">Event Settings</div>
 
@@ -1778,14 +1802,12 @@
       <!-- Aoharu Cup Configuration Modal -->
       <AoharuConfigModal v-model:show="showAoharuConfigModal" :preliminaryRoundSelections="preliminaryRoundSelections"
         :aoharuTeamNameSelection="aoharuTeamNameSelection" @confirm="handleAoharuConfigConfirm"></AoharuConfigModal>
-      <!-- URA Configuration Modal -->
-      <UraConfigModal v-model:show="showUraConfigModal" :skillEventWeight="skillEventWeight"
-        :resetSkillEventWeightList="resetSkillEventWeightList" @confirm="handleUraConfigConfirm"></UraConfigModal>
+      
       <!-- Support Card Selection Modal -->
       <SupportCardSelectModal v-model:show="showSupportCardSelectModal" @cancel="closeSupportCardSelectModal"
         @confirm="handleSupportCardConfirm"></SupportCardSelectModal>
       <!-- Overlay layer, supports two types of modals -->
-      <div v-if="showAoharuConfigModal || showSupportCardSelectModal || showUraConfigModal"
+      <div v-if="showAoharuConfigModal || showSupportCardSelectModal"
         class="modal-backdrop-overlay" @click.stop></div>
       <!-- Notification -->
       <div class="position-fixed" style="z-index: 5; right: 40%; width: 300px;">
@@ -2101,7 +2123,7 @@
 <script>
 import SkillIcon from './SkillIcon.vue';
 import AoharuConfigModal from './AoharuConfigModal.vue';
-import UraConfigModal from './UraConfigModal.vue';
+
 import SupportCardSelectModal from './SupportCardSelectModal.vue';
 import characterData from '../assets/uma_character_data.json';
 import raceData from '../assets/uma_race_data.json';
@@ -2114,7 +2136,7 @@ export default {
   components: {
     SkillIcon,
     AoharuConfigModal,
-    UraConfigModal,
+
     SupportCardSelectModal
   },
   created() {
@@ -2334,7 +2356,6 @@ export default {
       npcScoreSeniorAfterSummer: [0.03, 0.05, 0.05],
       npcScoreFinale: [0, 0, 0.05],
 
-      // URA配置
       skillEventWeight: [0, 0, 0],
       resetSkillEventWeightList: '',
 
@@ -2342,7 +2363,6 @@ export default {
       preliminaryRoundSelections: [2, 1, 1, 1],
       aoharuTeamNameSelection: 4,
       showAoharuConfigModal: false,
-      showUraConfigModal: false,
       showSupportCardSelectModal: false,
 
       // Skill data from JSON file
@@ -3353,23 +3373,19 @@ export default {
     switchAdvanceOption: function () {
       this.showAdvanceOption = !this.showAdvanceOption
     },
-    openUraConfigModal: function () {
-      this.showUraConfigModal = true;
-    },
-    closeUraConfigModal: function () {
-      this.showUraConfigModal = false;
-    },
+    
     openAoharuConfigModal: function () {
       this.showAoharuConfigModal = true;
     },
     closeAoharuConfigModal: function () {
       this.showAoharuConfigModal = false;
     },
-    handleUraConfigConfirm: function (data) {
-      this.skillEventWeight = [...data.skillEventWeight];
-      this.resetSkillEventWeightList = data.resetSkillEventWeightList;
-      this.showUraConfigModal = false;
+    onInspirationWeightInput: function (index) {
+      let value = parseFloat(this.skillEventWeight[index]);
+      if (value > 1) this.skillEventWeight[index] = 1;
+      else if (value < 0) this.skillEventWeight[index] = 0;
     },
+    
     handleAoharuConfigConfirm: function (data) {
       this.preliminaryRoundSelections = [...data.preliminaryRoundSelections];
       this.aoharuTeamNameSelection = data.aoharuTeamNameSelection;
@@ -3560,11 +3576,8 @@ export default {
           // 限时: 富士奇石的表演秀
           "fujikiseki_show_mode": this.fujikisekiShowMode,
           "fujikiseki_show_difficulty": this.fujikisekiShowDifficulty,
-          // URA配置
-          "ura_config": this.selectedScenario === 1 ? {
-            "skillEventWeight": [...this.skillEventWeight],
-            "resetSkillEventWeightList": ura_reset_skill_event_weight_list
-          } : null,
+          "skillEventWeight": [...this.skillEventWeight],
+          "resetSkillEventWeightList": ura_reset_skill_event_weight_list,
           "aoharu_config": this.selectedScenario === 2 ? {
             "preliminaryRoundSelections": [...this.preliminaryRoundSelections],
             "aoharuTeamNameSelection": this.aoharuTeamNameSelection
@@ -3976,10 +3989,12 @@ export default {
         this.resetEventWeights();
       }
 
-      // 读取青春杯配置（如果存在）
-      if ('ura_config' in this.presetsUse) {
+      if ('skillEventWeight' in this.presetsUse) {
+        this.skillEventWeight = [...this.presetsUse.skillEventWeight];
+        this.resetSkillEventWeightList = this.presetsUse.resetSkillEventWeightList || '';
+      } else if ('ura_config' in this.presetsUse && this.presetsUse.ura_config) {
         this.skillEventWeight = [...this.presetsUse.ura_config.skillEventWeight];
-        this.resetSkillEventWeightList = this.presetsUse.ura_config.resetSkillEventWeightList;
+        this.resetSkillEventWeightList = this.presetsUse.ura_config.resetSkillEventWeightList || '';
       } else {
         this.skillEventWeight = [0, 0, 0];
         this.resetSkillEventWeightList = '';
@@ -4156,7 +4171,12 @@ export default {
         }
       }
       if (data.event_choices) this.eventChoicesSelected = { ...data.event_choices };
-      if (data.ura_config) {
+      if (data.skillEventWeight) {
+        this.skillEventWeight = [...data.skillEventWeight];
+        this.resetSkillEventWeightList = Array.isArray(data.resetSkillEventWeightList) 
+          ? data.resetSkillEventWeightList.join(', ') 
+          : (data.resetSkillEventWeightList || '');
+      } else if (data.ura_config) {
         this.skillEventWeight = [...(data.ura_config.skillEventWeight || [0, 0, 0])];
         this.resetSkillEventWeightList = Array.isArray(data.ura_config.resetSkillEventWeightList) 
           ? data.ura_config.resetSkillEventWeightList.join(', ') 
@@ -4326,13 +4346,9 @@ export default {
         skillAssignments: { ...this.skillAssignments },
         activePriorities: [...this.activePriorities]
       }
-      // 仅当剧本对应时, 添加URA或青春杯配置
-      if (this.selectedScenario === 1) {
-        preset.ura_config = {
-          skillEventWeight: [...this.skillEventWeight],
-          resetSkillEventWeightList: this.resetSkillEventWeightList
-        };
-      } else if (this.selectedScenario === 2) {
+      preset.skillEventWeight = [...this.skillEventWeight];
+      preset.resetSkillEventWeightList = this.resetSkillEventWeightList;
+      if (this.selectedScenario === 2) {
         preset.auharuhai_config = {
           preliminaryRoundSelections: [...this.preliminaryRoundSelections],
           aoharuTeamNameSelection: this.aoharuTeamNameSelection
@@ -4479,9 +4495,9 @@ export default {
         skillAssignments: { ...this.skillAssignments },
         activePriorities: [...this.activePriorities]
       };
-      if (this.selectedScenario === 1) {
-        preset.ura_config = { skillEventWeight: [...this.skillEventWeight], resetSkillEventWeightList: this.resetSkillEventWeightList };
-      } else if (this.selectedScenario === 2) {
+      preset.skillEventWeight = [...this.skillEventWeight];
+      preset.resetSkillEventWeightList = this.resetSkillEventWeightList;
+      if (this.selectedScenario === 2) {
         preset.auharuhai_config = { preliminaryRoundSelections: [...this.preliminaryRoundSelections], aoharuTeamNameSelection: this.aoharuTeamNameSelection };
       }
       const encoded = encodePreset(preset);

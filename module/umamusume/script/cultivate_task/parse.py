@@ -750,60 +750,40 @@ def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
         else:
             break
     
-    # Method 2: Try individual dialogue templates (dialogue1, dialogue2, dialogue3)
-    if len(event_selector_list) == 0:
-        log.warning(f"REF_SELECTOR template failed for event '{event_name}', trying individual dialogue templates")
-        
-        # Try each dialogue template
+    if len(event_selector_list) < 2:
         from module.umamusume.asset.template import Template, UMAMUSUME_REF_TEMPLATE_PATH
-        dialogue_templates = []
-        
-        try:
-            dialogue_templates = [
-                Template("dialogue1", UMAMUSUME_REF_TEMPLATE_PATH),
-                Template("dialogue2", UMAMUSUME_REF_TEMPLATE_PATH),
-                Template("dialogue3", UMAMUSUME_REF_TEMPLATE_PATH),
-                Template("dialogue4", UMAMUSUME_REF_TEMPLATE_PATH),
-                Template("dialogue5", UMAMUSUME_REF_TEMPLATE_PATH)
-            ]
-        except:
-            log.warning("Could not load dialogue templates")
-        
         x1, y1, x2, y2 = 24, 316, 696, 936
         h, w = img_gray.shape[:2]
-        x1 = max(0, min(w, x1)); x2 = max(x1, min(w, x2)); y1 = max(0, min(h, y1)); y2 = max(y1, min(h, y2))
-        search_img = img_gray[y1:y2, x1:x2].copy()
-        
-        def append_unique_point(points, pt, y_thresh=28, x_thresh=100):
-            for qx, qy in points:
-                if abs(qy - pt[1]) <= y_thresh and abs(qx - pt[0]) <= x_thresh:
-                    return
-            points.append(pt)
-        
-        for template in dialogue_templates:
+        x1 = max(0, min(w, x1)); x2 = max(x1, min(w, x2))
+        y1 = max(0, min(h, y1)); y2 = max(y1, min(h, y2))
+        search_roi = img_gray[y1:y2, x1:x2]
+        dialogue_tpls = []
+        for d in range(1, 6):
             try:
-                iterations = 0
-                while iterations < 10:
-                    iterations += 1
-                    match_result = image_match(search_img, template)
-                    if match_result.find_match:
-                        abs_pt = (match_result.center_point[0] + x1, match_result.center_point[1] + y1)
-                        append_unique_point(event_selector_list, abs_pt)
-                        y0, y1m = match_result.matched_area[0][1], match_result.matched_area[1][1]
-                        x0, x1m = match_result.matched_area[0][0], match_result.matched_area[1][0]
-                        search_img[y0:y1m, x0:x1m] = 0
-                    else:
-                        break
+                t = Template(f"dialogue{d}", UMAMUSUME_REF_TEMPLATE_PATH)
+                arr = t.template_image
+                if arr is not None and arr.size > 0:
+                    dialogue_tpls.append(arr)
             except Exception:
                 continue
-        
-        if len(event_selector_list) > 1:
-            deduped = []
-            for pt in sorted(event_selector_list, key=lambda p: p[1]):
-                if not deduped or (abs(deduped[-1][1] - pt[1]) > 20 or abs(deduped[-1][0] - pt[0]) > 80):
-                    deduped.append(pt)
-            event_selector_list = deduped[:5]
-        
+        found_pts = []
+        for arr in dialogue_tpls:
+            th, tw = arr.shape[:2]
+            if search_roi.shape[0] < th or search_roi.shape[1] < tw:
+                continue
+            result = cv2.matchTemplate(search_roi, arr, cv2.TM_CCOEFF_NORMED)
+            loc = numpy.where(result >= 0.86)
+            for pt_y, pt_x in zip(*loc):
+                abs_pt = (int(pt_x + x1 + tw // 2), int(pt_y + y1 + th // 2))
+                is_dup = False
+                for ex, ey in found_pts:
+                    if abs(ey - abs_pt[1]) <= 28 and abs(ex - abs_pt[0]) <= 100:
+                        is_dup = True
+                        break
+                if not is_dup:
+                    found_pts.append(abs_pt)
+        if len(found_pts) > len(event_selector_list):
+            event_selector_list = sorted(found_pts, key=lambda p: p[1])[:5]
         if len(event_selector_list) == 0:
             return event_name, []
     

@@ -1,7 +1,7 @@
 from enum import Enum
 from module.umamusume.define import ScenarioType
 from bot.base.task import Task, TaskExecuteMode
-from module.umamusume.scenario.configs import ScenarioConfig, UraConfig, AoharuConfig, MantConfig
+from module.umamusume.scenario.configs import ScenarioConfig, AoharuConfig, MantConfig
 
 
 class TaskDetail:
@@ -132,10 +132,17 @@ def build_task(task_execute_mode: TaskExecuteMode, task_type: int,
     td.base_score = attachment_data.get('base_score', [0.0, 0.0, 0.0, 0.0, 0.07])
     
     td.cultivate_result = {}
+    sew = attachment_data.get('skillEventWeight', None)
+    rsewl = attachment_data.get('resetSkillEventWeightList', None)
+    if sew is None and attachment_data.get('ura_config') is not None:
+        sew = attachment_data['ura_config'].get('skillEventWeight', None)
+    if rsewl is None and attachment_data.get('ura_config') is not None:
+        rsewl = attachment_data['ura_config'].get('resetSkillEventWeightList', None)
     td.scenario_config = ScenarioConfig(
-        ura_config = None if (attachment_data.get('ura_config') is None) else UraConfig(attachment_data['ura_config']),
         aoharu_config = None if (attachment_data.get('aoharu_config') is None) else AoharuConfig(attachment_data['aoharu_config']),
-        mant_config = None if (attachment_data.get('mant_config') is None) else MantConfig(attachment_data['mant_config']))
+        mant_config = None if (attachment_data.get('mant_config') is None) else MantConfig(attachment_data['mant_config']),
+        skill_event_weight=sew,
+        reset_skill_event_weight_list=rsewl)
     try:
         eo = attachment_data.get('event_overrides', attachment_data.get('event_choices', {}))
         td.event_overrides = eo if isinstance(eo, dict) else {}

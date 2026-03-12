@@ -141,6 +141,79 @@ def get_local_event_choice(ctx: UmamusumeContext, event_name: str) -> Union[int,
 
     return calculate_optimal_choice_from_db(ctx, events_db[key])
 
+def get_local_event_choice_with_count(ctx: UmamusumeContext, event_name: str):
+    if not event_name or not event_name.strip():
+        return None, 0
+
+    events_db = load_events_database()
+    if not events_db:
+        return None, 0
+
+    def _resolve(key):
+        event_data = events_db[key]
+        choice = calculate_optimal_choice_from_db(ctx, event_data)
+        expected = len(event_data.get('choices', {})) if isinstance(event_data, dict) else 0
+        return choice, expected
+
+    if event_name in events_db:
+        return _resolve(event_name)
+
+    def normalizeString(text: str) -> str:
+        if not text:
+            return ""
+        t = unicodedata.normalize('NFKD', str(text))
+        t = t.lower().strip()
+        t = re.sub(r"[^a-z0-9]+", " ", t)
+        t = " ".join(t.split())
+        return t
+
+    query = normalizeString(event_name)
+
+    norm_map = getattr(get_local_event_choice, "cacheNormalizedKeyMap", None)
+    if norm_map and query in norm_map:
+        return _resolve(norm_map[query])
+
+    choices = getattr(get_local_event_choice, "cacheChoices", None)
+    source_cache = getattr(get_local_event_choice, "cacheSource", None)
+
+    if choices is None or source_cache is not events_db or norm_map is None:
+        norm_map = {}
+        normalized_choices = []
+        for original_key in events_db.keys():
+            normalized_key = normalizeString(original_key)
+            if normalized_key:
+                norm_map[normalized_key] = original_key
+                normalized_choices.append(normalized_key)
+        setattr(get_local_event_choice, "cacheChoices", normalized_choices)
+        setattr(get_local_event_choice, "cacheSource", events_db)
+        setattr(get_local_event_choice, "cacheNormalizedKeyMap", norm_map)
+        choices = normalized_choices
+
+    if not query or not choices:
+        return None, 0
+
+    match = process.extractOne(query, choices, scorer=fuzz.WRatio, score_cutoff=85, processor=None)
+    if not match:
+        return None, 0
+
+    matched_normalized = match[0]
+    score = match[1]
+    if score < 95:
+        a_len = len(query)
+        b_len = len(matched_normalized) if matched_normalized else 0
+        if a_len == 0 or b_len == 0:
+            return None, 0
+        len_ratio = min(a_len, b_len) / max(a_len, b_len)
+        if len_ratio < 0.8:
+            return None, 0
+
+    key = norm_map.get(matched_normalized)
+    if not key:
+        return None, 0
+
+    return _resolve(key)
+
+
 def warmup_event_index():
     events_db = load_events_database()
     if not events_db:
@@ -276,9 +349,9 @@ def calculate_optimal_choice_from_db(ctx: UmamusumeContext, event_data: dict) ->
     return 1
 
 
-def get_event_choice(ctx: UmamusumeContext, event_name: str) -> int:
+def get_event_choice(ctx: UmamusumeContext, event_name: str):
     if not event_name or not event_name.strip():
-        return 0
+        return 0, "none", 0
     try:
         overrides = {}
         if hasattr(ctx, 'cultivate_detail') and hasattr(ctx.cultivate_detail, 'event_overrides'):
@@ -292,7 +365,7 @@ def get_event_choice(ctx: UmamusumeContext, event_name: str) -> int:
                 choice = int(overrides[event_name])
                 if choice > 0:
                     log.info(f"User overwrite: Choice {choice}")
-                    return choice
+                    return choice, "override", 0
             try:
                 keys = list(overrides.keys())
                 matched = find_similar_text(event_name, keys, 0.85)
@@ -300,7 +373,7 @@ def get_event_choice(ctx: UmamusumeContext, event_name: str) -> int:
                     choice = int(overrides[matched])
                     if choice > 0:
                         log.info(f"User overwrite: Choice {choice}")
-                        return choice
+                        return choice, "override", 0
             except Exception:
                 pass
     except Exception:
@@ -311,23 +384,23 @@ def get_event_choice(ctx: UmamusumeContext, event_name: str) -> int:
             opt = event_map[event_name_normalized]
             if type(opt) is int:
                 log.info(f"Using predefined choice for event '{event_name}': {opt}")
-                return opt
+                return opt, "hardcoded", 0
             if callable(opt):
                 result = opt(ctx)
-                return result if isinstance(result, int) else 1  # Safety check
+                return (result if isinstance(result, int) else 1), "hardcoded", 0
             else:
                 log.warning("Event [%s] does not provide processing logic", event_name_normalized)
-                return 1
+                return 1, "hardcoded", 0
     
     # Youth Cup events
     if event_name_normalized in ["aoharuhai_team_name_event"]:
-        return event_map[event_name_normalized](ctx)
+        return event_map[event_name_normalized](ctx), "hardcoded", 0
     
     # Try local database
     log.info(f"🔍 Checking local database for event '{event_name}'...")
-    local_choice = get_local_event_choice(ctx, event_name)
+    local_choice, expected_count = get_local_event_choice_with_count(ctx, event_name)
     if local_choice is not None:
-        return local_choice
+        return local_choice, "database", expected_count
     
     # Fallback to default choice
-    return 2
+    return 2, "fallback", 0

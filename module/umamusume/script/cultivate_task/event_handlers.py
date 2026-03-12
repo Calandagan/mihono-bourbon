@@ -101,7 +101,8 @@ def script_cultivate_event(ctx: UmamusumeContext):
     except Exception:
         pass
 
-    t0 = time.perf_counter()
+    ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
+
     log.info("Event handler called")
     
     img = ctx.ctrl.get_screen()
@@ -171,30 +172,69 @@ def script_cultivate_event(ctx: UmamusumeContext):
     
     try:
         if isinstance(event_name, str) and event_name.strip().lower() == "tutorial":
+            deadline = time.time() + 3.0
+            while time.time() < deadline:
+                if isinstance(selectors, list) and len(selectors) in (2, 5):
+                    break
+                time.sleep(0.3)
+                try:
+                    img_wait = ctx.ctrl.get_screen()
+                    if img_wait is not None and getattr(img_wait, 'size', 0) > 0:
+                        _, selectors = parse_cultivate_event(ctx, img_wait)
+                except Exception:
+                    continue
+
             if isinstance(selectors, list) and len(selectors) == 5:
                 target_pt = selectors[4]
                 ctx.ctrl.click(int(target_pt[0]), int(target_pt[1]), "tutorial choice 5")
-                
                 time.sleep(1.0)
-                
                 img_confirm = ctx.ctrl.get_screen()
                 if img_confirm is not None and getattr(img_confirm, 'size', 0) > 0:
                     _, confirm_selectors = parse_cultivate_event(ctx, img_confirm)
                     if isinstance(confirm_selectors, list) and len(confirm_selectors) >= 1:
                         confirm_pt = confirm_selectors[0]
                         ctx.ctrl.click(int(confirm_pt[0]), int(confirm_pt[1]), "tutorial Yes")
-
+                ctx.cultivate_detail.event_cooldown_until = time.time() + 2.5
+                return
+            elif isinstance(selectors, list) and len(selectors) == 2:
+                target_pt = selectors[1]
+                ctx.ctrl.click(int(target_pt[0]), int(target_pt[1]), "tutorial choice 2")
                 ctx.cultivate_detail.event_cooldown_until = time.time() + 2.5
                 return
     except Exception:
         pass
     
     threading.Thread(target=detect_hint_on_screen, args=(img, event_name), daemon=True).start()
-    choice_index = force_choice_index if force_choice_index is not None else get_event_choice(ctx, event_name)
+
+    if force_choice_index is not None:
+        choice_index = force_choice_index
+        choice_source = "hardcoded"
+        expected_count = 0
+    else:
+        choice_index, choice_source, expected_count = get_event_choice(ctx, event_name)
+
     if not isinstance(choice_index, int) or choice_index <= 0:
         return
     if choice_index > 5:
         choice_index = 2
+
+    if choice_source == "database" and expected_count >= 2:
+        deadline = time.time() + 3.0
+        while time.time() < deadline:
+            if isinstance(selectors, list) and len(selectors) >= expected_count:
+                break
+            time.sleep(0.3)
+            try:
+                img_wait = ctx.ctrl.get_screen()
+                if img_wait is not None and getattr(img_wait, 'size', 0) > 0:
+                    _, selectors_wait = parse_cultivate_event(ctx, img_wait)
+                    if isinstance(selectors_wait, list) and len(selectors_wait) >= expected_count:
+                        selectors = selectors_wait
+                        break
+            except Exception:
+                continue
+        log.info(f"expected={expected_count}, got {len(selectors) if isinstance(selectors, list) else 0}")
+
     if isinstance(selectors, list) and len(selectors) > 0:
         idx = int(choice_index)
         if idx < 1:
@@ -202,10 +242,7 @@ def script_cultivate_event(ctx: UmamusumeContext):
         if idx > len(selectors):
             idx = len(selectors)
         target_pt = selectors[idx - 1]
-        try:
-            log.info(len(selectors))
-        except Exception:
-            pass
+        log.info(f"Clicking option {idx}/{len(selectors)} (source={choice_source})")
         ctx.ctrl.click(int(target_pt[0]), int(target_pt[1]), f"Event option-{choice_index}")
         threading.Thread(target=detect_hint_after_event, args=(ctx.ctrl, event_name), daemon=True).start()
         ctx.cultivate_detail.event_cooldown_until = time.time() + 2.5
