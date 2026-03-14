@@ -472,22 +472,55 @@ def scan_mant_shop(ctx):
             for key, conf, abs_y in hits:
                 all_detections.append((key, conf, fi, abs_y))
 
-    by_name = defaultdict(list)
+    frame_shifts = {}
+    by_frame = defaultdict(list)
     for key, conf, fi, abs_y in all_detections:
-        by_name[key].append((conf, fi, abs_y))
+        by_frame[fi].append((key, conf, abs_y))
+
+    sorted_frames = sorted(by_frame.keys())
+    cumulative_shift = {sorted_frames[0]: 0} if sorted_frames else {}
+    for i in range(1, len(sorted_frames)):
+        prev_fi = sorted_frames[i - 1]
+        curr_fi = sorted_frames[i]
+        prev_items = {(k, y) for k, c, y in by_frame[prev_fi]}
+        curr_items = {(k, y) for k, c, y in by_frame[curr_fi]}
+        shifts = []
+        for pk, py in prev_items:
+            for ck, cy in curr_items:
+                if pk == ck:
+                    shifts.append(py - cy)
+        if shifts:
+            shifts.sort()
+            median_shift = shifts[len(shifts) // 2]
+        else:
+            median_shift = 0
+        cumulative_shift[curr_fi] = cumulative_shift[prev_fi] + median_shift
+
+    global_detections = []
+    for key, conf, fi, abs_y in all_detections:
+        global_y = abs_y + cumulative_shift.get(fi, 0)
+        global_detections.append((key, conf, fi, global_y))
+
+    by_name = defaultdict(list)
+    for key, conf, fi, gy in global_detections:
+        by_name[key].append((conf, fi, gy))
 
     items_list = []
     for name, dets in by_name.items():
-        dets.sort(key=lambda d: d[1])
-        groups = []
-        for conf, fi, abs_y in dets:
-            if groups and fi - groups[-1][-1][1] <= 2:
-                groups[-1].append((conf, fi, abs_y))
-            else:
-                groups.append([(conf, fi, abs_y)])
+        dets.sort(key=lambda d: d[2])
+        clusters = []
+        for conf, fi, gy in dets:
+            placed = False
+            for cluster in clusters:
+                if abs(gy - cluster[-1][2]) < 80:
+                    cluster.append((conf, fi, gy))
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([(conf, fi, gy)])
 
-        for group in groups:
-            best_conf = max(d[0] for d in group)
+        for cluster in clusters:
+            best_conf = max(d[0] for d in cluster)
             items_list.append((name, best_conf))
 
     log.info("shop items: %s", [n for n, _ in items_list])

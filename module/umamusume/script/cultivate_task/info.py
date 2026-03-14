@@ -101,6 +101,7 @@ TITLE = [
     "Borrow Card", #48
     "Insufficient Goal Race Result Pts", #49
     "Shop", #50
+    "Exchange Complete", #51
 ]
 
 
@@ -661,4 +662,12 @@ def script_info(ctx: UmamusumeContext):
             except Exception:
                 pass
             ctx.ctrl.click(200, 805, "Shop cancel")
+        if title_text == TITLE[51]:
+            try:
+                if ctx.cultivate_detail.scenario.scenario_type() != ScenarioType.SCENARIO_TYPE_MANT:
+                    return
+            except Exception:
+                pass
+            log.info("Exchange Complete detected - pressing Close")
+            ctx.ctrl.click(200, 1210, "Exchange Complete close")
         time.sleep(1)
