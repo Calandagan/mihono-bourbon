@@ -22,8 +22,11 @@ def handle_mant_shop_scan(ctx, current_date):
         return False
     from module.umamusume.scenario.mant.shop import is_shop_scan_turn, scan_mant_shop
     if is_shop_scan_turn(current_date):
-        items = scan_mant_shop(ctx)
-        ctx.cultivate_detail.mant_shop_items = items
+        items_list, ratio, drag_ratio, first_item_gy = scan_mant_shop(ctx)
+        ctx.cultivate_detail.mant_shop_items = items_list
+        ctx.cultivate_detail.mant_shop_ratio = ratio
+        ctx.cultivate_detail.mant_shop_drag_ratio = drag_ratio
+        ctx.cultivate_detail.mant_shop_first_gy = first_item_gy
         ctx.cultivate_detail.mant_shop_scanned_this_turn = True
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
         return True

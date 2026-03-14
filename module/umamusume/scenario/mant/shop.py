@@ -18,7 +18,7 @@ CROP_H = 54
 CROP_W = 80
 SHOP_ROI_Y1 = 440
 SHOP_ROI_Y2 = 920
-EDGE_MARGIN = 57
+EDGE_MARGIN = 26
 CONTENT_TOP = 440
 CONTENT_BOT = 920
 CONTENT_X1 = 30
@@ -521,11 +521,106 @@ def scan_mant_shop(ctx):
 
         for cluster in clusters:
             best_conf = max(d[0] for d in cluster)
-            items_list.append((name, best_conf))
+            avg_gy = sum(d[2] for d in cluster) / len(cluster)
+            items_list.append((name, best_conf, avg_gy))
 
-    log.info("shop items: %s", [n for n, _ in items_list])
+    items_list.sort(key=lambda x: x[2])
+    log.info("shop items: %s", [(n, round(gy)) for n, _, gy in items_list])
+
+    first_item_gy = items_list[0][2] if items_list else 0
 
     ctx.ctrl.click(95, 1228)
     time.sleep(1)
 
-    return [name for name, _ in items_list]
+    return items_list, ratio, drag_ratio, first_item_gy
+
+
+CHECKBOX_X = 630
+CONFIRM_BTN_X = 360
+CONFIRM_BTN_Y = 1050
+EXCHANGE_CLOSE_X = 200
+EXCHANGE_CLOSE_Y = 1210
+BACK_BTN_X = 95
+BACK_BTN_Y = 1228
+
+
+def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_gy):
+    load_models()
+
+    from module.umamusume.constants.game_constants import is_summer_camp_period
+    current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    shop_x = SHOP_OPEN_X_SUMMER if is_summer_camp_period(current_date) else SHOP_OPEN_X
+    ctx.ctrl.click(shop_x, SHOP_OPEN_Y, "MANT shop open")
+    time.sleep(1.5)
+
+    targets = [(name, conf, gy) for name, conf, gy in items_list if name in target_names]
+    if not targets:
+        log.info("no target items found in shop inventory")
+        ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
+        time.sleep(1)
+        return False
+
+    viewport_center = (CONTENT_TOP + CONTENT_BOT) / 2
+    selected = 0
+
+    for name, conf, target_gy in targets:
+        scroll_to_top(ctx)
+        trigger_scrollbar(ctx)
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        thumb = find_thumb(img_rgb)
+
+        content_offset = (target_gy - first_item_gy) - (viewport_center - CONTENT_TOP - 40)
+        if content_offset < 0:
+            content_offset = 0
+        thumb_target = TRACK_TOP + content_offset / ratio
+        thumb_target = int(min(max(thumb_target, TRACK_TOP), TRACK_BOT - 20))
+
+        if thumb:
+            current_thumb = (thumb[0] + thumb[1]) // 2
+            adjusted_target = int(TRACK_TOP + (thumb_target - TRACK_TOP) * drag_ratio)
+            adjusted_target = min(adjusted_target, TRACK_BOT - 10)
+            if adjusted_target > current_thumb + 5:
+                sb_drag(ctx, current_thumb, adjusted_target)
+                trigger_scrollbar(ctx)
+                time.sleep(0.3)
+
+        frame = ctx.ctrl.get_screen()
+        results, _ = classify_icons_in_frame(frame)
+        matches = [(k, c, y) for k, c, y in results if k == name]
+
+        if not matches:
+            for adj in [20, 40, -20, 60]:
+                trigger_scrollbar(ctx)
+                img_a = ctx.ctrl.get_screen()
+                img_a_rgb = cv2.cvtColor(img_a, cv2.COLOR_BGR2RGB)
+                t = find_thumb(img_a_rgb)
+                if t:
+                    sb_drag(ctx, (t[0] + t[1]) // 2, (t[0] + t[1]) // 2 + adj)
+                    trigger_scrollbar(ctx)
+                    time.sleep(0.3)
+                frame = ctx.ctrl.get_screen()
+                results, _ = classify_icons_in_frame(frame)
+                matches = [(k, c, y) for k, c, y in results if k == name]
+                if matches:
+                    break
+
+        if not matches:
+            log.warning("could not find %s in viewport, aborting buy", name)
+            ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
+            time.sleep(1)
+            return False
+
+        click_y = matches[0][2] + CROP_H // 2
+        ctx.ctrl.click(CHECKBOX_X, click_y, "select " + name)
+        time.sleep(0.3)
+        selected += 1
+        log.info("selected %s (%d/%d)", name, selected, len(targets))
+
+    ctx.ctrl.click(CONFIRM_BTN_X, CONFIRM_BTN_Y, "shop confirm")
+    time.sleep(2)
+    log.info("bought %d items", selected)
+
+    ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
+    time.sleep(1)
+    return True
