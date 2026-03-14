@@ -22,8 +22,10 @@ CULTIVATE_RACE = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Co
 CULTIVATE_RACE_SUMMER = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(460, 1125), "Race - Summer Camp", None)
 
 CULTIVATE_MEDIC_MANT = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(100, 1125), "medic - MANT", None)
+CULTIVATE_MEDIC_MANT_SUMMER = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(180, 1125), "medic - MANT Summer", None)
 CULTIVATE_TRIP_MANT = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(270, 1125), "recreation - MANT", None)
 CULTIVATE_RACE_MANT = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(620, 1125), "race - MANT", None)
+CULTIVATE_RACE_MANT_SUMMER = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(551, 1125), "race - MANT Summer", None)
 INSUFFICIENT_RESULT_PTS_CANCEL = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(200, 895), "Insufficient Result Pts", None)
 MANT_CLIMAX_NEXT = ClickPoint(ClickPointType.CLICK_POINT_TYPE_COORDINATE, None, Coordinate(360, 1110), "MANT Climax Next", None)
 

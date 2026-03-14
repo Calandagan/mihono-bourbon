@@ -10,7 +10,8 @@ from module.umamusume.asset.point import (
     CULTIVATE_TRIP, CULTIVATE_REST, CULTIVATE_SKILL_LEARN,
     TO_TRAINING_SELECT, CULTIVATE_RACE, CULTIVATE_RACE_SUMMER,
     CULTIVATE_MEDIC, CULTIVATE_MEDIC_SUMMER,
-    CULTIVATE_MEDIC_MANT, CULTIVATE_TRIP_MANT, CULTIVATE_RACE_MANT
+    CULTIVATE_MEDIC_MANT, CULTIVATE_MEDIC_MANT_SUMMER,
+    CULTIVATE_TRIP_MANT, CULTIVATE_RACE_MANT, CULTIVATE_RACE_MANT_SUMMER
 )
 from module.umamusume.define import ScenarioType
 from module.umamusume.constants.game_constants import (
@@ -40,13 +41,13 @@ def get_trip(ctx):
 
 def get_race(ctx, summer=False):
     if is_mant(ctx):
-        return CULTIVATE_RACE_MANT
+        return CULTIVATE_RACE_MANT_SUMMER if summer else CULTIVATE_RACE_MANT
     return CULTIVATE_RACE_SUMMER if summer else CULTIVATE_RACE
 
 
 def get_medic(ctx, summer=False):
     if is_mant(ctx):
-        return CULTIVATE_MEDIC_MANT
+        return CULTIVATE_MEDIC_MANT_SUMMER if summer else CULTIVATE_MEDIC_MANT
     return CULTIVATE_MEDIC_SUMMER if summer else CULTIVATE_MEDIC
 
 
@@ -253,7 +254,10 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             img = ctx.ctrl.get_screen()
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             if is_mant(ctx):
-                check_point = img_rgb[1125, 40]
+                if is_summer:
+                    check_point = img_rgb[1118, 100]
+                else:
+                    check_point = img_rgb[1125, 40]
             elif is_summer:
                 check_point = img_rgb[1130, 200]
             else:

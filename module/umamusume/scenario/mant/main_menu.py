@@ -38,8 +38,13 @@ def handle_mant_on_sale(img):
 
 
 def handle_mant_afflictions(ctx, img):
+    from module.umamusume.constants.game_constants import is_summer_camp_period
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    medic_px = img_rgb[1125, 40]
+    current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    if is_summer_camp_period(current_date):
+        medic_px = img_rgb[1118, 100]
+    else:
+        medic_px = img_rgb[1125, 40]
     medic_lit = medic_px[0] > 200 and medic_px[1] > 200 and medic_px[2] > 200
     if not medic_lit:
         ctx.cultivate_detail.mant_afflictions = []
@@ -62,8 +67,11 @@ def color_match(px, target, tol):
 def handle_mant_rival_race(ctx, img):
     if getattr(ctx.cultivate_detail.turn_info, 'mant_rival_checked', False):
         return
+    from module.umamusume.constants.game_constants import is_summer_camp_period
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    px = img_rgb[1089, 565]
+    current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    rival_x = 497 if is_summer_camp_period(current_date) else 565
+    px = img_rgb[1089, rival_x]
     if color_match(px, RIVAL_COLOR_1, RIVAL_TOLERANCE) or color_match(px, RIVAL_COLOR_2, RIVAL_TOLERANCE):
         log.info("rival race detected")
     ctx.cultivate_detail.turn_info.mant_rival_checked = True

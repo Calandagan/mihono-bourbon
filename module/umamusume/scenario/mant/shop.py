@@ -32,6 +32,10 @@ PURCHASED_BRIGHTNESS_THRESHOLD = 180
 MANT_SHOP_SCAN_START = 14
 MANT_SHOP_SCAN_INTERVAL = 6
 
+SHOP_OPEN_X = 412
+SHOP_OPEN_X_SUMMER = 359
+SHOP_OPEN_Y = 1125
+
 SB_X = 695
 SB_X_MIN = 693
 SB_X_MAX = 697
@@ -354,7 +358,10 @@ def classify_icons_in_frame(frame):
 def scan_mant_shop(ctx):
     load_models()
 
-    ctx.ctrl.click(412, 1125, "MANT shop open")
+    from module.umamusume.constants.game_constants import is_summer_camp_period
+    current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    shop_x = SHOP_OPEN_X_SUMMER if is_summer_camp_period(current_date) else SHOP_OPEN_X
+    ctx.ctrl.click(shop_x, SHOP_OPEN_Y, "MANT shop open")
     time.sleep(1.5)
 
     scroll_to_top(ctx)
