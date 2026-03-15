@@ -45,6 +45,7 @@ def handle_mant_shop_scan(ctx, current_date):
         is_shop_scan_turn, scan_mant_shop, buy_shop_items,
         SHOP_ITEM_COSTS, SLUG_TO_DISPLAY, display_to_slug
     )
+    from module.umamusume.scenario.mant.constants import AILMENT_CURE_MAP, AILMENT_CURE_ALL
     if is_shop_scan_turn(current_date):
         items_list, ratio, drag_ratio, first_item_gy = scan_mant_shop(ctx)
         ctx.cultivate_detail.mant_shop_items = items_list
@@ -73,6 +74,16 @@ def handle_mant_shop_scan(ctx, current_date):
                             cost = SHOP_ITEM_COSTS.get(display, 9999)
                             if cost <= coins:
                                 targets.append(display)
+            active_ailments = getattr(ctx.cultivate_detail, 'mant_afflictions', [])
+            cure_always_ok = {"Rich Hand Cream", AILMENT_CURE_ALL}
+            needed_cures = set()
+            for ailment, cure in AILMENT_CURE_MAP.items():
+                for active in active_ailments:
+                    if ailment.lower() in active.lower():
+                        needed_cures.add(cure)
+            all_cures = set(AILMENT_CURE_MAP.values())
+            conditional_cures = all_cures - cure_always_ok
+            targets = [t for t in targets if t not in conditional_cures or t in needed_cures]
             if targets:
                 bought = buy_shop_items(ctx, targets, items_list, ratio, drag_ratio, first_item_gy)
 
