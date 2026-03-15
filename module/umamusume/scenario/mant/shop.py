@@ -99,8 +99,14 @@ EFFECT_PREFIXES = (
 )
 
 
+def current_shop_chunk(date):
+    if date < MANT_SHOP_SCAN_START:
+        return -1
+    return (date - MANT_SHOP_SCAN_START) // MANT_SHOP_SCAN_INTERVAL
+
+
 def is_shop_scan_turn(date):
-    return date >= MANT_SHOP_SCAN_START and (date - MANT_SHOP_SCAN_START) % MANT_SHOP_SCAN_INTERVAL == 0
+    return date >= MANT_SHOP_SCAN_START
 
 
 def is_thumb(r, g, b):
