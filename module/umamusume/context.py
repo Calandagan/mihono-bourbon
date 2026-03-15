@@ -127,6 +127,7 @@ class CultivateContextDetail:
         self.mant_shop_items = []
         self.mant_shop_scanned_this_turn = False
         self.mant_afflictions = []
+        self.mant_coins = 0
         self.user_provided_priority = False
         self.event_overrides = {}
         self.use_last_parents = False

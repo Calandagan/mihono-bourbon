@@ -1,14 +1,35 @@
 import cv2
+import re
 
 from bot.recog.image_matcher import image_match
+from bot.recog.ocr import ocr_line
 from module.umamusume.asset.template import REF_MANT_ON_SALE
 import bot.base.log as logger
 
 log = logger.get_logger(__name__)
 
+COIN_ROI_NORMAL = (1172, 1197, 402, 500)
+COIN_ROI_SUMMER = (1172, 1199, 321, 417)
+COIN_ROI_CLIMAX = (1125, 1148, 565, 654)
+
 RIVAL_COLOR_1 = (0x4E, 0xFF, 0xFF)
 RIVAL_COLOR_2 = (0x30, 0xAD, 0xEB)
 RIVAL_TOLERANCE = 5
+
+
+def read_shop_coins(img, is_summer, is_climax):
+    if is_climax:
+        y1, y2, x1, x2 = COIN_ROI_CLIMAX
+    elif is_summer:
+        y1, y2, x1, x2 = COIN_ROI_SUMMER
+    else:
+        y1, y2, x1, x2 = COIN_ROI_NORMAL
+    roi = img[y1:y2, x1:x2]
+    text = ocr_line(roi, lang="en")
+    digits = re.sub(r'[^0-9]', '', text)
+    if digits:
+        return int(digits)
+    return -1
 
 
 def handle_mant_turn_start(ctx, current_date):
