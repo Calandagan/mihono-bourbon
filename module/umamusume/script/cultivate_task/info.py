@@ -102,6 +102,7 @@ TITLE = [
     "Insufficient Goal Race Result Pts", #49
     "Shop", #50
     "Exchange Complete", #51
+    "Career Complete", #52
 ]
 
 
@@ -670,4 +671,6 @@ def script_info(ctx: UmamusumeContext):
                 pass
             log.info("Exchange Complete detected - pressing Close")
             ctx.ctrl.click(200, 1210, "Exchange Complete close")
+        if title_text == TITLE[52]:
+            ctx.ctrl.click(200, 805, "Career Complete to home")
         time.sleep(1)
