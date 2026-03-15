@@ -480,19 +480,39 @@ BACK_BTN_X = 95
 BACK_BTN_Y = 1228
 
 
+RESET_BTN_X = 615
+RESET_BTN_Y = 1050
+
+
+def estimate_screen_y(target_gy, first_item_gy, thumb_pos, ratio):
+    content_at_top = first_item_gy - (CONTENT_TOP + 40)
+    thumb_offset = (thumb_pos - TRACK_TOP) * ratio if thumb_pos else 0
+    scroll_offset = content_at_top + thumb_offset
+    return target_gy - scroll_offset
+
+
+def pick_best_match(matches, target_gy, first_item_gy, thumb_pos, ratio):
+    if len(matches) <= 1:
+        return matches[0] if matches else None
+    expected_y = estimate_screen_y(target_gy, first_item_gy, thumb_pos, ratio)
+    return min(matches, key=lambda m: abs(m[2] - expected_y))
+
+
 def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_gy):
     targets = [(name, conf, gy) for name, conf, gy in items_list if name in target_names]
     if not targets:
-        log.info("no target items found in shop inventory")
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         time.sleep(1)
         return False
 
+    targets.sort(key=lambda t: t[2])
     viewport_center = (CONTENT_TOP + CONTENT_BOT) / 2
     selected = 0
+    done_gys = set()
+
+    scroll_to_top(ctx)
 
     for name, conf, target_gy in targets:
-        scroll_to_top(ctx)
         trigger_scrollbar(ctx)
         img = ctx.ctrl.get_screen()
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -508,11 +528,12 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
             current_thumb = (thumb[0] + thumb[1]) // 2
             adjusted_target = int(TRACK_TOP + (thumb_target - TRACK_TOP) * drag_ratio)
             adjusted_target = min(adjusted_target, TRACK_BOT - 10)
-            if adjusted_target > current_thumb + 5:
+            if abs(adjusted_target - current_thumb) > 5:
                 sb_drag(ctx, current_thumb, adjusted_target)
                 trigger_scrollbar(ctx)
                 time.sleep(0.3)
 
+        thumb_pos = thumb[0] if thumb else TRACK_TOP
         frame = ctx.ctrl.get_screen()
         results, _ = classify_items_in_frame(frame)
         matches = [(k, c, y) for k, c, y in results if k == name]
@@ -527,6 +548,7 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
                     sb_drag(ctx, (t[0] + t[1]) // 2, (t[0] + t[1]) // 2 + adj)
                     trigger_scrollbar(ctx)
                     time.sleep(0.3)
+                    thumb_pos = t[0]
                 frame = ctx.ctrl.get_screen()
                 results, _ = classify_items_in_frame(frame)
                 matches = [(k, c, y) for k, c, y in results if k == name]
@@ -534,18 +556,20 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
                     break
 
         if not matches:
-            log.warning("could not find %s in viewport, aborting buy", name)
-            ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
-            time.sleep(1)
-            return False
+            continue
 
-        click_y = int(matches[0][2]) + 20
-        ctx.ctrl.click(CHECKBOX_X, click_y, "select " + name)
+        best = pick_best_match(matches, target_gy, first_item_gy, thumb_pos, ratio)
+        click_y = int(best[2]) + 20
+        ctx.ctrl.click(CHECKBOX_X, click_y)
         time.sleep(0.3)
         selected += 1
-        log.info("selected %s (%d/%d)", name, selected, len(targets))
+        done_gys.add(target_gy)
 
-    ctx.ctrl.click(CONFIRM_BTN_X, CONFIRM_BTN_Y, "shop confirm")
+    if selected == 0:
+        ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
+        time.sleep(1)
+        return False
+
+    ctx.ctrl.click(CONFIRM_BTN_X, CONFIRM_BTN_Y)
     time.sleep(2)
-    log.info("bought %d items", selected)
     return True
