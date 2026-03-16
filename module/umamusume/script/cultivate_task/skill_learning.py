@@ -215,7 +215,9 @@ def script_cultivate_finish(ctx: UmamusumeContext):
             ctx.ctrl.click_by_point(CULTIVATE_FINISH_LEARN_SKILL)
             return
         if getattr(ctx.cultivate_detail, "final_skill_sweep_active", False):
-            if ctx.cultivate_detail.learn_skill_selected:
+            sweep_count = getattr(ctx.cultivate_detail, "final_skill_sweep_count", 0)
+            if ctx.cultivate_detail.learn_skill_selected and sweep_count < 2:
+                ctx.cultivate_detail.final_skill_sweep_count = sweep_count + 1
                 ctx.cultivate_detail.learn_skill_done = False
                 ctx.cultivate_detail.learn_skill_selected = False
                 ctx.ctrl.click_by_point(CULTIVATE_FINISH_LEARN_SKILL)
@@ -618,11 +620,11 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
                 pass_bought += prev_count - len(remaining)
                 continue
 
+            trigger_scrollbar(ctx)
+            img = ctx.ctrl.get_screen()
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             if at_bottom(img_rgb):
                 break
-
-            trigger_scrollbar(ctx)
             img = ctx.ctrl.get_screen()
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             thumb = find_thumb(img_rgb)
@@ -645,6 +647,4 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
 
     ctx.cultivate_detail.learn_skill_done = True
     ctx.cultivate_detail.turn_info.turn_learn_skill_done = True
-    if target_skill_list:
-        ctx.cultivate_detail.learn_skill_selected = True
     ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_CONFIRM)
