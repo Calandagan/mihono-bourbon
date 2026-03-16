@@ -266,6 +266,12 @@ def get_detected_portraits():
     return list(detected_portraits_log.values())
 
 
+@server.get("/api/detected-items")
+def get_detected_items():
+    from module.umamusume.context import detected_items_log
+    return list(detected_items_log.values())
+
+
 @server.get("/api/pal-defaults")
 def get_pal_defaults():
     from module.umamusume.user_data import read_pal_defaults

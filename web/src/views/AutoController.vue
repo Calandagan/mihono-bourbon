@@ -86,6 +86,7 @@
           :cron-job-list="cronJobList"
           :detected-skills="detectedSkills"
           :detected-portraits="detectedPortraits"
+          :detected-items="detectedItems"
         />
       </div>
       <div class="col-8">
@@ -121,7 +122,8 @@ export default {
       editRepetitive: 11,
       editWatchdog: 3,
       detectedSkills: [],
-      detectedPortraits: []
+      detectedPortraits: [],
+      detectedItems: []
     }
   },
   computed: {
@@ -142,6 +144,8 @@ export default {
     this.pollDetectedSkills()
     setInterval(() => { this.pollDetectedPortraits() }, 3000)
     this.pollDetectedPortraits()
+    setInterval(() => { this.pollDetectedItems() }, 3000)
+    this.pollDetectedItems()
   },
   methods:{
     scrollToLogs(){
@@ -214,6 +218,13 @@ export default {
       this.axios.get('/api/detected-portraits').then(res=>{
         if (res && res.data && Array.isArray(res.data)){
           this.detectedPortraits = res.data
+        }
+      }).catch(()=>{})
+    },
+    pollDetectedItems(){
+      this.axios.get('/api/detected-items').then(res=>{
+        if (res && res.data && Array.isArray(res.data)){
+          this.detectedItems = res.data
         }
       }).catch(()=>{})
     }

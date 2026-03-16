@@ -25,6 +25,9 @@
     <div v-if="detectedPortraits && detectedPortraits.length > 0" class="mb-3">
       <detected-portraits-panel :portraits="detectedPortraits"></detected-portraits-panel>
     </div>
+    <div v-if="detectedItems && detectedItems.length > 0" class="mb-3">
+      <detected-items-panel :items="detectedItems"></detected-items-panel>
+    </div>
     <div>
       <task-edit-modal ref="taskEditModal"></task-edit-modal>
     </div>
@@ -40,13 +43,14 @@ import HistoryTaskList from "@/components/HistoryTaskList.vue";
 import CronJobList from "@/components/CronJobList.vue";
 import DetectedSkillsPanel from "@/components/DetectedSkillsPanel.vue";
 import DetectedPortraitsPanel from "@/components/DetectedPortraitsPanel.vue";
+import DetectedItemsPanel from "@/components/DetectedItemsPanel.vue";
 
 import imageBgUrl1 from "../../assets/cunny.png";
 import imageBgUrl2 from "../../assets/cunny2.png";
 export default {
   name: "SchedulerPanel",
-  components: { CronJobList, HistoryTaskList, TaskEditModal, WaitingTaskList, AutoStatusPanel, RunningTaskPanel, DetectedSkillsPanel, DetectedPortraitsPanel },
-  props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits"],
+  components: { CronJobList, HistoryTaskList, TaskEditModal, WaitingTaskList, AutoStatusPanel, RunningTaskPanel, DetectedSkillsPanel, DetectedPortraitsPanel, DetectedItemsPanel },
+  props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits", "detectedItems"],
   data(){ 
     const savedCharacter = localStorage.getItem('activeCharacter') || '0';
     const activeChar = parseInt(savedCharacter);

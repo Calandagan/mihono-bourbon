@@ -18,6 +18,7 @@ log = logger.get_logger(__name__)
 
 detected_skills_log = {}
 detected_portraits_log = {}
+detected_items_log = {}
 
 def log_detected_portrait(name, favor_level, is_npc=False):
     if not name or favor_level == 0:
@@ -57,6 +58,20 @@ def log_detected_skill(name, source, hint_level=0, cost=0, gold=False):
 
 def clear_detected_skills():
     detected_skills_log.clear()
+
+def log_detected_items(items):
+    from module.umamusume.scenario.mant.shop import WEBUI_EXCLUDED_PREFIXES
+    detected_items_log.clear()
+    for name, qty in items:
+        if name in WEBUI_EXCLUDED_PREFIXES:
+            continue
+        detected_items_log[name] = {
+            "name": name,
+            "qty": qty,
+        }
+
+def clear_detected_items():
+    detected_items_log.clear()
 
 class CultivateContextDetail:
     turn_info: TurnInfo | None
@@ -129,6 +144,8 @@ class CultivateContextDetail:
         self.mant_shop_last_chunk = -1
         self.mant_afflictions = []
         self.mant_coins = 0
+        self.mant_inventory_scanned = False
+        self.mant_owned_items = []
         self.user_provided_priority = False
         self.event_overrides = {}
         self.use_last_parents = False
@@ -166,6 +183,7 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
     if task.task_type == UmamusumeTaskType.UMAMUSUME_TASK_TYPE_CULTIVATE:
         clear_detected_skills()
         clear_detected_portraits()
+        clear_detected_items()
         detail = CultivateContextDetail()
         detail.scenario = create_scenario(task.detail.scenario)
         if detail.scenario is None:

@@ -83,8 +83,10 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         from module.umamusume.scenario.mant.main_menu import (
             handle_mant_shop_scan, handle_mant_on_sale,
             handle_mant_afflictions, handle_mant_rival_race,
-            read_shop_coins
+            read_shop_coins, handle_mant_inventory_scan
         )
+        if handle_mant_inventory_scan(ctx, current_date):
+            return
         if handle_mant_shop_scan(ctx, current_date):
             return
         handle_mant_on_sale(img)

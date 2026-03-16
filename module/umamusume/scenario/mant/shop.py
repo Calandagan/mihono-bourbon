@@ -511,6 +511,9 @@ def scan_mant_shop(ctx):
 
 
 CHECKBOX_X = 630
+CHECKBOX_FILL_X1 = 615
+CHECKBOX_FILL_X2 = 655
+CHECKBOX_FILL_THRESHOLD = 232
 CONFIRM_BTN_X = 360
 CONFIRM_BTN_Y = 1050
 EXCHANGE_CLOSE_X = 200
@@ -521,6 +524,25 @@ BACK_BTN_Y = 1228
 
 RESET_BTN_X = 615
 RESET_BTN_Y = 1050
+
+WEBUI_EXCLUDED_PREFIXES = (
+    "Speed Notepad", "Stamina Notepad", "Power Notepad", "Guts Notepad", "Wit Notepad",
+    "Speed Manual", "Stamina Manual", "Power Manual", "Guts Manual", "Wit Manual",
+    "Speed Scroll", "Stamina Scroll", "Power Scroll", "Guts Scroll", "Wit Scroll",
+    "Speed Training Application", "Stamina Training Application",
+    "Power Training Application", "Guts Training Application", "Wit Training Application",
+)
+
+
+def is_unbuyable(frame, item_y):
+    cb_y = int(item_y) + 10
+    roi = frame[max(0, cb_y):min(frame.shape[0], cb_y + 10),
+                CHECKBOX_FILL_X1:CHECKBOX_FILL_X2]
+    if roi.size == 0:
+        return False
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    mean_val = float(cv2.mean(gray)[0])
+    return mean_val < CHECKBOX_FILL_THRESHOLD
 
 
 def estimate_screen_y(target_gy, first_item_gy, thumb_pos, ratio):
@@ -599,6 +621,10 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
 
         best = pick_best_match(matches, target_gy, first_item_gy, thumb_pos, ratio)
         click_y = int(best[2]) + 20
+
+        if is_unbuyable(frame, best[2]):
+            continue
+
         ctx.ctrl.click(CHECKBOX_X, click_y)
         time.sleep(0.3)
         selected += 1

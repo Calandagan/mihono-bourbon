@@ -1,0 +1,463 @@
+import time
+import re
+import random
+import cv2
+import numpy as np
+from collections import defaultdict, Counter
+from concurrent.futures import ThreadPoolExecutor
+
+from bot.recog.ocr import ocr
+from rapidfuzz import process, fuzz
+import bot.base.log as logger
+
+from module.umamusume.scenario.mant.shop import (
+    SHOP_ITEM_NAMES, EFFECT_PREFIXES,
+    SB_X, SB_X_MIN, SB_X_MAX,
+    _gauss_scan_x,
+)
+
+log = logger.get_logger(__name__)
+
+INV_TRACK_TOP = 120
+INV_TRACK_BOT = 1060
+INV_CONTENT_TOP = 90
+INV_CONTENT_BOT = 1080
+INV_CONTENT_X1 = 30
+INV_CONTENT_X2 = 640
+SCREEN_WIDTH = 720
+OCR_X1 = 60
+OCR_X2 = 560
+OCR_Y1 = 90
+OCR_Y2 = 1080
+
+
+def inv_find_thumb(img_rgb):
+    from module.umamusume.scenario.mant.shop import is_thumb
+    top = bot = None
+    for y in range(INV_TRACK_TOP, INV_TRACK_BOT + 1):
+        r, g, b = int(img_rgb[y, SB_X, 0]), int(img_rgb[y, SB_X, 1]), int(img_rgb[y, SB_X, 2])
+        if is_thumb(r, g, b):
+            if top is None:
+                top = y
+            bot = y
+    return (top, bot) if top is not None else None
+
+
+def inv_at_top(img_rgb):
+    thumb = inv_find_thumb(img_rgb)
+    if thumb is None:
+        return False
+    return thumb[0] <= INV_TRACK_TOP + 10
+
+
+def inv_at_bottom(img_rgb):
+    from module.umamusume.scenario.mant.shop import is_track
+    thumb = inv_find_thumb(img_rgb)
+    if thumb is None:
+        return True
+    for y in range(thumb[1] + 1, INV_TRACK_BOT + 1):
+        r, g, b = int(img_rgb[y, SB_X, 0]), int(img_rgb[y, SB_X, 1]), int(img_rgb[y, SB_X, 2])
+        if is_track(r, g, b):
+            return False
+    return True
+
+
+def inv_content_gray(img):
+    return cv2.cvtColor(img[INV_CONTENT_TOP:INV_CONTENT_BOT, INV_CONTENT_X1:INV_CONTENT_X2], cv2.COLOR_BGR2GRAY)
+
+
+def inv_content_same(before, after):
+    b = inv_content_gray(before)
+    a = inv_content_gray(after)
+    diff = cv2.absdiff(b, a)
+    return cv2.mean(diff)[0] < 3
+
+
+def inv_find_content_shift(before, after):
+    bg = inv_content_gray(before)
+    ag = inv_content_gray(after)
+    ch = bg.shape[0]
+    strip_h = 80
+    best_shift = 0
+    best_conf = 0
+    for strip_y in [ch - strip_h - 10, ch - strip_h - 80, ch // 2]:
+        if strip_y < 0 or strip_y + strip_h > ch:
+            continue
+        strip = bg[strip_y:strip_y + strip_h]
+        result = cv2.matchTemplate(ag, strip, cv2.TM_CCOEFF_NORMED)
+        _, mv, _, ml = cv2.minMaxLoc(result)
+        if mv > best_conf:
+            best_conf = mv
+            if mv > 0.85:
+                best_shift = strip_y - ml[1]
+    return best_shift, best_conf
+
+
+def trigger_scrollbar(ctx):
+    y = INV_CONTENT_TOP + random.randint(0, 10)
+    ctx.ctrl.execute_adb_shell("shell input swipe 30 " + str(y) + " 30 " + str(y) + " 100", True)
+    time.sleep(0.15)
+
+
+def sb_drag(ctx, from_y, to_y):
+    sx = random.randint(SB_X_MIN, SB_X_MAX)
+    ex = random.randint(SB_X_MIN, SB_X_MAX)
+    dur = random.randint(166, 211)
+    ctx.ctrl.execute_adb_shell(
+        "shell input swipe " + str(sx) + " " + str(from_y) + " " + str(ex) + " " + str(to_y) + " " + str(dur), True)
+    time.sleep(0.15)
+
+
+def scroll_to_top(ctx):
+    for _ in range(15):
+        trigger_scrollbar(ctx)
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if inv_at_top(img_rgb):
+            return
+        thumb = inv_find_thumb(img_rgb)
+        if thumb is None:
+            continue
+        sb_drag(ctx, (thumb[0] + thumb[1]) // 2, INV_TRACK_TOP)
+
+
+def is_effect_text(text):
+    lower = text.lower()
+    return any(lower.startswith(p) for p in EFFECT_PREFIXES) or any(
+        lower.startswith(p) for p in (
+            'support', 'cure', 'max energy', 'fan ',
+            'failure', 'increase', 'reroll', 'choose',
+        )
+    )
+
+
+def parse_held_qty(text):
+    digits = re.sub(r'[^0-9]', '', text)
+    if not digits:
+        return None
+    n = len(digits)
+    if n % 2 == 0:
+        first_half = digits[:n // 2]
+        second_half = digits[n // 2:]
+        if first_half == second_half:
+            return int(first_half)
+    return int(digits)
+
+
+def classify_names_only(frame):
+    roi = frame[OCR_Y1:OCR_Y2, OCR_X1:OCR_X2]
+    raw = ocr(roi, lang="en")
+    if not raw or not raw[0]:
+        return []
+    items = []
+    seen_y = []
+    for entry in raw[0]:
+        if not entry or len(entry) < 2:
+            continue
+        bbox = entry[0]
+        text = entry[1][0].strip()
+        conf = entry[1][1]
+        y_center = (bbox[0][1] + bbox[2][1]) / 2
+        abs_y = OCR_Y1 + y_center
+        if len(text) < 3 or conf < 0.4:
+            continue
+        lower = text.lower()
+        if lower in ('held', 'effect', 'cost', 'new', 'turn(s)', 'choose how many to use.',
+                      'close', 'confirm use', 'training items', 'confirm', 'cancel'):
+            continue
+        if text.replace('+', '').replace('-', '').replace(' ', '').replace('.', '').replace('>', '').isdigit():
+            continue
+        if text.startswith('+') or text.startswith('-'):
+            continue
+        if is_effect_text(text):
+            continue
+        if '>' in text or 'held' in lower:
+            continue
+        match = process.extractOne(text, SHOP_ITEM_NAMES, scorer=fuzz.ratio, score_cutoff=55)
+        if not match:
+            continue
+        matched_name, match_score, _ = match
+        is_dup = False
+        for sy in seen_y:
+            if abs(abs_y - sy) < 40:
+                is_dup = True
+                break
+        if is_dup:
+            continue
+        items.append((matched_name, match_score, abs_y))
+        seen_y.append(abs_y)
+    items.sort(key=lambda r: r[2])
+    return items
+
+
+def read_qty_at(frame, item_y):
+    qty_y1 = int(item_y + 28)
+    qty_y2 = int(item_y + 58)
+    qty_x1 = 240
+    qty_x2 = 370
+    h, w = frame.shape[:2]
+    if qty_y1 < 0 or qty_y2 > h or qty_x1 < 0 or qty_x2 > w:
+        return 1
+    roi = frame[qty_y1:qty_y2, qty_x1:qty_x2]
+    raw = ocr(roi, lang="en")
+    if not raw or not raw[0]:
+        return 1
+    for entry in raw[0]:
+        if not entry or len(entry) < 2:
+            continue
+        text = entry[1][0].strip()
+        parsed = parse_held_qty(text)
+        if parsed is not None and parsed > 0:
+            return parsed
+    return 1
+
+
+def classify_with_qty(frame):
+    roi = frame[OCR_Y1:OCR_Y2, OCR_X1:OCR_X2]
+    raw = ocr(roi, lang="en")
+    if not raw or not raw[0]:
+        return []
+    items = []
+    seen_y = []
+    for entry in raw[0]:
+        if not entry or len(entry) < 2:
+            continue
+        bbox = entry[0]
+        text = entry[1][0].strip()
+        conf = entry[1][1]
+        y_center = (bbox[0][1] + bbox[2][1]) / 2
+        abs_y = OCR_Y1 + y_center
+        if len(text) < 3 or conf < 0.4:
+            continue
+        lower = text.lower()
+        if lower in ('held', 'effect', 'cost', 'new', 'turn(s)', 'choose how many to use.',
+                      'close', 'confirm use', 'training items', 'confirm', 'cancel'):
+            continue
+        if text.replace('+', '').replace('-', '').replace(' ', '').replace('.', '').replace('>', '').isdigit():
+            continue
+        if text.startswith('+') or text.startswith('-'):
+            continue
+        if is_effect_text(text):
+            continue
+        if '>' in text or 'held' in lower:
+            continue
+        match = process.extractOne(text, SHOP_ITEM_NAMES, scorer=fuzz.ratio, score_cutoff=55)
+        if not match:
+            continue
+        matched_name, match_score, _ = match
+        is_dup = False
+        for sy in seen_y:
+            if abs(abs_y - sy) < 40:
+                is_dup = True
+                break
+        if is_dup:
+            continue
+        qty = read_qty_at(frame, abs_y)
+        items.append((matched_name, match_score, abs_y, qty))
+        seen_y.append(abs_y)
+    items.sort(key=lambda r: r[2])
+    return items
+
+
+def dedup_names(all_detections, captured_frames):
+    by_frame = defaultdict(list)
+    for key, conf, fi, abs_y in all_detections:
+        by_frame[fi].append((key, conf, abs_y))
+    sorted_frames = sorted(by_frame.keys())
+    if not sorted_frames:
+        return []
+    cumulative_shift = {sorted_frames[0]: 0}
+    for i in range(1, len(sorted_frames)):
+        prev_fi = sorted_frames[i - 1]
+        curr_fi = sorted_frames[i]
+        content_shift = 0
+        if prev_fi in captured_frames and curr_fi in captured_frames:
+            shift, conf = inv_find_content_shift(captured_frames[prev_fi], captured_frames[curr_fi])
+            if conf > 0.85 and shift > 0:
+                content_shift = shift
+        if content_shift == 0:
+            prev_items = [(k, y) for k, c, y in by_frame[prev_fi]]
+            curr_items = [(k, y) for k, c, y in by_frame[curr_fi]]
+            shifts = []
+            used = set()
+            for pk, py in prev_items:
+                best_s = None
+                best_d = 9999
+                best_ci = -1
+                for ci, (ck, cy) in enumerate(curr_items):
+                    if ci in used or pk != ck:
+                        continue
+                    dist = abs(py - cy)
+                    if dist < best_d:
+                        best_d = dist
+                        best_s = py - cy
+                        best_ci = ci
+                if best_s is not None:
+                    shifts.append(best_s)
+                    used.add(best_ci)
+            if shifts:
+                shifts.sort()
+                content_shift = shifts[len(shifts) // 2]
+        cumulative_shift[curr_fi] = cumulative_shift[prev_fi] + content_shift
+    global_dets = []
+    for key, conf, fi, abs_y in all_detections:
+        gy = abs_y + cumulative_shift.get(fi, 0)
+        global_dets.append((key, conf, fi, gy))
+    global_dets.sort(key=lambda d: d[3])
+    clusters = []
+    for key, conf, fi, gy in global_dets:
+        placed = False
+        for cluster in clusters:
+            cluster_gy = sum(d[3] for d in cluster) / len(cluster)
+            if abs(gy - cluster_gy) < 80:
+                cluster.append((key, conf, fi, gy))
+                placed = True
+                break
+        if not placed:
+            clusters.append([(key, conf, fi, gy)])
+    items_list = []
+    for cluster in clusters:
+        name_counts = Counter()
+        name_best_conf = {}
+        for k, c, fi, gy in cluster:
+            name_counts[k] += 1
+            if k not in name_best_conf or c > name_best_conf[k]:
+                name_best_conf[k] = c
+        winner = max(name_counts.keys(), key=lambda n: (name_counts[n], name_best_conf[n]))
+        avg_gy = sum(d[3] for d in cluster) / len(cluster)
+        items_list.append((winner, name_best_conf[winner], avg_gy))
+    items_list.sort(key=lambda x: x[2])
+    return items_list
+
+
+def scan_inventory(ctx):
+    trigger_scrollbar(ctx)
+    scroll_to_top(ctx)
+    trigger_scrollbar(ctx)
+
+    img = ctx.ctrl.get_screen()
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    thumb = inv_find_thumb(img_rgb)
+
+    if thumb is None:
+        results = classify_with_qty(img)
+        owned = [(name, qty) for name, score, y, qty in results]
+        return owned
+
+    thumb_h = thumb[1] - thumb[0]
+    thumb_center = (thumb[0] + thumb[1]) // 2
+    if thumb[0] > INV_TRACK_TOP + 5:
+        sb_drag(ctx, thumb_center, INV_TRACK_TOP)
+        trigger_scrollbar(ctx)
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        thumb = inv_find_thumb(img_rgb)
+        thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else INV_TRACK_TOP + thumb_h // 2
+
+    start_y = thumb_center if thumb else INV_TRACK_TOP + thumb_h // 2 + 5
+
+    before_cal = img
+    sb_drag(ctx, thumb_center, thumb_center + 5)
+    after_cal = ctx.ctrl.get_screen()
+    shift_cal, conf_cal = inv_find_content_shift(before_cal, after_cal)
+    ratio = shift_cal / 5 if (shift_cal > 0 and conf_cal > 0.85) else 14.0
+
+    scroll_to_top(ctx)
+    trigger_scrollbar(ctx)
+    img = ctx.ctrl.get_screen()
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    thumb = inv_find_thumb(img_rgb)
+    start_y = (thumb[0] + thumb[1]) // 2 if thumb else INV_TRACK_TOP + thumb_h // 2 + 5
+
+    content_h = INV_CONTENT_BOT - INV_CONTENT_TOP
+    track_len = INV_TRACK_BOT - INV_TRACK_TOP
+    total_content = track_len * ratio + content_h
+    desired_overlap = 160
+    desired_shift = content_h - desired_overlap
+    est_frames = total_content / desired_shift
+    swipe_dur = max(5000, min(25000, int(est_frames * 600)))
+
+    first_results = classify_names_only(img)
+    all_detections = []
+    captured_frames = {0: img.copy()}
+    for name, conf, abs_y in first_results:
+        all_detections.append((name, conf, 0, abs_y))
+
+    scan_x_end = _gauss_scan_x()
+    swipe_cmd = ("shell input swipe " + str(SB_X) + " " + str(start_y) +
+                 " " + str(scan_x_end) + " " + str(INV_TRACK_BOT) + " " + str(swipe_dur))
+    proc = ctx.ctrl.execute_adb_shell(swipe_cmd, False)
+
+    time.sleep(0.3)
+    prev_frame = img
+    scan_deadline = time.time() + 30
+    frame_idx = 1
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = []
+        while ctx.task.running() and time.time() < scan_deadline:
+            time.sleep(0.06)
+            curr = ctx.ctrl.get_screen()
+            if curr is not None and not inv_content_same(prev_frame, curr):
+                captured_frames[frame_idx] = curr.copy()
+                f = pool.submit(classify_names_only, curr)
+                futures.append((frame_idx, f))
+                prev_frame = curr
+                frame_idx += 1
+            if proc.poll() is not None:
+                break
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        time.sleep(0.15)
+        final = ctx.ctrl.get_screen()
+        if final is not None and not inv_content_same(prev_frame, final):
+            captured_frames[frame_idx] = final.copy()
+            f = pool.submit(classify_names_only, final)
+            futures.append((frame_idx, f))
+        for fi, f in futures:
+            hits = f.result()
+            for name, conf, abs_y in hits:
+                all_detections.append((name, conf, fi, abs_y))
+
+    items_names = dedup_names(all_detections, captured_frames)
+
+    scroll_to_top(ctx)
+    trigger_scrollbar(ctx)
+    time.sleep(0.3)
+
+    item_qtys = {}
+    for step in range(30):
+        time.sleep(0.2)
+        trigger_scrollbar(ctx)
+        time.sleep(0.2)
+        frame = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        results = classify_with_qty(frame)
+        for name, score, y, qty in results:
+            if name not in item_qtys and 130 < y < 1030:
+                item_qtys[name] = qty
+
+        if all(name in item_qtys for name, _, _ in items_names):
+            break
+
+        if inv_at_bottom(img_rgb):
+            break
+
+        thumb = inv_find_thumb(img_rgb)
+        if thumb:
+            tc = (thumb[0] + thumb[1]) // 2
+            target = min(tc + 60, INV_TRACK_BOT - 10)
+            sb_drag(ctx, tc, target)
+            time.sleep(0.3)
+        else:
+            break
+
+    owned = []
+    for name, conf, gy in items_names:
+        qty = item_qtys.get(name, 1)
+        owned.append((name, qty))
+
+    return owned
