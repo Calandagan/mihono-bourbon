@@ -593,11 +593,21 @@ def handle_training_whistle(ctx):
     if threshold is None:
         return False
 
+    score_history = getattr(ctx.cultivate_detail, 'score_history', [])
+    if len(score_history) < 16:
+        log.info("Not enough percentile data (Turn <16) skipping training item buffs usage")
+        return False
+
     scores = getattr(ctx.cultivate_detail.turn_info, 'cached_computed_scores', None)
     if not scores or len(scores) != 5:
         return False
 
-    if any(s >= float(threshold) for s in scores):
+    best_score = max(scores)
+    prev = score_history[:-1]
+    below_count = sum(1 for s in prev if s < best_score)
+    percentile = below_count / len(prev) * 100
+
+    if percentile >= float(threshold):
         return False
 
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])

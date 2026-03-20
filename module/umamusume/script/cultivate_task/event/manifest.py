@@ -19,14 +19,14 @@ from rapidfuzz import process, fuzz
 log = logger.get_logger(__name__)
 
 event_map: dict[str, Union[callable, int]] = {
-    "安心～针灸师，登☆场": 5,
-    "新年的抱负": scenario_event_1,
-    "新年参拜": scenario_event_2,
-    "新年祈福": scenario_event_2,
+    "": 5,
+    "": scenario_event_1,
+    "": scenario_event_2,
+    "": scenario_event_2,
 
     # Youth Cup events
-    "新手教程": 2,
-    "团队成员终于集结完毕!": aoharuhai_team_name_event,
+    "": 2,
+    "!": aoharuhai_team_name_event,
     "A Team at Last": aoharuhai_team_name_event,
 }
 
@@ -52,25 +52,25 @@ def load_events_database():
         events_dict = None
         for json_path in candidates:
             if os.path.exists(json_path):
-                log.info("📊 Loading events database from event_data.json...")
+                log.info("Loading events database from event_data.json...")
                 with open(json_path, 'r', encoding='utf-8') as f:
                     events_dict = json.load(f)
                 break
         if events_dict is not None:
             _events_database = events_dict
             count = len(events_dict)
-            log.info(f"✅ Loaded {count} events from local database")
+            log.info(f"Loaded {count} events from local database")
             try:
                 update_events_load_info(count)
             except Exception:
                 pass
             return events_dict
         else:
-            log.warning("⚠️ Events JSON file not found, will use web scraping fallback")
+            log.warning("Events JSON file not found, will use web scraping fallback")
             return {}
             
     except Exception as e:
-        log.error(f"❌ Error loading events database: {e}")
+        log.error(f"Error loading events database: {e}")
         return {}
 
 def get_local_event_choice(ctx: UmamusumeContext, event_name: str) -> Union[int, None]:
@@ -338,12 +338,12 @@ def calculate_optimal_choice_from_db(ctx: UmamusumeContext, event_data: dict) ->
             best_choice = choice_num_int
 
     if best_choice:
-        log.info(f"🎯 Optimal choice: {best_choice} (Score: {best_score})")
+        log.info(f"Optimal choice: {best_choice} (Score: {best_score})")
         return best_choice
 
     if choices:
         first_choice = min(int(k) for k in choices.keys())
-        log.info(f"🔄 Fallback choice: {first_choice}")
+        log.info(f"Fallback choice: {first_choice}")
         return first_choice
 
     return 1
@@ -397,7 +397,7 @@ def get_event_choice(ctx: UmamusumeContext, event_name: str):
         return event_map[event_name_normalized](ctx), "hardcoded", 0
     
     # Try local database
-    log.info(f"🔍 Checking local database for event '{event_name}'...")
+    log.info(f"Checking local database for event '{event_name}'...")
     local_choice, expected_count = get_local_event_choice_with_count(ctx, event_name)
     if local_choice is not None:
         return local_choice, "database", expected_count

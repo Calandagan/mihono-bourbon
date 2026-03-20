@@ -28,6 +28,7 @@ class MantConfig:
     training_weights_threshold: int
     bbq_unmaxxed_cards: int
     tier_thresholds: dict
+    skip_race_percentile: int
 
     def __init__(self, config: dict):
         self.item_tiers = config.get("item_tiers", {})
@@ -41,6 +42,7 @@ class MantConfig:
         self.bbq_unmaxxed_cards = config.get("bbq_unmaxxed_cards", 3)
         raw_thresholds = config.get("tier_thresholds", {})
         self.tier_thresholds = {int(k): v for k, v in raw_thresholds.items()}
+        self.skip_race_percentile = config.get("skip_race_percentile", 0)
 
 
 class ScenarioConfig:

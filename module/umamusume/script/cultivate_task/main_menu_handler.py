@@ -109,7 +109,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
                              if race_id in available_races]) != 0
         
-        if has_extra_race:
+        if has_extra_race and not is_mant(ctx):
             log.info("Extra races available for current date - prioritizing races above all else")
             if ctx.cultivate_detail.turn_info.turn_operation is None:
                 ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
@@ -124,6 +124,8 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             ctx.cultivate_detail.turn_info.parse_train_info_finish = True
             ctx.cultivate_detail.turn_info.parse_main_menu_finish = True
             return
+        if has_extra_race and is_mant(ctx):
+            log.info("MANT: extra race available but scanning training first")
         
         if ctx.cultivate_detail.prioritize_recreation:
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -223,7 +225,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
 
     if not ctx.cultivate_detail.turn_info.parse_train_info_finish:
         limit = int(getattr(ctx.cultivate_detail, 'rest_threshold', getattr(ctx.cultivate_detail, 'rest_treshold', getattr(ctx.cultivate_detail, 'fast_path_energy_limit', 48))))
-        if has_extra_race:
+        if has_extra_race and not is_mant(ctx):
             ctx.cultivate_detail.turn_info.parse_train_info_finish = True
             return
         if limit == 0:

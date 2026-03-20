@@ -74,7 +74,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
         mood_threshold = ctx.cultivate_detail.motivation_threshold_year3
         
     if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_FAST_MEDIC:
-        log.info(f"🏥 Fast path: Low stamina ({energy}) - prioritizing medic")
+        log.info(f"Fast path: Low stamina ({energy}) - prioritizing medic")
         turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_MEDIC
         return turn_operation
 
@@ -208,7 +208,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
             elif ura_race_id and cached_screen is None:
                 ura_race_id = None
         if ura_race_id:
-            log.info(f"🏆 Detected URA championship race: {ura_race_id} at date {date}")
+            log.info(f"Detected URA championship race: {ura_race_id} at date {date}")
             medic = False
             if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_MEDIC_GENERAL:
                 medic = True
@@ -261,28 +261,43 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                                             return turn_operation
                     except Exception:
                         pass
-                log.info(f"🏥 Low stamina ({energy}) - prioritizing rest over URA race")
+                log.info(f"Low stamina ({energy}) - prioritizing rest over URA race")
                 turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
                 return turn_operation
             elif trip:
-                log.info(f"🏖️ Low stamina/motivation - prioritizing trip over URA race")
+                log.info(f"Low stamina/motivation - prioritizing trip over URA race")
                 turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRIP
                 return turn_operation
             elif medic:
-                log.info(f"🏥 Low stamina - prioritizing medic over URA race")
+                log.info(f"Low stamina - prioritizing medic over URA race")
                 turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_MEDIC
                 return turn_operation
             else:
-                log.info(f"🏆 Proceeding with URA race - stamina: {energy}")
+                log.info(f"Proceeding with URA race - stamina: {energy}")
                 turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
                 turn_operation.race_id = ura_race_id
                 return turn_operation
         available_races = _get_races_for_period_cached(ctx.cultivate_detail.turn_info.date)
         extra_race_this_turn = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in available_races]
         if len(extra_race_this_turn) != 0:
-            turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-            turn_operation.race_id = extra_race_this_turn[0]
-            return turn_operation
+            skip_race = False
+            try:
+                if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
+                    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
+                    skip_pct = getattr(mant_cfg, 'skip_race_percentile', 0) if mant_cfg else 0
+                    if skip_pct > 0:
+                        pct_hist = getattr(ctx.cultivate_detail, 'percentile_history', [])
+                        if len(pct_hist) >= 16 and pct_hist:
+                            last_pct = pct_hist[-1]
+                            if last_pct > skip_pct:
+                                log.info(f"Skipping optional race: percentile {last_pct:.0f}% > threshold {skip_pct}%")
+                                skip_race = True
+            except Exception:
+                pass
+            if not skip_race:
+                turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+                turn_operation.race_id = extra_race_this_turn[0]
+                return turn_operation
 
     medic = False
     if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_MEDIC_GENERAL:

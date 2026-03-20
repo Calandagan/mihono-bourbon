@@ -91,6 +91,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
             return
 
+    is_mant = False
+    try:
+        is_mant = ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT
+    except Exception:
+        pass
+
     limit = int(getattr(ctx.cultivate_detail, 'rest_threshold', getattr(ctx.cultivate_detail, 'rest_treshold', getattr(ctx.cultivate_detail, 'fast_path_energy_limit', DEFAULT_REST_THRESHOLD))))
     if limit == 0:
         energy = 100
@@ -101,7 +107,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             time.sleep(ENERGY_READ_RETRY_DELAY)
             energy = read_energy()
     ctx.cultivate_detail.turn_info.cached_energy = energy
-    if energy <= limit:
+    if energy <= limit and not is_mant:
         op = TurnOperation()
         if should_use_pal_outing_simple(ctx):
             op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRIP

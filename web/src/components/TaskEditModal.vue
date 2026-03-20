@@ -177,6 +177,20 @@
                         </div>
                       </div>
                       <div class="mant-thresholds mt-3">
+                        <label>Race</label>
+                        <div class="mant-threshold-group">
+                          <div class="mant-threshold-row">
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Skip optional race if training percentile above (0 = disabled)</span>
+                              <div class="mant-threshold-slider-row">
+                                <input type="range" class="hint-slider" v-model.number="mantSkipRacePercentile" min="0" max="100" />
+                                <span class="mant-threshold-val">{{ mantSkipRacePercentile }}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mant-thresholds mt-3">
                         <label>Friendship</label>
                         <div class="mant-threshold-group">
                           <div class="mant-threshold-row">
@@ -2234,6 +2248,7 @@ export default {
       mantMegaLargeThreshold: 80,
       mantTrainingWeightsThreshold: 60,
       mantBbqUnmaxxedCards: 3,
+      mantSkipRacePercentile: 0,
       mantTierThresholds: {2: 50, 3: 100, 4: 150, 5: 200, 6: 250},
       levelDataList: [],
       umamusumeTaskTypeList: [
@@ -3631,6 +3646,7 @@ export default {
             "mega_large_threshold": this.mantMegaLargeThreshold,
             "training_weights_threshold": this.mantTrainingWeightsThreshold,
             "bbq_unmaxxed_cards": this.mantBbqUnmaxxedCards,
+            "skip_race_percentile": this.mantSkipRacePercentile,
             "tier_thresholds": { ...this.mantTierThresholds }
           } : null
         }
@@ -4058,6 +4074,7 @@ export default {
         this.mantMegaLargeThreshold = this.presetsUse.mant_config.mega_large_threshold ?? 80;
         this.mantTrainingWeightsThreshold = this.presetsUse.mant_config.training_weights_threshold ?? 60;
         this.mantBbqUnmaxxedCards = this.presetsUse.mant_config.bbq_unmaxxed_cards ?? 3;
+        this.mantSkipRacePercentile = this.presetsUse.mant_config.skip_race_percentile ?? 0;
         this.mantTierThresholds = this.presetsUse.mant_config.tier_thresholds ?? {};
       } else {
         this.mantItemTiers = this.mantGetDefaultTiers();
@@ -4070,6 +4087,7 @@ export default {
         this.mantMegaLargeThreshold = 80;
         this.mantTrainingWeightsThreshold = 60;
         this.mantBbqUnmaxxedCards = 3;
+        this.mantSkipRacePercentile = 0;
       }
 
     },
@@ -4242,6 +4260,7 @@ export default {
         this.mantMegaLargeThreshold = data.mant_config.mega_large_threshold ?? 80;
         this.mantTrainingWeightsThreshold = data.mant_config.training_weights_threshold ?? 60;
         this.mantBbqUnmaxxedCards = data.mant_config.bbq_unmaxxed_cards ?? 3;
+        this.mantSkipRacePercentile = data.mant_config.skip_race_percentile ?? 0;
         this.mantTierThresholds = data.mant_config.tier_thresholds ?? {};
       }
     },
@@ -4411,6 +4430,7 @@ export default {
           mega_large_threshold: this.mantMegaLargeThreshold,
           training_weights_threshold: this.mantTrainingWeightsThreshold,
           bbq_unmaxxed_cards: this.mantBbqUnmaxxedCards,
+          skip_race_percentile: this.mantSkipRacePercentile,
           tier_thresholds: { ...this.mantTierThresholds }
         };
       }

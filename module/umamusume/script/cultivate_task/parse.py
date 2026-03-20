@@ -226,7 +226,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
         date_text = ocr_line(sub_img_date)
         
         # Debug: Log the extracted date text
-        log.info(f"🔍 Extracted date text: '{date_text}'")
+        log.info(f"Extracted date text: '{date_text}'")
         
         year_text = ""
         for text in DATE_YEAR:
@@ -235,7 +235,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
 
         if year_text == "":
             year_text = find_similar_text(date_text, DATE_YEAR)
-            log.info(f"🔍 Similar text found: '{year_text}'")
+            log.info(f"Similar text found: '{year_text}'")
 
         if year_text == DATE_YEAR[3]:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -247,7 +247,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
                 return 99
 
         if year_text == "":
-            log.warning(f"❌ No year text found in date: '{date_text}'")
+            log.warning(f"No year text found in date: '{date_text}'")
             return -1
 
         month_text = ""
@@ -283,30 +283,30 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
         date_text = ocr_line(sub_img_date)
         
         # Debug: Log the extracted date text for URA
-        log.info(f"🔍 URA Extracted date text: '{date_text}'")
+        log.info(f"URA Extracted date text: '{date_text}'")
         
         # Special handling for "Finale Season" in URA championship
         if "Finale Season" in date_text or "Finale" in date_text:
-            log.info("🏆 URA Finale Season detected - checking championship phase")
+            log.info("URA Finale Season detected - checking championship phase")
             
             # Check specific coordinates for URA championship phase text
             championship_phase_img = img[74:100, 250:575]  # x: 250, y: 74, width: 325, height: 26
             championship_phase_img = cv2.copyMakeBorder(championship_phase_img, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
             championship_phase_text = ocr_line(championship_phase_img)
-            log.info(f"🔍 URA Championship phase text: '{championship_phase_text}'")
+            log.info(f"URA Championship phase text: '{championship_phase_text}'")
             
             # Determine URA championship phase based on OCR text
             if "URA Finale Qualifier" in championship_phase_text or "Qualifier" in championship_phase_text:
-                log.info("🏆 URA Finals Qualifier detected")
+                log.info("URA Finals Qualifier detected")
                 return 73  # Qualifier date
             elif "URA Finale Semifinal" in championship_phase_text or "Semifinal" in championship_phase_text:
-                log.info("🏆 URA Finals Semifinal detected")
+                log.info("URA Finals Semifinal detected")
                 return 76  # Semi-final date
             elif "URA Finale Finals" in championship_phase_text or "Finals" in championship_phase_text:
-                log.info("🏆 URA Finals Final detected")
+                log.info("URA Finals Final detected")
                 return 79  # Final date
             else:
-                log.warning(f"❌ Unknown URA championship phase: '{championship_phase_text}'")
+                log.warning(f"Unknown URA championship phase: '{championship_phase_text}'")
                 # Fallback to qualifier if unknown
                 return 73
         
@@ -317,7 +317,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
 
         if year_text == "":
             year_text = find_similar_text(date_text, DATE_YEAR)
-            log.info(f"🔍 URA Similar text found: '{year_text}'")
+            log.info(f"URA Similar text found: '{year_text}'")
 
         if year_text == DATE_YEAR[3]:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -329,7 +329,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
                 return 99
 
         if year_text == "":
-            log.warning(f"❌ URA No year text found in date: '{date_text}'")
+            log.warning(f"URA No year text found in date: '{date_text}'")
             return -1
 
         month_text = ""
@@ -617,7 +617,7 @@ def find_support_card(ctx: UmamusumeContext, img):
             s = SequenceMatcher(None, support_card_text, ctx.cultivate_detail.follow_support_card_name)
             if s.ratio() > 0.7:
                 ctx.ctrl.click(match_result.center_point[0], match_result.center_point[1] - 75,
-                               "选择支援卡：" + ctx.cultivate_detail.follow_support_card_name + "<" + str(
+                               "" + ctx.cultivate_detail.follow_support_card_name + "<" + str(
                                    support_card_level) + ">")
                 return True
         else:
@@ -861,7 +861,7 @@ def find_skill(ctx: UmamusumeContext, img, skill: list[str], learn_any_skill: bo
                                 skill_pt_cost_text = '1'
                         
                         # Debug: Log point and cost extraction
-                        log.debug(f"🔍 find_skill - Available points: '{pt_text}', Skill cost: '{skill_pt_cost_text}'")
+                        log.debug(f"find_skill - Available points: '{pt_text}', Skill cost: '{skill_pt_cost_text}'")
                         
                         if pt_text != "" and skill_pt_cost_text != "":
                             pt = int(pt_text)
@@ -871,7 +871,7 @@ def find_skill(ctx: UmamusumeContext, img, skill: list[str], learn_any_skill: bo
                             if pt >= skill_pt_cost:
                                 log.info(f"Buying skill '{detected_text}' - Points: {pt}, Cost: {skill_pt_cost}")
                                 ctx.ctrl.click(match_result.center_point[0] + 128, match_result.center_point[1],
-                                               "Bonus Skills：" + detected_text)
+                                               "Bonus Skills" + detected_text)
                                 if target_match is not None and target_match in skill:
                                     skill.remove(target_match)
                                     log.info(f"Removed '{target_match}' from skill list. Remaining: {skill}")
