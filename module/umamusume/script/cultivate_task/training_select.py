@@ -694,12 +694,13 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             ctx.cultivate_detail.percentile_history.append(percentile)
             pct_hist = ctx.cultivate_detail.percentile_history
             hist_avg = float(np.mean(pct_hist))
+            dp_count = len(history)
             if len(pct_hist) >= 5:
                 recent_avg = float(np.mean(pct_hist[-5:]))
                 avg_pct_change = recent_avg - hist_avg
-                log.info(f"Percentile: {percentile:.0f}% | Avg Percentile Change (last 5 vs all): {avg_pct_change:+.1f}%")
+                log.info(f"Percentile: {percentile:.0f}% | Avg Percentile Change (last 5 vs all): {avg_pct_change:+.1f}% | Datapoints: {dp_count}")
             else:
-                log.info(f"Percentile: {percentile:.0f}% | Historical Avg: {hist_avg:.1f}%")
+                log.info(f"Percentile: {percentile:.0f}% | Historical Avg: {hist_avg:.1f}% | Datapoints: {dp_count}")
         try:
             from module.umamusume.persistence import save_career_data
             save_career_data(ctx)

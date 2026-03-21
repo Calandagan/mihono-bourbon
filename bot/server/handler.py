@@ -272,6 +272,13 @@ def get_detected_items():
     return list(detected_items_log.values())
 
 
+@server.post("/api/clear-career-data")
+def clear_career_data_endpoint():
+    from module.umamusume.persistence import clear_career_data
+    cleared = clear_career_data()
+    return {"cleared": cleared}
+
+
 @server.get("/api/pal-defaults")
 def get_pal_defaults():
     from module.umamusume.user_data import read_pal_defaults

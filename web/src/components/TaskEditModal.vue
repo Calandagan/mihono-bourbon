@@ -212,6 +212,17 @@
                         </div>
                       </div>
                       <div class="mant-thresholds mt-3">
+                        <label>Training Data</label>
+                        <div class="mant-threshold-group">
+                          <div class="mant-threshold-row">
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Press after changing config, deck, or uma to reset training score history</span>
+                              <button class="btn btn-sm btn-outline-danger mt-1" @click="clearCareerData">Clear Training Data</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mant-thresholds mt-3">
                         <label>Friendship</label>
                         <div class="mant-threshold-group">
                           <div class="mant-threshold-row">
@@ -3455,6 +3466,14 @@ export default {
     },
     getMantItemImg(id) {
       return new URL(`../assets/img/mant_items/${id}.png`, import.meta.url).href;
+    },
+
+    clearCareerData() {
+      this.axios.post('/api/clear-career-data').then(() => {
+        alert('past datapoints cleared');
+      }).catch(() => {
+        alert('failure');
+      });
     },
 
     mantGetAllItemIds() {
