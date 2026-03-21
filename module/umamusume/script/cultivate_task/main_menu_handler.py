@@ -87,11 +87,6 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         )
         if handle_mant_inventory_scan(ctx, current_date):
             return
-        if handle_mant_shop_scan(ctx, current_date):
-            return
-        handle_mant_on_sale(img)
-        if handle_mant_afflictions(ctx, img):
-            return
         if not getattr(ctx.cultivate_detail.turn_info, 'mant_coins_read', False):
             is_summer = is_summer_camp_period(current_date)
             is_climax = current_date > 72
@@ -99,6 +94,11 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             ctx.cultivate_detail.turn_info.mant_coins_read = True
             ctx.cultivate_detail.mant_coins = coins
             log.info("shop coins: %d", coins)
+        if handle_mant_shop_scan(ctx, current_date):
+            return
+        handle_mant_on_sale(img)
+        if handle_mant_afflictions(ctx, img):
+            return
 
     if not ctx.cultivate_detail.turn_info.parse_main_menu_finish:
         parse_cultivate_main_menu(ctx, img)
