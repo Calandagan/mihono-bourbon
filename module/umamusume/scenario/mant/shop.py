@@ -502,7 +502,7 @@ def scan_mant_shop(ctx):
 
 
 EXCHANGE_OCR_Y1 = 170
-EXCHANGE_OCR_Y2 = 960
+EXCHANGE_OCR_Y2 = 1040
 EXCHANGE_OCR_X1 = 60
 EXCHANGE_OCR_X2 = 560
 EXCHANGE_PLUS_X = 648
@@ -578,21 +578,23 @@ def is_item_held_on_exchange(frame, item_y):
 
 def read_exchange_qty(frame, item_y):
     h = frame.shape[0]
-    for y_off in [25, 30, 20]:
-        qty_y1 = int(item_y + y_off)
-        qty_y2 = int(item_y + y_off + 35)
-        if qty_y1 < 0 or qty_y2 > h:
-            continue
-        roi = frame[qty_y1:qty_y2, EXCHANGE_QTY_X1:EXCHANGE_QTY_X2]
-        raw = ocr(roi, lang="en")
-        if not raw or not raw[0]:
-            continue
-        all_text = ' '.join(entry[1][0] for entry in raw[0] if entry and len(entry) >= 2)
-        digits = re.findall(r'\d+', all_text)
-        if digits:
-            val = int(digits[-1])
-            if val < 10:
-                return val
+    regions = [(EXCHANGE_QTY_X1, EXCHANGE_QTY_X2), (170, 380)]
+    for x1, x2 in regions:
+        for y_off in [25, 30, 20]:
+            qty_y1 = int(item_y + y_off)
+            qty_y2 = int(item_y + y_off + 35)
+            if qty_y1 < 0 or qty_y2 > h:
+                continue
+            roi = frame[qty_y1:qty_y2, x1:x2]
+            raw = ocr(roi, lang="en")
+            if not raw or not raw[0]:
+                continue
+            all_text = ' '.join(entry[1][0] for entry in raw[0] if entry and len(entry) >= 2)
+            digits = re.findall(r'\d+', all_text)
+            if digits:
+                val = int(digits[-1])
+                if val < 10:
+                    return val
     return -1
 
 
@@ -616,7 +618,8 @@ def classify_exchange_items(frame):
         lower = text.lower()
         if lower in ('held', 'effect', 'cost', 'new', 'turn(s)', 'choose how many to use.',
                       'close', 'confirm use', 'training items', 'confirm', 'cancel',
-                      'exchange complete', 'purchased the selected training items.'):
+                      'exchange complete', 'purchased the selected training items.',
+                      'automatically used certain training items.'):
             continue
         if text.replace('+', '').replace('-', '').replace(' ', '').replace('.', '').replace('>', '').isdigit():
             continue
