@@ -599,8 +599,8 @@ ENERGY_ITEMS = {
 }
 
 KALE_MOOD_PENALTY = 20
-ENERGY_USE_MIN = 18
 ENERGY_USE_MAX = 50
+ENERGY_RESULT_MIN = 40
 ENERGY_SCORE_THRESHOLD = 20
 
 OVERFLOW_PENALTY = {0: 1.0, 1: 0.9, 2: 0.8, 3: 0.8, 4: 0.8}
@@ -624,7 +624,7 @@ def pick_best_energy_item(ctx):
     if current_energy is None:
         return None
     current_energy = int(current_energy)
-    if current_energy <= ENERGY_USE_MIN or current_energy >= ENERGY_USE_MAX:
+    if current_energy >= ENERGY_USE_MAX:
         return None
 
     date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
@@ -635,6 +635,9 @@ def pick_best_energy_item(ctx):
     best_effective = 0
     for item_name, raw_energy in ENERGY_ITEMS.items():
         if owned_map.get(item_name, 0) <= 0:
+            continue
+        result_energy = current_energy + raw_energy
+        if result_energy < ENERGY_RESULT_MIN:
             continue
         effective = calc_effective_energy(item_name, raw_energy, current_energy, period_idx)
         if effective > best_effective:
