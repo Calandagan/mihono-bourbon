@@ -236,7 +236,11 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             if energy == 0:
                 time.sleep(0.15)
                 energy = read_energy()
-        if energy <= limit and not is_mant(ctx):
+        mant_skip = False
+        if is_mant(ctx):
+            from module.umamusume.scenario.mant.inventory import should_skip_fast_path
+            mant_skip = should_skip_fast_path(ctx)
+        if energy <= limit and not mant_skip:
             if should_use_pal_outing_simple(ctx):
                 ctx.ctrl.click_by_point(get_trip(ctx))
             else:

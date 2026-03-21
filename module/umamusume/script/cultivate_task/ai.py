@@ -8,6 +8,7 @@ log = logger.get_logger(__name__)
 
 _race_cache = {}
 
+
 DATE_JUNIOR_END = 24
 DATE_CLASSIC_END = 48
 DATE_SPRING_END = 60
@@ -73,18 +74,20 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
     else:
         mood_threshold = ctx.cultivate_detail.motivation_threshold_year3
         
-    is_mant_scenario = False
+    mant_skip_fast_path = False
     try:
-        is_mant_scenario = ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT
+        if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
+            from module.umamusume.scenario.mant.inventory import should_skip_fast_path
+            mant_skip_fast_path = should_skip_fast_path(ctx)
     except Exception:
         pass
 
-    if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_FAST_MEDIC and not is_mant_scenario:
+    if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_FAST_MEDIC and not mant_skip_fast_path:
         log.info(f"Fast path: Low stamina ({energy}) - prioritizing medic")
         turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_MEDIC
         return turn_operation
 
-    if (mood_raw is not None) and energy < ENERGY_FAST_TRIP and mood_val < mood_threshold and not is_mant_scenario:
+    if (mood_raw is not None) and energy < ENERGY_FAST_TRIP and mood_val < mood_threshold and not mant_skip_fast_path:
         if getattr(ctx.cultivate_detail, 'prioritize_recreation', False) and ctx.cultivate_detail.pal_event_stage > 0:
             try:
                 img = ctx.current_screen
@@ -108,7 +111,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
     limit = getattr(ctx.cultivate_detail, 'rest_threshold', getattr(ctx.cultivate_detail, 'rest_treshold', getattr(ctx.cultivate_detail, 'fast_path_energy_limit', 48)))
     if limit == 0:
         energy = 100
-    if energy <= limit and not is_mant_scenario:
+    if energy <= limit and not mant_skip_fast_path:
         if getattr(ctx.cultivate_detail, 'prioritize_recreation', False) and ctx.cultivate_detail.pal_event_stage > 0:
             try:
                 img = ctx.current_screen
@@ -235,9 +238,9 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                 else:
                     trip = True
             rest = False
-            if energy <= limit and not is_mant_scenario:
+            if energy <= limit and not mant_skip_fast_path:
                 rest = True
-            elif (ctx.cultivate_detail.turn_info.date == 36 or ctx.cultivate_detail.turn_info.date == 60) and energy < ENERGY_REST_EXTRA_DAY and not is_mant_scenario:
+            elif (ctx.cultivate_detail.turn_info.date == 36 or ctx.cultivate_detail.turn_info.date == 60) and energy < ENERGY_REST_EXTRA_DAY and not mant_skip_fast_path:
                 rest = True
             if rest:
                 if getattr(ctx.cultivate_detail, 'prioritize_recreation', False) and ctx.cultivate_detail.pal_event_stage > 0:
@@ -289,15 +292,8 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
             skip_race = False
             try:
                 if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-                    skip_pct = getattr(mant_cfg, 'skip_race_percentile', 0) if mant_cfg else 0
-                    if skip_pct > 0:
-                        pct_hist = getattr(ctx.cultivate_detail, 'percentile_history', [])
-                        if len(pct_hist) >= 16 and pct_hist:
-                            last_pct = pct_hist[-1]
-                            if last_pct > skip_pct:
-                                log.info(f"Skipping optional race: percentile {last_pct:.0f}% > threshold {skip_pct}%")
-                                skip_race = True
+                    from module.umamusume.scenario.mant.inventory import should_skip_race
+                    skip_race = should_skip_race(ctx)
             except Exception:
                 pass
             if not skip_race:

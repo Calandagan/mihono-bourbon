@@ -179,7 +179,7 @@ def script_info(ctx: UmamusumeContext):
                 ctx.ctrl.click_by_point(USE_TP_DRINK_CONFIRM)
             elif image_match(screen, REF_RECOVER_TP_2_CARROT).find_match:
                 ctx.ctrl.click_by_point(USE_CARROT_RECOVER_TP_ADD)
-                time.sleep(2)
+                time.sleep(0.5)
                 ctx.ctrl.click_by_point(USE_CARROT_RECOVER_CONFIRM)
             elif image_match(screen, REF_RECOVER_TP_3).find_match or\
                  image_match(screen, REF_RECOVER_TP_3_CARROT).find_match:
@@ -194,7 +194,7 @@ def script_info(ctx: UmamusumeContext):
             ctx.ctrl.click(383, 840, "new day")
         if title_text == TITLE[0]: #race details
             ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_3)
-            time.sleep(1)
+            time.sleep(0.5)
         if title_text == TITLE[1]:  # "Rest & Outing Confirmation"
             log.info("Handling Rest & Outing Confirmation")
             ctx.ctrl.click_by_point(INFO_SUMMER_REST_CONFIRM)

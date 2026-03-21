@@ -99,7 +99,7 @@ def aoharuhai_after_hook(ctx, img):
     
     if image_match(img[7:31, 24:180], REF_TEAM_SHOWDOWN).find_match:
         ctx.ctrl.click(354, 961, 'team showdown')
-        time.sleep(1)
+        time.sleep(0.5)
         ctx.ctrl.click(522, 930, 'select opp2 cont')
         return True
     

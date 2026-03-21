@@ -199,7 +199,7 @@ def script_follow_support_card_select(ctx: UmamusumeContext):
             ctx.ctrl.swipe_and_hold(x1=350, y1=400, x2=350, y2=1000, swipe_duration=211, hold_duration=211, name="scroll up list")
             img = ctx.ctrl.get_screen()
         ctx.ctrl.click_by_point(FOLLOW_SUPPORT_CARD_SELECT_REFRESH)
-        time.sleep(1.2)
+        time.sleep(0.5)
     ctx.ctrl.click_by_point(FOLLOW_SUPPORT_CARD_SELECT_REFRESH)
 
 

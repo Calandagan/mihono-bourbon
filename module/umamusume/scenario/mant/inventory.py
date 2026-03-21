@@ -574,13 +574,89 @@ def use_training_item(ctx, item_name, quantity=1):
     ctx.ctrl.execute_adb_shell("shell input tap 524 1192", True)
     time.sleep(0.25)
     ctx.ctrl.execute_adb_shell("shell input tap 524 1192", True)
-    time.sleep(0.9)
+    time.sleep(0.5)
 
     ctx.ctrl.execute_adb_shell("shell input tap 187 1185", True)
     time.sleep(0.35)
     ctx.ctrl.execute_adb_shell("shell input tap 187 1185", True)
     time.sleep(0.5)
 
+    return True
+
+
+ENERGY_RECOVERY_ITEMS = {
+    'Vita 20', 'Vita 40', 'Vita 65', 'Royal Kale Juice',
+    'Energy Drink MAX', 'Energy Drink MAX EX',
+}
+CHARM_ITEM = 'Good-Luck Charm'
+ENERGY_ITEM_SKIP_FAST_PATH_THRESHOLD = 20
+
+ENERGY_ITEMS = {
+    'Vita 20': 20,
+    'Vita 40': 40,
+    'Vita 65': 65,
+    'Royal Kale Juice': 100,
+}
+
+KALE_MOOD_PENALTY = 20
+ENERGY_USE_MIN = 18
+ENERGY_USE_MAX = 50
+ENERGY_SCORE_THRESHOLD = 20
+
+OVERFLOW_PENALTY = {0: 1.0, 1: 0.9, 2: 0.8, 3: 0.8, 4: 0.8}
+
+
+def calc_effective_energy(item_name, raw_energy, current_energy, period_idx):
+    max_energy = 100
+    effective = raw_energy
+    overflow = max(0, current_energy + raw_energy - max_energy)
+    penalty_rate = OVERFLOW_PENALTY.get(period_idx, 0.8)
+    effective -= overflow * penalty_rate
+    if item_name == 'Royal Kale Juice':
+        effective -= KALE_MOOD_PENALTY
+    return effective
+
+
+def pick_best_energy_item(ctx):
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0)
+    if current_energy is None:
+        return None
+    current_energy = int(current_energy)
+    if current_energy <= ENERGY_USE_MIN or current_energy >= ENERGY_USE_MAX:
+        return None
+
+    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    from module.umamusume.constants.game_constants import get_date_period_index
+    period_idx = get_date_period_index(date)
+
+    best_item = None
+    best_effective = 0
+    for item_name, raw_energy in ENERGY_ITEMS.items():
+        if owned_map.get(item_name, 0) <= 0:
+            continue
+        effective = calc_effective_energy(item_name, raw_energy, current_energy, period_idx)
+        if effective > best_effective:
+            best_effective = effective
+            best_item = item_name
+    if best_effective < ENERGY_SCORE_THRESHOLD:
+        return None
+    return best_item
+
+
+def use_item_and_update_inventory(ctx, item_name):
+    ok = use_training_item(ctx, item_name, 1)
+    if not ok:
+        return False
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    owned_map[item_name] = max(0, owned_map.get(item_name, 0) - 1)
+    updated = [(n, q) for n, q in owned_map.items() if q > 0]
+    ctx.cultivate_detail.mant_owned_items = updated
+    from module.umamusume.context import log_detected_items
+    log_detected_items(updated)
+    log.info(f'{item_name} used')
     return True
 
 
@@ -595,7 +671,6 @@ def handle_training_whistle(ctx):
 
     score_history = getattr(ctx.cultivate_detail, 'score_history', [])
     if len(score_history) < 16:
-        log.info("Not enough percentile data (Turn <16) skipping training item buffs usage")
         return False
 
     scores = getattr(ctx.cultivate_detail.turn_info, 'cached_computed_scores', None)
@@ -607,7 +682,18 @@ def handle_training_whistle(ctx):
     below_count = sum(1 for s in prev if s < best_score)
     percentile = below_count / len(prev) * 100
 
-    if percentile >= float(threshold):
+    effective_threshold = float(threshold)
+    if mant_cfg.whistle_focus_summer:
+        date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+        from module.umamusume.constants.game_constants import is_summer_camp_period
+        if is_summer_camp_period(date):
+            from module.umamusume.constants.game_constants import CLASSIC_YEAR_END
+            if date <= CLASSIC_YEAR_END:
+                effective_threshold += mant_cfg.focus_summer_classic
+            else:
+                effective_threshold += mant_cfg.focus_summer_senior
+
+    if percentile >= effective_threshold:
         return False
 
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
@@ -615,23 +701,87 @@ def handle_training_whistle(ctx):
     if owned_map.get('Reset Whistle', 0) <= 0:
         return False
 
-    ok = use_training_item(ctx, 'Reset Whistle', 1)
-    if not ok:
+    return use_item_and_update_inventory(ctx, 'Reset Whistle')
+
+
+def handle_energy_item(ctx):
+    item_name = pick_best_energy_item(ctx)
+    if item_name is None:
+        return False
+    ctx.cultivate_detail.turn_info.energy_item_used = True
+    return use_item_and_update_inventory(ctx, item_name)
+
+
+def handle_charm(ctx):
+    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
+    if mant_cfg is None:
         return False
 
-    owned_map['Reset Whistle'] = max(0, owned_map.get('Reset Whistle', 0) - 1)
-    updated = [(n, q) for n, q in owned_map.items() if q > 0]
-    ctx.cultivate_detail.mant_owned_items = updated
-    from module.umamusume.context import log_detected_items
-    log_detected_items(updated)
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    if owned_map.get('Good-Luck Charm', 0) <= 0:
+        return False
 
-    log.info('whistle used')
+    score_history = getattr(ctx.cultivate_detail, 'score_history', [])
+    if len(score_history) < 16:
+        return False
 
-    return True
+    scores = getattr(ctx.cultivate_detail.turn_info, 'cached_computed_scores', None)
+    if not scores or len(scores) != 5:
+        return False
+
+    best_idx = max(range(5), key=lambda i: scores[i])
+    best_score = scores[best_idx]
+
+    prev = score_history[:-1]
+    below_count = sum(1 for s in prev if s < best_score)
+    percentile = below_count / len(prev) * 100
+
+    if percentile <= mant_cfg.charm_threshold:
+        return False
+
+    til = ctx.cultivate_detail.turn_info.training_info_list[best_idx]
+    fr = int(getattr(til, 'failure_rate', 0))
+    if fr < mant_cfg.charm_failure_rate:
+        return False
+
+    return use_item_and_update_inventory(ctx, 'Good-Luck Charm')
 
 
-def whistle_loop(ctx):
-    start_date = getattr(ctx.cultivate_detail.turn_info, 'date', None)
+def rescan_training(ctx):
+    ctx.cultivate_detail.turn_info.parse_train_info_finish = False
+    ctx.cultivate_detail.turn_info.turn_operation = None
+    ctx.cultivate_detail.last_decision_stats = None
+    from module.umamusume.asset.point import RETURN_TO_CULTIVATE_MAIN_MENU
+    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
+    time.sleep(0.5)
+    from module.umamusume.asset.point import TO_TRAINING_SELECT
+    ctx.ctrl.click_by_point(TO_TRAINING_SELECT)
+    time.sleep(0.5)
+
+
+def has_energy_recovery(ctx):
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    for item_name in ENERGY_ITEMS:
+        if owned_map.get(item_name, 0) > 0:
+            return True
+    return False
+
+
+def has_charm(ctx):
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    return owned_map.get('Good-Luck Charm', 0) > 0
+
+
+def has_whistle(ctx):
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    return owned_map.get('Reset Whistle', 0) > 0
+
+
+def whistle_loop(ctx, start_date):
     while True:
         if not ctx.task.running():
             return
@@ -640,13 +790,79 @@ def whistle_loop(ctx):
         used = handle_training_whistle(ctx)
         if not used:
             return
-        time.sleep(0.8)
-        ctx.cultivate_detail.turn_info.parse_train_info_finish = False
-        ctx.cultivate_detail.turn_info.turn_operation = None
-        ctx.cultivate_detail.last_decision_stats = None
-        from module.umamusume.asset.point import RETURN_TO_CULTIVATE_MAIN_MENU
-        ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-        time.sleep(0.8)
-        from module.umamusume.asset.point import TO_TRAINING_SELECT
-        ctx.ctrl.click_by_point(TO_TRAINING_SELECT)
-        time.sleep(0.8)
+        time.sleep(0.5)
+        rescan_training(ctx)
+
+
+def item_loop(ctx):
+    start_date = getattr(ctx.cultivate_detail.turn_info, 'date', None)
+    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0)
+    if current_energy is None:
+        current_energy = 0
+    current_energy = int(current_energy)
+
+    got_recovery = has_energy_recovery(ctx)
+    got_charm = has_charm(ctx)
+    got_whistle = has_whistle(ctx)
+
+    limit = getattr(ctx.cultivate_detail, 'rest_threshold',
+                    getattr(ctx.cultivate_detail, 'rest_treshold', 48))
+    energy_low = current_energy <= limit
+
+    if not got_recovery and not got_charm and energy_low:
+        log.info(f"Skipping items: low energy ({current_energy}), no recovery, no charm")
+        return
+
+    if got_recovery and got_charm:
+        charm_used = handle_charm(ctx)
+        if charm_used:
+            handle_energy_item(ctx)
+            return
+        handle_energy_item(ctx)
+        whistle_loop(ctx, start_date)
+        handle_charm(ctx)
+        return
+
+    if got_recovery:
+        handle_energy_item(ctx)
+        whistle_loop(ctx, start_date)
+        return
+
+    if got_charm and got_whistle:
+        whistle_loop(ctx, start_date)
+        handle_charm(ctx)
+        return
+
+    if got_charm:
+        handle_charm(ctx)
+        return
+
+    whistle_loop(ctx, start_date)
+
+
+def should_skip_fast_path(ctx):
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    if owned_map.get(CHARM_ITEM, 0) > 0:
+        return True
+    energy_count = sum(owned_map.get(item, 0) for item in ENERGY_RECOVERY_ITEMS)
+    if energy_count >= ENERGY_ITEM_SKIP_FAST_PATH_THRESHOLD:
+        return True
+    return False
+
+
+def should_skip_race(ctx):
+    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
+    if mant_cfg is None:
+        return False
+    skip_pct = getattr(mant_cfg, 'skip_race_percentile', 0)
+    if skip_pct <= 0:
+        return False
+    pct_hist = getattr(ctx.cultivate_detail, 'percentile_history', [])
+    if len(pct_hist) < 16 or not pct_hist:
+        return False
+    last_pct = pct_hist[-1]
+    if last_pct > skip_pct:
+        log.info(f"Skipping optional race: percentile {last_pct:.0f}% > threshold {skip_pct}%")
+        return True
+    return False

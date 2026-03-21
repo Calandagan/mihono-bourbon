@@ -97,6 +97,19 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
     except Exception:
         pass
 
+    mant_skip = False
+    if is_mant:
+        from module.umamusume.scenario.mant.inventory import should_skip_fast_path
+        mant_skip = should_skip_fast_path(ctx)
+
+    if not getattr(ctx.cultivate_detail, 'career_data_loaded', False):
+        try:
+            from module.umamusume.persistence import load_career_data
+            load_career_data(ctx)
+        except Exception:
+            pass
+        ctx.cultivate_detail.career_data_loaded = True
+
     limit = int(getattr(ctx.cultivate_detail, 'rest_threshold', getattr(ctx.cultivate_detail, 'rest_treshold', getattr(ctx.cultivate_detail, 'fast_path_energy_limit', DEFAULT_REST_THRESHOLD))))
     if limit == 0:
         energy = 100
@@ -107,7 +120,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             time.sleep(ENERGY_READ_RETRY_DELAY)
             energy = read_energy()
     ctx.cultivate_detail.turn_info.cached_energy = energy
-    if energy <= limit and not is_mant:
+    if energy <= limit and not mant_skip:
         op = TurnOperation()
         if should_use_pal_outing_simple(ctx):
             op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRIP
@@ -368,6 +381,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         names = TRAINING_NAMES
         stat_keys = STAT_KEY_LIST
         computed_scores = [0.0, 0.0, 0.0, 0.0, 0.0]
+        original_scores = [0.0, 0.0, 0.0, 0.0, 0.0]
         stat_contributions = [[0.0] * 6 for _ in range(5)]
 
         pre_highest_stat_idx = None
@@ -550,12 +564,16 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 score *= pal_mult
             
             fail_mult = 1.0
+            original_fail_mult = 1.0
             try:
+                energy_item_used = getattr(ctx.cultivate_detail.turn_info, 'energy_item_used', False)
                 if getattr(ctx.cultivate_detail, 'compensate_failure', True):
                     fr_val = int(getattr(til, 'failure_rate', -1))
                     if fr_val >= 0:
-                        fail_mult = max(0.0, 1.0 - (float(fr_val) / 50.0))
-                        score *= fail_mult
+                        original_fail_mult = max(0.0, 1.0 - (float(fr_val) / 50.0))
+                        if not energy_item_used:
+                            fail_mult = original_fail_mult
+                            score *= fail_mult
             except Exception:
                 pass
 
@@ -609,6 +627,10 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 score *= weight_mult
 
             computed_scores[idx] = score
+            if fail_mult != original_fail_mult and original_fail_mult > 0:
+                original_scores[idx] = score * original_fail_mult
+            else:
+                original_scores[idx] = score
             
             base_val = base_scores[idx] if isinstance(base_scores, (list, tuple)) and len(base_scores) > idx else 0.0
             lv1_contrib = lv1_total
@@ -663,7 +685,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         ctx.cultivate_detail.turn_info.cached_computed_scores = list(computed_scores)
 
         history = ctx.cultivate_detail.score_history
-        best_score = max(computed_scores)
+        best_score = max(original_scores)
         history.append(best_score)
         if len(history) >= 2:
             prev = history[:-1]
@@ -678,6 +700,11 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 log.info(f"Percentile: {percentile:.0f}% | Avg Percentile Change (last 5 vs all): {avg_pct_change:+.1f}%")
             else:
                 log.info(f"Percentile: {percentile:.0f}% | Historical Avg: {hist_avg:.1f}%")
+        try:
+            from module.umamusume.persistence import save_career_data
+            save_career_data(ctx)
+        except Exception:
+            pass
 
         for idx in range(5):
             if extra_weight[idx] == -1:
@@ -844,8 +871,8 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
     if op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING:
         try:
             if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                from module.umamusume.scenario.mant.inventory import whistle_loop
-                whistle_loop(ctx)
+                from module.umamusume.scenario.mant.inventory import item_loop
+                item_loop(ctx)
         except Exception:
             pass
 
@@ -855,7 +882,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         ctx.ctrl.click_by_point(TRAINING_POINT_LIST[op.training_type.value - 1])
         time.sleep(0.15)
         ctx.ctrl.click_by_point(TRAINING_POINT_LIST[op.training_type.value - 1])
-        time.sleep(0.6)
+        time.sleep(0.5)
         return
     
     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)

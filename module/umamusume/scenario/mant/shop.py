@@ -638,5 +638,12 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         return False
 
     ctx.ctrl.click(CONFIRM_BTN_X, CONFIRM_BTN_Y)
-    time.sleep(2)
+    time.sleep(0.5)
+
+    ctx.ctrl.click(EXCHANGE_CLOSE_X, EXCHANGE_CLOSE_Y)
+    time.sleep(0.5)
+
+    ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
+    time.sleep(0.5)
+
     return True

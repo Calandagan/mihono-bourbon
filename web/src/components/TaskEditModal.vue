@@ -128,6 +128,12 @@
                               <button type="button" class="token" :class="{ active: mantWhistleFocusSummer }" @click="mantWhistleFocusSummer = true">Focus Summer</button>
                               <button type="button" class="token" :class="{ active: !mantWhistleFocusSummer }" @click="mantWhistleFocusSummer = false">Off</button>
                             </div>
+                            <div v-if="mantWhistleFocusSummer" class="d-flex align-items-center ms-2 gap-2">
+                              <label class="mant-threshold-label mb-0">Classic +</label>
+                              <input type="number" class="form-control form-control-sm" style="width:60px" v-model.number="mantFocusSummerClassic" min="0" max="100" />
+                              <label class="mant-threshold-label mb-0">Senior +</label>
+                              <input type="number" class="form-control form-control-sm" style="width:60px" v-model.number="mantFocusSummerSenior" min="0" max="100" />
+                            </div>
                           </div>
                           <div class="mant-threshold-row">
                             <img :src="getMantItemImg('coaching_megaphone')" class="mant-threshold-img" />
@@ -171,6 +177,21 @@
                               <div class="mant-threshold-slider-row">
                                 <input type="range" class="hint-slider" v-model.number="mantTrainingWeightsThreshold" min="0" max="100" />
                                 <span class="mant-threshold-val">{{ mantTrainingWeightsThreshold }}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="mant-threshold-row">
+                            <img :src="getMantItemImg('good_luck_charm')" class="mant-threshold-img" />
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Active charm when best training (without failure rate penalty) percentile ></span>
+                              <div class="mant-threshold-slider-row">
+                                <input type="range" class="hint-slider" v-model.number="mantCharmThreshold" min="0" max="100" />
+                                <span class="mant-threshold-val">{{ mantCharmThreshold }}</span>
+                              </div>
+                              <span class="mant-threshold-label">Charm activation failure rate</span>
+                              <div class="mant-threshold-slider-row">
+                                <input type="range" class="hint-slider" v-model.number="mantCharmFailureRate" min="0" max="100" />
+                                <span class="mant-threshold-val">{{ mantCharmFailureRate }}</span>
                               </div>
                             </div>
                           </div>
@@ -2243,11 +2264,15 @@ export default {
       mantItemTiers: {},
       mantWhistleThreshold: 20,
       mantWhistleFocusSummer: true,
+      mantFocusSummerClassic: 20,
+      mantFocusSummerSenior: 10,
       mantMegaSmallThreshold: 60,
       mantMegaMediumThreshold: 70,
       mantMegaLargeThreshold: 80,
       mantTrainingWeightsThreshold: 60,
       mantBbqUnmaxxedCards: 3,
+      mantCharmThreshold: 70,
+      mantCharmFailureRate: 30,
       mantSkipRacePercentile: 0,
       mantTierThresholds: {2: 50, 3: 100, 4: 150, 5: 200, 6: 250},
       levelDataList: [],
@@ -3641,11 +3666,15 @@ export default {
             "tier_count": this.mantTierCount,
             "whistle_threshold": this.mantWhistleThreshold,
             "whistle_focus_summer": this.mantWhistleFocusSummer,
+            "focus_summer_classic": this.mantFocusSummerClassic,
+            "focus_summer_senior": this.mantFocusSummerSenior,
             "mega_small_threshold": this.mantMegaSmallThreshold,
             "mega_medium_threshold": this.mantMegaMediumThreshold,
             "mega_large_threshold": this.mantMegaLargeThreshold,
             "training_weights_threshold": this.mantTrainingWeightsThreshold,
             "bbq_unmaxxed_cards": this.mantBbqUnmaxxedCards,
+            "charm_threshold": this.mantCharmThreshold,
+            "charm_failure_rate": this.mantCharmFailureRate,
             "skip_race_percentile": this.mantSkipRacePercentile,
             "tier_thresholds": { ...this.mantTierThresholds }
           } : null
@@ -4069,11 +4098,15 @@ export default {
         this.mantNormalizeTiers();
         this.mantWhistleThreshold = this.presetsUse.mant_config.whistle_threshold ?? 20;
         this.mantWhistleFocusSummer = this.presetsUse.mant_config.whistle_focus_summer ?? true;
+        this.mantFocusSummerClassic = this.presetsUse.mant_config.focus_summer_classic ?? 20;
+        this.mantFocusSummerSenior = this.presetsUse.mant_config.focus_summer_senior ?? 10;
         this.mantMegaSmallThreshold = this.presetsUse.mant_config.mega_small_threshold ?? 60;
         this.mantMegaMediumThreshold = this.presetsUse.mant_config.mega_medium_threshold ?? 70;
         this.mantMegaLargeThreshold = this.presetsUse.mant_config.mega_large_threshold ?? 80;
         this.mantTrainingWeightsThreshold = this.presetsUse.mant_config.training_weights_threshold ?? 60;
         this.mantBbqUnmaxxedCards = this.presetsUse.mant_config.bbq_unmaxxed_cards ?? 3;
+        this.mantCharmThreshold = this.presetsUse.mant_config.charm_threshold ?? 70;
+        this.mantCharmFailureRate = this.presetsUse.mant_config.charm_failure_rate ?? 30;
         this.mantSkipRacePercentile = this.presetsUse.mant_config.skip_race_percentile ?? 0;
         this.mantTierThresholds = this.presetsUse.mant_config.tier_thresholds ?? {};
       } else {
@@ -4082,11 +4115,15 @@ export default {
         this.mantTierThresholds = {2: 50, 3: 100, 4: 150, 5: 200, 6: 250};
         this.mantWhistleThreshold = 20;
         this.mantWhistleFocusSummer = true;
+        this.mantFocusSummerClassic = 20;
+        this.mantFocusSummerSenior = 10;
         this.mantMegaSmallThreshold = 60;
         this.mantMegaMediumThreshold = 70;
         this.mantMegaLargeThreshold = 80;
         this.mantTrainingWeightsThreshold = 60;
         this.mantBbqUnmaxxedCards = 3;
+        this.mantCharmThreshold = 70;
+        this.mantCharmFailureRate = 30;
         this.mantSkipRacePercentile = 0;
       }
 
@@ -4255,11 +4292,15 @@ export default {
         this.mantNormalizeTiers();
         this.mantWhistleThreshold = data.mant_config.whistle_threshold ?? 20;
         this.mantWhistleFocusSummer = data.mant_config.whistle_focus_summer ?? true;
+        this.mantFocusSummerClassic = data.mant_config.focus_summer_classic ?? 20;
+        this.mantFocusSummerSenior = data.mant_config.focus_summer_senior ?? 10;
         this.mantMegaSmallThreshold = data.mant_config.mega_small_threshold ?? 60;
         this.mantMegaMediumThreshold = data.mant_config.mega_medium_threshold ?? 70;
         this.mantMegaLargeThreshold = data.mant_config.mega_large_threshold ?? 80;
         this.mantTrainingWeightsThreshold = data.mant_config.training_weights_threshold ?? 60;
         this.mantBbqUnmaxxedCards = data.mant_config.bbq_unmaxxed_cards ?? 3;
+        this.mantCharmThreshold = data.mant_config.charm_threshold ?? 70;
+        this.mantCharmFailureRate = data.mant_config.charm_failure_rate ?? 30;
         this.mantSkipRacePercentile = data.mant_config.skip_race_percentile ?? 0;
         this.mantTierThresholds = data.mant_config.tier_thresholds ?? {};
       }
@@ -4425,11 +4466,15 @@ export default {
           tier_count: this.mantTierCount,
           whistle_threshold: this.mantWhistleThreshold,
           whistle_focus_summer: this.mantWhistleFocusSummer,
+          focus_summer_classic: this.mantFocusSummerClassic,
+          focus_summer_senior: this.mantFocusSummerSenior,
           mega_small_threshold: this.mantMegaSmallThreshold,
           mega_medium_threshold: this.mantMegaMediumThreshold,
           mega_large_threshold: this.mantMegaLargeThreshold,
           training_weights_threshold: this.mantTrainingWeightsThreshold,
           bbq_unmaxxed_cards: this.mantBbqUnmaxxedCards,
+          charm_threshold: this.mantCharmThreshold,
+          charm_failure_rate: this.mantCharmFailureRate,
           skip_race_percentile: this.mantSkipRacePercentile,
           tier_thresholds: { ...this.mantTierThresholds }
         };

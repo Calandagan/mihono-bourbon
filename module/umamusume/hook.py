@@ -26,7 +26,7 @@ def tt_next_sequence(ctx: UmamusumeContext):
             ctx.ctrl.click(cx, cy, "team trials next 1")
         else:
             ctx.ctrl.click(354, 1077, "team trials next 1")
-        time.sleep(0.7)
+        time.sleep(0.5)
         ctx.ctrl.click(508, 896, "team trials next 2")
     except Exception:
         pass
@@ -34,7 +34,7 @@ def tt_next_sequence(ctx: UmamusumeContext):
 def complete_team_trials(ctx: UmamusumeContext):
     mode_name = getattr(ctx.task.task_execute_mode, "name", None)
     ctx.ctrl.click(355, 1200, "tt2")
-    time.sleep(1)
+    time.sleep(0.5)
     ctx.ctrl.click(355, 1200, "tt1")
     if mode_name == "TASK_EXECUTE_MODE_FULL_AUTO":
         log.info("tt done in full auto - switching to career mode")

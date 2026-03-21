@@ -86,7 +86,7 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 center_x = suitable_match.center_point[0]
                 center_y = suitable_match.center_point[1]
                 ctx.ctrl.click(center_x, center_y, "Suitable race")
-                time.sleep(0.58)
+                time.sleep(0.5)
                 ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
                 return
             else:
