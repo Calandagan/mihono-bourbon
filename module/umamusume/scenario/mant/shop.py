@@ -111,7 +111,7 @@ def is_shop_scan_turn(date):
 
 
 def is_thumb(r, g, b):
-    return abs(r - 125) <= 5 and abs(g - 120) <= 5 and abs(b - 142) <= 5
+    return abs(r - 122) <= 11 and abs(g - 117) <= 11 and abs(b - 139) <= 11
 
 
 def is_track(r, g, b):
@@ -452,6 +452,12 @@ def scan_mant_shop(ctx):
     for key, conf, abs_y in first_results:
         all_detections.append((key, conf, 0, abs_y))
 
+    shop_debug_dir = os.path.join("scripts", "shop_debug")
+    os.makedirs(shop_debug_dir, exist_ok=True)
+    import datetime as dt
+    ts = dt.datetime.now().strftime("%H%M%S")
+    cv2.imwrite(os.path.join(shop_debug_dir, f"shop_{ts}_f0_top.png"), img)
+
     scan_x_end = _gauss_scan_x()
     swipe_cmd = "shell input swipe " + str(SB_X) + " " + str(start_y) + " " + str(scan_x_end) + " " + str(TRACK_BOT) + " " + str(swipe_dur)
     proc = ctx.ctrl.execute_adb_shell(swipe_cmd, False)
@@ -495,6 +501,15 @@ def scan_mant_shop(ctx):
 
     items_list = dedup_detections(all_detections, captured_frames)
     log.info("shop items: %s", [(n, round(gy)) for n, _, gy in items_list])
+
+    try:
+        last_frame_idx = max(captured_frames.keys())
+        cv2.imwrite(os.path.join(shop_debug_dir, f"shop_{ts}_f{last_frame_idx}_bot.png"), captured_frames[last_frame_idx])
+        with open(os.path.join(shop_debug_dir, f"shop_{ts}_items.txt"), "w") as df:
+            for n, c, gy in items_list:
+                df.write(f"{n} (conf={c:.1f}, gy={gy:.0f})\n")
+    except Exception:
+        pass
 
     first_item_gy = items_list[0][2] if items_list else 0
 

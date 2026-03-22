@@ -245,6 +245,11 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         if is_mant(ctx):
             from module.umamusume.scenario.mant.inventory import should_skip_fast_path
             mant_skip = should_skip_fast_path(ctx)
+        if energy <= limit and not mant_skip and is_mant(ctx) and energy < 5:
+            ctx.cultivate_detail.turn_info.cached_energy = energy
+            from module.umamusume.scenario.mant.inventory import handle_low_energy_recovery
+            if handle_low_energy_recovery(ctx):
+                return
         if energy <= limit and not mant_skip:
             if should_use_pal_outing_simple(ctx):
                 ctx.ctrl.click_by_point(get_trip(ctx))
@@ -329,6 +334,9 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 
                 if ura_race_available:
                     log.info(f"URA {ura_phase} UI detected - proceeding to race")
+                    if is_mant(ctx):
+                        from module.umamusume.scenario.mant.inventory import handle_cleat_before_race
+                        handle_cleat_before_race(ctx, race_id)
                     is_summer = is_summer_camp_period(ctx.cultivate_detail.turn_info.date)
                     ctx.ctrl.click_by_point(get_race(ctx, summer=is_summer))
                 else:
@@ -360,5 +368,8 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     if hasattr(ti, 'race_search_id'):
                         delattr(ti, 'race_search_id')
                     return
+                if is_mant(ctx):
+                    from module.umamusume.scenario.mant.inventory import handle_cleat_before_race
+                    handle_cleat_before_race(ctx, race_id)
                 is_summer = is_summer_camp_period(ctx.cultivate_detail.turn_info.date)
                 ctx.ctrl.click_by_point(get_race(ctx, summer=is_summer))

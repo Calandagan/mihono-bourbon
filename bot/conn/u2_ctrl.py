@@ -453,6 +453,9 @@ class U2AndroidController(AndroidController):
         self.recovery_grace_until = time.time() + 60
         try:
             log.info("rannnnn")
+            for _ in range(3):
+                self.execute_adb_shell("shell input keyevent 4", True)
+                time.sleep(0.4)
             self.execute_adb_shell("shell input keyevent 3", True)
             time.sleep(0.8)
         except Exception:

@@ -461,7 +461,7 @@ def script_info(ctx: UmamusumeContext):
             ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
             ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
             log.info("Set race operation for G1 goal farming")
-            ctx.ctrl.click_by_point(get_race_point(ctx))  # Navigate to race menu
+            ctx.ctrl.click_by_point(get_race_point(ctx))
             log.info("Navigated to race selection to work towards G1 goals")
             
             # If no user-selected races found, search for suitable race template

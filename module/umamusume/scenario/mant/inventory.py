@@ -682,6 +682,10 @@ def calc_effective_energy(item_name, raw_energy, current_energy, period_idx):
     return effective
 
 
+LOW_ENERGY_THRESHOLD = 5
+MAX_ENERGY = 100
+
+
 def pick_best_energy_item(ctx):
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
@@ -711,6 +715,43 @@ def pick_best_energy_item(ctx):
     if best_effective < ENERGY_SCORE_THRESHOLD:
         return None
     return best_item
+
+
+def plan_low_energy_recovery(current_energy, owned_map):
+    available = []
+    for item_name, raw_energy in sorted(ENERGY_ITEMS.items(), key=lambda x: x[1]):
+        qty = owned_map.get(item_name, 0)
+        if qty > 0:
+            available.append((item_name, raw_energy, qty))
+
+    if not available:
+        return []
+
+    plan = []
+    energy = current_energy
+
+    for item_name, raw_energy, qty in reversed(available):
+        if energy >= MAX_ENERGY:
+            break
+        while qty > 0 and energy + raw_energy <= MAX_ENERGY:
+            plan.append(item_name)
+            energy += raw_energy
+            qty -= 1
+
+    if not plan:
+        smallest = available[0]
+        plan.append(smallest[0])
+
+    result = []
+    seen = {}
+    for name in plan:
+        if name not in seen:
+            seen[name] = 0
+        seen[name] += 1
+    for name, count in seen.items():
+        result.append((name, count))
+
+    return result
 
 
 def use_item_and_update_inventory(ctx, item_name):
@@ -782,6 +823,35 @@ def handle_energy_item(ctx):
         return False
     ctx.cultivate_detail.turn_info.energy_item_used = True
     return use_item_and_update_inventory(ctx, item_name)
+
+
+def handle_low_energy_recovery(ctx):
+    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
+    if current_energy is None:
+        return False
+    current_energy = int(current_energy)
+    if current_energy >= LOW_ENERGY_THRESHOLD:
+        return False
+
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    plan = plan_low_energy_recovery(current_energy, owned_map)
+    if not plan:
+        return False
+
+    log.info(f"[LOW ENERGY RECOVERY] energy={current_energy}%, plan={plan}")
+    used_any = False
+    for item_name, quantity in plan:
+        for _ in range(quantity):
+            ok = use_item_and_update_inventory(ctx, item_name)
+            if ok:
+                used_any = True
+            else:
+                break
+
+    if used_any:
+        ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
+    return used_any
 
 
 def handle_instant_use_items(ctx):
@@ -1014,6 +1084,30 @@ def should_skip_fast_path(ctx):
     if energy_count >= ENERGY_ITEM_SKIP_FAST_PATH_THRESHOLD:
         return True
     return False
+
+
+def handle_cleat_before_race(ctx, race_id):
+    from module.umamusume.asset.race_data import is_g1_race
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+
+    if is_g1_race(race_id):
+        if owned_map.get('Master Cleat Hammer', 0) > 0:
+            log.info(f"[CLEAT] G1 race {race_id} — using Master Cleat Hammer")
+            return use_item_and_update_inventory(ctx, 'Master Cleat Hammer')
+        elif owned_map.get('Artisan Cleat Hammer', 0) > 0:
+            log.info(f"[CLEAT] G1 race {race_id} — no Master, using Artisan Cleat Hammer")
+            return use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
+        else:
+            log.info(f"[CLEAT] G1 race {race_id} — no cleat hammers available")
+            return False
+    else:
+        if owned_map.get('Artisan Cleat Hammer', 0) > 0:
+            log.info(f"[CLEAT] race {race_id} — using Artisan Cleat Hammer")
+            return use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
+        else:
+            log.info(f"[CLEAT] race {race_id} — no Artisan Cleat Hammer available")
+            return False
 
 
 def should_skip_race(ctx):

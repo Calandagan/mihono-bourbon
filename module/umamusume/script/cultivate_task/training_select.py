@@ -564,18 +564,17 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 score *= pal_mult
             
             fail_mult = 1.0
-            original_fail_mult = 1.0
             try:
                 energy_item_used = getattr(ctx.cultivate_detail.turn_info, 'energy_item_used', False)
                 if getattr(ctx.cultivate_detail, 'compensate_failure', True):
                     fr_val = int(getattr(til, 'failure_rate', -1))
                     if fr_val >= 0:
-                        original_fail_mult = max(0.0, 1.0 - (float(fr_val) / 50.0))
+                        fail_mult = max(0.0, 1.0 - (float(fr_val) / 50.0))
                         if not energy_item_used:
-                            fail_mult = original_fail_mult
                             score *= fail_mult
             except Exception:
                 pass
+            pre_fail_score = score / fail_mult if fail_mult > 0 and fail_mult != 1.0 and not getattr(ctx.cultivate_detail.turn_info, 'energy_item_used', False) else score
 
             energy_mult = 1.0
             if idx == 4 and current_energy is not None:
@@ -627,10 +626,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 score *= weight_mult
 
             computed_scores[idx] = score
-            if fail_mult != original_fail_mult and original_fail_mult > 0:
-                original_scores[idx] = score * original_fail_mult
-            else:
-                original_scores[idx] = score
+            original_scores[idx] = pre_fail_score
             
             base_val = base_scores[idx] if isinstance(base_scores, (list, tuple)) and len(base_scores) > idx else 0.0
             lv1_contrib = lv1_total

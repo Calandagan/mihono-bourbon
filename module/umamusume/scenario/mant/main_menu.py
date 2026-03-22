@@ -85,17 +85,21 @@ def handle_mant_shop_scan(ctx, current_date):
 
     bought = False
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
+    log.info(f"[SHOP BUY] mant_cfg exists: {mant_cfg is not None}, item_tiers: {mant_cfg.item_tiers if mant_cfg else 'N/A'}")
     if mant_cfg and mant_cfg.item_tiers:
         budget = ctx.cultivate_detail.mant_coins
         shop_names = [name for name, _, _ in items_list]
         shop_slugs = [display_to_slug(n) for n in shop_names]
+        log.info(f"[SHOP BUY] budget={budget}, shop_slugs={shop_slugs}")
         targets = []
         for tier in range(1, mant_cfg.tier_count + 1):
             if tier > 1:
                 threshold = mant_cfg.tier_thresholds.get(tier, 0)
                 if budget < threshold:
+                    log.info(f"[SHOP BUY] skipping tier {tier}: budget {budget} < threshold {threshold}")
                     continue
             tier_slugs = [slug for slug, t in mant_cfg.item_tiers.items() if t == tier]
+            log.info(f"[SHOP BUY] tier {tier} slugs: {tier_slugs}")
             for slug in tier_slugs:
                 if slug in shop_slugs:
                     display = SLUG_TO_DISPLAY.get(slug)
@@ -104,10 +108,16 @@ def handle_mant_shop_scan(ctx, current_date):
                         if cost <= budget:
                             targets.append(display)
                             budget -= cost
+                            log.info(f"[SHOP BUY] target: {display} (cost={cost}, remaining={budget})")
+                        else:
+                            log.info(f"[SHOP BUY] skip {display}: cost {cost} > budget {budget}")
         from module.umamusume.persistence import get_used_buffs
         from module.umamusume.scenario.mant.inventory import ONE_TIME_BUFF_ITEMS
         used_buffs = get_used_buffs()
+        pre_buff_targets = targets.copy()
         targets = [t for t in targets if t not in ONE_TIME_BUFF_ITEMS or t not in used_buffs]
+        if len(pre_buff_targets) != len(targets):
+            log.info(f"[SHOP BUY] buff filter removed: {set(pre_buff_targets) - set(targets)}")
 
         active_ailments = getattr(ctx.cultivate_detail, 'mant_afflictions', [])
         cure_always_ok = {"Rich Hand Cream", AILMENT_CURE_ALL}
@@ -118,7 +128,11 @@ def handle_mant_shop_scan(ctx, current_date):
                     needed_cures.add(cure)
         all_cures = set(AILMENT_CURE_MAP.values())
         conditional_cures = all_cures - cure_always_ok
+        pre_cure_targets = targets.copy()
         targets = [t for t in targets if t not in conditional_cures or t in needed_cures]
+        if len(pre_cure_targets) != len(targets):
+            log.info(f"[SHOP BUY] cure filter removed: {set(pre_cure_targets) - set(targets)}")
+        log.info(f"[SHOP BUY] final targets: {targets}")
         if targets:
             bought, held_items = buy_shop_items(ctx, targets, items_list, ratio, drag_ratio, first_item_gy)
             if bought:

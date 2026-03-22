@@ -50,3 +50,23 @@ def load_period_mapping():
                 PERIOD_TO_RACES[time_period].append(race_id)
 
 load_period_mapping()
+
+
+RACE_GRADE = {}
+
+def load_race_grades():
+    global RACE_GRADE
+    RACE_GRADE.clear()
+    with open('resource/umamusume/data/race.csv', 'r', encoding="utf-8") as file:
+        reader = csv.reader(file)
+        for row in reader:
+            if len(row) >= 6:
+                race_id = int(row[1])
+                grade = row[5].strip()
+                if grade:
+                    RACE_GRADE[race_id] = grade
+
+def is_g1_race(race_id):
+    return RACE_GRADE.get(race_id, '') == 'G1'
+
+load_race_grades()
