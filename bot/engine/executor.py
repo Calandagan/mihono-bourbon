@@ -130,17 +130,11 @@ class Executor:
     def detect_ui_sub(self, ui: UI, target) -> None:
         result = True
         for template in ui.check_exist_template_list:
-            sub_target = target[
-                         template.image_match_config.match_area.y1:template.image_match_config.match_area.y2,
-                         template.image_match_config.match_area.x1:template.image_match_config.match_area.x2]
-            if not image_match(sub_target, template).find_match:
+            if not image_match(target, template).find_match:
                 result = False
                 break
         for template in ui.check_non_exist_template_list:
-            sub_target = target[
-                         template.image_match_config.match_area.y1:template.image_match_config.match_area.y2,
-                         template.image_match_config.match_area.x1:template.image_match_config.match_area.x2]
-            if image_match(sub_target, template).find_match:
+            if image_match(target, template).find_match:
                 result = False
                 break
         if result is True:

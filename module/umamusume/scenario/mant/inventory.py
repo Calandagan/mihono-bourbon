@@ -900,6 +900,7 @@ def handle_charm(ctx):
 
 
 def rescan_training(ctx):
+    close_items_panel(ctx)
     ctx.cultivate_detail.turn_info.parse_train_info_finish = False
     ctx.cultivate_detail.turn_info.turn_operation = None
     ctx.cultivate_detail.last_decision_stats = None

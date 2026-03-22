@@ -101,8 +101,9 @@ TITLE = [
     "Borrow Card", #48
     "Insufficient Goal Race Result Pts", #49
     "Shop", #50
-    "Exchange Complete", #51
+     "Exchange Complete", #51
     "Career Complete", #52
+    "Training Items", #53
 ]
 
 
@@ -240,6 +241,10 @@ def script_info(ctx: UmamusumeContext):
             ctx.ctrl.click_by_point(GET_TITLE_CONFIRM)
         if title_text == TITLE[6]: #Training Complete
             ctx.ctrl.click_by_point(CULTIVATE_FINISH_RETURN_CONFIRM)
+        if title_text == TITLE[53]:
+            ctx.ctrl.click(200, 1205, "close_items_panel")
+            time.sleep(0.3)
+            return
         if title_text == TITLE[7]: #Quick Mode Settings
             ctx.ctrl.click_by_point(SCENARIO_SHORTEN_SET_2)
             time.sleep(0.5)

@@ -45,7 +45,7 @@ def _gauss_scan_x():
 
 
 def is_thumb(r, g, b):
-    return abs(r - 125) <= 5 and abs(g - 120) <= 5 and abs(b - 142) <= 5
+    return abs(r - 122) <= 11 and abs(g - 117) <= 11 and abs(b - 139) <= 11
 
 
 def is_track(r, g, b):
@@ -143,13 +143,6 @@ def scroll_to_bottom(ctx):
         if thumb is None:
             continue
         sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_BOT)
-
-
-def scroll_down_step(ctx):
-    sx = 360 + random.randint(-8, 8)
-    ctx.ctrl.execute_adb_shell(
-        "shell input swipe " + str(sx) + " 850 " + str(sx) + " 500 200", True)
-    time.sleep(0.25)
 
 
 def script_follow_support_card_select(ctx: UmamusumeContext):
@@ -614,12 +607,15 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
 
             img = ctx.ctrl.get_screen()
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            if at_bottom(img_rgb):
-                break
-            img = ctx.ctrl.get_screen()
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             thumb = find_thumb(img_rgb)
             if thumb is None:
+                time.sleep(0.15)
+                img = ctx.ctrl.get_screen()
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                thumb = find_thumb(img_rgb)
+                if thumb is None:
+                    continue
+            if at_bottom(img_rgb):
                 break
             cursor = (thumb[0] + thumb[1]) // 2
             th = thumb[1] - thumb[0]
