@@ -1,7 +1,7 @@
 
 ok... my Icarus account got banned (the headless bot that hit top 18 club ranking solo)
 
-my main which runs this is still fine tho, 99% chance it got mass reported instead of cygames actually detecting anything (everyone was complaining for like 2 days lol) 
+my main which runs this is still fine tho, 99% chance it got mass reported instead of cygames actually detecting anything (everyone was complaining for like 2 days lol) < also my account with the illegal pasa is still fine too so there's that 
 
 I stand by what I said, if you don't get mass reported you'll be fine. 
 
