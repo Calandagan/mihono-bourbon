@@ -13,6 +13,8 @@ PERSIST_FILE = os.path.normpath(PERSIST_FILE)
 
 MAX_DATAPOINTS = 888
 
+career_cleared_flag = False
+
 
 def rebuild_percentile_history(score_history):
     percentiles = []
@@ -26,7 +28,14 @@ def rebuild_percentile_history(score_history):
 
 
 def save_career_data(ctx):
+    global career_cleared_flag
     try:
+        if career_cleared_flag:
+            career_cleared_flag = False
+            ctx.cultivate_detail.score_history = []
+            ctx.cultivate_detail.percentile_history = []
+            log.info("Career data cleared from memory")
+            return
         score_history = getattr(ctx.cultivate_detail, 'score_history', [])
         if not score_history:
             return
@@ -60,12 +69,13 @@ def load_career_data(ctx):
 
 
 def clear_career_data():
+    global career_cleared_flag
     try:
         if os.path.exists(PERSISTENCE_FILE):
             os.remove(PERSISTENCE_FILE)
-            log.info("Career data cleared")
-            return True
-        return False
+        career_cleared_flag = True
+        log.info("Career data cleared")
+        return True
     except Exception as e:
         log.info(f"Failed to clear career data: {e}")
         return False
