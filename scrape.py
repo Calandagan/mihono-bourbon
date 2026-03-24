@@ -18,6 +18,8 @@ userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML
 def isJapanese(s: str) -> bool:
     return bool(re.search(r'[\u3040-\u30ff\u3400-\u9fff]', s or ''))
 
+STATUS_EFFECTS_URL = 'https://gametora.com/data/umamusume/status-effects.15a5d5e3.json'
+
 def zeroStats() -> Dict[str, float]:
     return {
         'Friendship': 0.0,
@@ -33,6 +35,38 @@ def zeroStats() -> Dict[str, float]:
         'Stamina': 0.0,
         'Wisdom': 0.0,
     }
+
+def fetchStatusEffectsMap() -> Dict[int, str]:
+    try:
+        res = requests.get(STATUS_EFFECTS_URL, headers={
+            'User-Agent': userAgent,
+            'Accept': 'application/json',
+        }, timeout=30)
+        res.raise_for_status()
+        data = res.json()
+        mapping = {}
+        for entry in data:
+            sid = entry.get('id')
+            name = entry.get('name_en') or entry.get('name_en_eon') or ''
+            if sid is not None and name:
+                mapping[sid] = name
+        return mapping
+    except Exception:
+        return {
+            1: 'Night Owl',
+            2: 'Slacker',
+            3: 'Skin Outbreak',
+            4: 'Slow Metabolism',
+            5: 'Migraine',
+            6: 'Practice Poor',
+            7: 'Fast Learner',
+            8: 'Charming ○',
+            9: 'Hot Topic',
+            10: 'Practice Perfect ○',
+            11: 'Practice Perfect ◎',
+            12: 'Under the Weather',
+            13: 'Shining Brightly',
+        }
 
 def toNum(val: Any) -> float:
     if not isinstance(val, (int, float, str)):
@@ -57,6 +91,21 @@ def getStatKey(t: str) -> Optional[str]:
         'hi': 'Skill Hint',
         'bo': 'Friendship',
     }.get(t)
+
+def extractStatusEffects(results: List[Dict[str, Any]], statusMap: Dict[int, str]) -> List[Dict[str, Any]]:
+    effects = []
+    for v in results or []:
+        if v.get('t') != 'se':
+            continue
+        sid = v.get('d')
+        if sid is None:
+            continue
+        name = statusMap.get(sid, f'Unknown ({sid})')
+        entry = {'id': sid, 'name': name}
+        if v.get('r'):
+            entry['random'] = True
+        effects.append(entry)
+    return effects
 
 def computeStatsFromResults(results: List[Dict[str, Any]]) -> Dict[str, float]:
     sums: Dict[str, float] = {}
@@ -119,7 +168,7 @@ def parseNextDataCharacter(html: str) -> Tuple[Optional[Dict[str, Any]], Optiona
     
     return payload, itemData
 
-def formatCharacterEvents(payload: Dict[str, Any]) -> Dict[str, Any]:
+def formatCharacterEvents(payload: Dict[str, Any], statusMap: Dict[int, str]) -> Dict[str, Any]:
     formatted: Dict[str, Any] = {}
     
     for key in ('version', 'wchoice', 'outings', 'secret'):
@@ -133,20 +182,27 @@ def formatCharacterEvents(payload: Dict[str, Any]) -> Dict[str, Any]:
                 continue
             choices = event.get('c', []) if isinstance(event.get('c'), list) else []
             
-            if len(choices) < 2:
-                continue
-            
             if eventName not in formatted:
                 formatted[eventName] = {'choices': {}, 'stats': {}}
+            
+            if len(choices) == 0:
+                formatted[eventName]['choices']['1'] = 'No choices'
+                formatted[eventName]['stats']['1'] = zeroStats()
+                continue
             
             for i, v in enumerate(choices, start=1):
                 raw = str(v.get('o', '')).strip()
                 label = raw if raw and not isJapanese(raw) else f'Choice {i}'
                 results = v.get('r', []) if isinstance(v.get('r'), list) else []
                 s = computeStatsFromResults(results)
+                effects = extractStatusEffects(results, statusMap)
                 
                 formatted[eventName]['choices'][str(i)] = label
                 formatted[eventName]['stats'][str(i)] = s
+                if effects:
+                    if 'status_effects' not in formatted[eventName]:
+                        formatted[eventName]['status_effects'] = {}
+                    formatted[eventName]['status_effects'][str(i)] = effects
     
     return formatted
 
@@ -165,7 +221,7 @@ def dateReached(releaseEn: Optional[str]) -> bool:
     except Exception:
         return True
 
-def processCharacterUrl(url: str) -> Optional[Dict[str, Any]]:
+def processCharacterUrl(url: str, statusMap: Dict[int, str] = None) -> Optional[Dict[str, Any]]:
     html = fetchCharacterPageHtml(url)
     payload, itemData = parseNextDataCharacter(html)
     if not payload:
@@ -175,7 +231,7 @@ def processCharacterUrl(url: str) -> Optional[Dict[str, Any]]:
     if not dateReached(releaseEn):
         return None
     
-    return formatCharacterEvents(payload)
+    return formatCharacterEvents(payload, statusMap or {})
 
 def fetchSupportList() -> List[Dict[str, Any]]:
     res = requests.get('https://umapyoi.net/api/v1/support', headers={
@@ -219,7 +275,7 @@ def parseNextDataSupport(html: str) -> Tuple[Optional[Dict[str, Any]], Optional[
         payload = v
     return payload, itemData
 
-def formatSupportEvents(payload: Dict[str, Any]) -> Dict[str, Any]:
+def formatSupportEvents(payload: Dict[str, Any], statusMap: Dict[int, str]) -> Dict[str, Any]:
     formatted: Dict[str, Any] = {}
     for arr in (payload or {}).values():
         if not isinstance(arr, list):
@@ -231,20 +287,27 @@ def formatSupportEvents(payload: Dict[str, Any]) -> Dict[str, Any]:
             if isJapanese(eventName):
                 continue
             choices = event.get('c', []) if isinstance(event.get('c'), list) else []
-            if len(choices) < 2:
-                continue
             if eventName not in formatted:
                 formatted[eventName] = {'choices': {}, 'stats': {}}
+            if len(choices) == 0:
+                formatted[eventName]['choices']['1'] = 'No choices'
+                formatted[eventName]['stats']['1'] = zeroStats()
+                continue
             for i, v in enumerate(choices, start=1):
                 raw = str(v.get('o', '')).strip()
                 label = raw if raw and not isJapanese(raw) else f'Choice {i}'
                 results = v.get('r', []) if isinstance(v.get('r'), list) else []
                 s = computeStatsFromResults(results)
+                effects = extractStatusEffects(results, statusMap)
                 formatted[eventName]['choices'][str(i)] = label
                 formatted[eventName]['stats'][str(i)] = s
+                if effects:
+                    if 'status_effects' not in formatted[eventName]:
+                        formatted[eventName]['status_effects'] = {}
+                    formatted[eventName]['status_effects'][str(i)] = effects
     return formatted
 
-def processSupportId(supportId: Any) -> Optional[Dict[str, Any]]:
+def processSupportId(supportId: Any, statusMap: Dict[int, str] = None) -> Optional[Dict[str, Any]]:
     html, url = fetchSupportPageHtml(supportId)
     payload, itemData = parseNextDataSupport(html)
     if not payload:
@@ -252,7 +315,7 @@ def processSupportId(supportId: Any) -> Optional[Dict[str, Any]]:
     releaseEn = itemData.get('release_en') if isinstance(itemData, dict) else None
     if releaseEn == '???':
         return None
-    return formatSupportEvents(payload)
+    return formatSupportEvents(payload, statusMap or {})
 
 def mergeAggregated(aggregated: Dict[str, Any], newData: Dict[str, Any]) -> None:
     for eventName, eventData in newData.items():
@@ -275,6 +338,12 @@ def mergeAggregated(aggregated: Dict[str, Any], newData: Dict[str, Any]) -> None
             for statName, value in stats.items():
                 aggregated[eventName]['stats_sum'][choiceNum][statName] += value
             aggregated[eventName]['stats_count'][choiceNum] += 1
+        if 'status_effects' in eventData:
+            if 'status_effects' not in aggregated[eventName]:
+                aggregated[eventName]['status_effects'] = {}
+            for choiceNum, effects in eventData['status_effects'].items():
+                if choiceNum not in aggregated[eventName]['status_effects']:
+                    aggregated[eventName]['status_effects'][choiceNum] = effects
 
 def finalizeAverages(aggregated: Dict[str, Any]) -> Dict[str, Any]:
     final: Dict[str, Any] = {}
@@ -296,11 +365,16 @@ def finalizeAverages(aggregated: Dict[str, Any]) -> Dict[str, Any]:
                 stats[statName] = round(avg, 1) if not float(avg).is_integer() else float(int(avg))
             
             final[eventName]['stats'][choiceNum] = stats
+        
+        if 'status_effects' in eventData:
+            final[eventName]['status_effects'] = eventData['status_effects']
     
     return final
 
 def runEventsEn() -> None:
     aggregated: Dict[str, Any] = {}
+    statusMap = fetchStatusEffectsMap()
+    print(f"Loaded {len(statusMap)} status effects")
 
     try:
         supportList = fetchSupportList()
@@ -562,9 +636,9 @@ def runEventsEn() -> None:
         for v in supportList:
             sid = v.get('id') if isinstance(v, dict) else None
             if sid is not None:
-                futures.append(executor.submit(processSupportId, sid))
+                futures.append(executor.submit(processSupportId, sid, statusMap))
         for v in charUrls:
-            futures.append(executor.submit(processCharacterUrl, v))
+            futures.append(executor.submit(processCharacterUrl, v, statusMap))
         
         for future in futures:
             processTask(future)

@@ -324,6 +324,27 @@ def calculate_optimal_choice_from_db(ctx: UmamusumeContext, event_data: dict) ->
     weight_str = ", ".join(f"{k}:{v}" for k, v in sorted(weights.items()))
     log.info(f"Event weights: {weight_str}")
 
+    status_effects = event_data.get('status_effects', {})
+    low_friendship_count = 0
+    try:
+        from module.umamusume.define import SupportCardFavorLevel, SupportCardType
+        ti = ctx.cultivate_detail.turn_info
+        seen_names = set()
+        for tl in ti.training_info_list:
+            for sc in getattr(tl, 'support_card_info_list', []) or []:
+                ctype = getattr(sc, 'card_type', SupportCardType.SUPPORT_CARD_TYPE_UNKNOWN)
+                if ctype in (SupportCardType.SUPPORT_CARD_TYPE_NPC, SupportCardType.SUPPORT_CARD_TYPE_UNKNOWN):
+                    continue
+                name = getattr(sc, 'name', '')
+                if name in seen_names:
+                    continue
+                seen_names.add(name)
+                favor = getattr(sc, 'favor', SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_UNKNOWN)
+                if favor in (SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_1, SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_2):
+                    low_friendship_count += 1
+    except Exception:
+        low_friendship_count = 5 if year_text == "Junior" else (3 if year_text == "Classic" else 1)
+
     best_choice = None
     best_score = -1
 
@@ -333,6 +354,27 @@ def calculate_optimal_choice_from_db(ctx: UmamusumeContext, event_data: dict) ->
         for stat, value in choice_stats.items():
             if stat in weights:
                 score += value * weights[stat]
+        effects = status_effects.get(choice_num, [])
+        for eff in effects:
+            sid = eff.get('id')
+            is_random = eff.get('random', False)
+            effect_score = 0
+            if sid == 4:
+                effect_score = -111
+            elif sid == 7:
+                if year_text == "Junior":
+                    effect_score = 333
+                elif year_text == "Classic":
+                    effect_score = 250
+                else:
+                    effect_score = 222
+            elif sid == 8:
+                effect_score = 75 * low_friendship_count
+            elif sid in (9, 10, 11):
+                effect_score = 35
+            if not is_random:
+                effect_score = int(effect_score * 1.25)
+            score += effect_score
         if score > best_score:
             best_score = score
             best_choice = choice_num_int

@@ -246,18 +246,20 @@ def script_cultivate_event(ctx: UmamusumeContext):
         choice_index = 2
 
     if choice_source == "database" and expected_count >= 2:
-        deadline = time.time() + 1.5
+        min_required = min(2, expected_count)
+        deadline = time.time() + 3.0
         while time.time() < deadline:
             if isinstance(selectors, list) and len(selectors) >= expected_count:
                 break
-            time.sleep(0.2)
+            time.sleep(0.3)
             try:
                 img_wait = ctx.ctrl.get_screen()
                 if img_wait is not None and getattr(img_wait, 'size', 0) > 0:
                     _, selectors_wait = parse_cultivate_event(ctx, img_wait)
-                    if isinstance(selectors_wait, list) and len(selectors_wait) >= expected_count:
+                    if isinstance(selectors_wait, list) and len(selectors_wait) >= min_required:
                         selectors = selectors_wait
-                        break
+                        if len(selectors) >= expected_count:
+                            break
             except Exception:
                 continue
         log.info(f"expected={expected_count}, got {len(selectors) if isinstance(selectors, list) else 0}")
@@ -310,6 +312,9 @@ def script_cultivate_event(ctx: UmamusumeContext):
             if img_retry is not None:
                 _, retry_selectors = parse_cultivate_event(ctx, img_retry)
                 if isinstance(retry_selectors, list) and len(retry_selectors) > 0:
-                    ctx.ctrl.click(int(retry_selectors[0][0]), int(retry_selectors[0][1]), "Event fallback")
+                    fallback_idx = min(int(choice_index), len(retry_selectors)) - 1
+                    if fallback_idx < 0:
+                        fallback_idx = 0
+                    ctx.ctrl.click(int(retry_selectors[fallback_idx][0]), int(retry_selectors[fallback_idx][1]), f"Event fallback option-{fallback_idx + 1}")
             ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
         return
