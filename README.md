@@ -44,6 +44,7 @@ MANT is very far from being complete but it is functional rn and is prob better 
 ### Scenario Support
 - URA Finals scenario
 - Unity Cup (Aoharu)
+- partial Mant
 
 ### Comprehensive Customization
 - Literally everything that can be detected is detected and used for customization.
@@ -111,9 +112,9 @@ Alternatively, run `start.bat` to launch the bot.
 
 ## Configuration
 
-1. Set graphics to `Standard` in-game (not `Basic`)
-2. Manually select your Uma Musume, Legacy Uma, and Support Cards before starting
-
+1. Set graphics to `Standard` in-game (not `Basic`).    
+2. Manually select your Uma Musume, Legacy Uma, and Support Cards before starting.    
+3. Edit your runtime in main.py (default is 20 hours a day).     
 ---
 
 ## Stat Caps Guide
