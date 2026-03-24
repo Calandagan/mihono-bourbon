@@ -579,12 +579,27 @@ def has_use_training_items_button(frame):
     return image_match(gray, UI_CULTIVATE_USE_TRAINING_ITEMS).find_match
 
 
+def find_training_items_button(frame):
+    if frame is None:
+        return None
+    from bot.recog.image_matcher import image_match
+    from module.umamusume.asset.template import REF_TRAINING_ITEMS_BTN
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    result = image_match(gray, REF_TRAINING_ITEMS_BTN)
+    if result.find_match and result.center_point:
+        return result.center_point
+    return None
+
+
 def open_items_panel(ctx):
     frame = ctx.ctrl.get_screen()
-    if is_on_training_screen(frame):
-        ctx.ctrl.execute_adb_shell("shell input tap 37 347", True)
+    btn = find_training_items_button(frame)
+    if btn:
+        ctx.ctrl.click(int(btn[0]), int(btn[1]), "Training Items button")
+    elif is_on_training_screen(frame):
+        ctx.ctrl.click(37, 347, "Training Items fallback (training)")
     else:
-        ctx.ctrl.execute_adb_shell("shell input tap 552 771", True)
+        ctx.ctrl.click(552, 771, "Training Items fallback (menu)")
     for _ in range(10):
         time.sleep(0.3)
         if is_items_panel_open(ctx.ctrl.get_screen()):
