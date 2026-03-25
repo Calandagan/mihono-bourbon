@@ -1,11 +1,4 @@
-
-ok... my Icarus account got banned (the headless bot that hit top 18 club ranking solo)
-
-my main which runs this is still fine tho, 99% chance it got mass reported instead of cygames actually detecting anything (everyone was complaining for like 2 days lol) < also my account with the illegal pasa is still fine too so there's that 
-
-I stand by what I said; this is as undetectable as bots get, if you don't get mass reported you'll be fine. That being said, it isn't foolproof either it's more of a "not worth the effort patching"
-
-Reminder to edit the start/end time and don't run this 24/7 (personally I do 18 hours a day).
+For MANT pls turn "auto use certain items" on in game settings (not in the bot)
 
 # Sweepy — /vg/'s Uma Musume Bot (UAT REHASHED)
 
