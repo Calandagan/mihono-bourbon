@@ -1157,6 +1157,8 @@ def handle_megaphone_endgame(ctx):
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
     date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    active_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
+    active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
 
     if date >= MANT_CLIMAX_START and date not in MANT_CLIMAX_TRAINING_TURNS:
         return False
@@ -1168,6 +1170,8 @@ def handle_megaphone_endgame(ctx):
 
     for name, (tier, duration) in sorted(MEGAPHONE_TIERS.items(), key=lambda x: x[1][0]):
         if owned_map.get(name, 0) <= 0:
+            continue
+        if active_turns > 0 and active_tier > 0 and tier <= active_tier:
             continue
         ok = use_item_and_update_inventory(ctx, name)
         if ok:
@@ -1319,8 +1323,7 @@ def item_loop(ctx):
 
     handle_megaphone(ctx)
     handle_anklet(ctx)
-    tick_megaphone(ctx)
-
+    
 
 def should_skip_fast_path(ctx):
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])

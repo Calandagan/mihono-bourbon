@@ -676,6 +676,13 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             nrg_str = f" | nrg:{nrg_change:+.1f}" if nrg_change != 0 else ""
             log.info(f"{names[idx]}: {score:.3f} = [{formula_str}]{stat_str}{nrg_str}")
 
+        if is_mant:
+            try:
+                from module.umamusume.scenario.mant.inventory import tick_megaphone
+                tick_megaphone(ctx)
+            except Exception:
+                pass
+
         ctx.cultivate_detail.turn_info.parse_train_info_finish = True
         
         ctx.cultivate_detail.turn_info.cached_computed_scores = list(computed_scores)
