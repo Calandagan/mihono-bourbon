@@ -1,5 +1,4 @@
-For MANT pls turn "auto use certain items" on in game settings (not in the bot)
-
+overhauling mant inventory. don't update if Ur using it
 # Sweepy — /vg/'s Uma Musume Bot (UAT REHASHED)
 
 ### A umamusume bot that handles all aspects of gameplay including training, races, events, skill purchasing, and starting runs. 
