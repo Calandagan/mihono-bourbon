@@ -1,4 +1,4 @@
-overhauling mant inventory. don't update if Ur using it
+turn auto use items on for mant 
 # Sweepy — /vg/'s Uma Musume Bot (UAT REHASHED)
 
 ### A umamusume bot that handles all aspects of gameplay including training, races, events, skill purchasing, and starting runs. 
