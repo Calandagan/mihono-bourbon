@@ -1,6 +1,7 @@
 import os
 import json
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -196,3 +197,34 @@ def detect_race_reward_items(img):
             results.append(name)
 
     return results
+
+
+def _race_reward_item_scan_loop(ctx, initial_ui):
+    try:
+        items_done = False
+        while ctx.current_ui is initial_ui:
+            if items_done:
+                return
+            img = ctx.ctrl.get_screen()
+            if img is None or not getattr(img, 'size', 0):
+                time.sleep(0.1)
+                continue
+            if has_new_items_tiles(img):
+                items = detect_race_reward_items(img)
+                if items:
+                    log.info("Race reward new shop items: %s", items)
+                items_done = True
+            time.sleep(0.1)
+    except Exception:
+        pass
+
+
+def start_race_reward_item_detection_if_mant(ctx):
+    mant_cfg = getattr(getattr(ctx.task.detail, 'scenario_config', None), 'mant_config', None)
+    if mant_cfg is None:
+        return
+    threading.Thread(
+        target=_race_reward_item_scan_loop,
+        args=(ctx, ctx.current_ui),
+        daemon=True,
+    ).start()

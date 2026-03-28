@@ -1,5 +1,4 @@
 import time
-import threading
 import cv2
 
 import bot.base.log as logger
@@ -266,56 +265,7 @@ def script_cultivate_race_result(ctx: UmamusumeContext):
     ctx.ctrl.click_by_point(RACE_RESULT_CONFIRM)
 
 
-def detect_reward_items_after_race(ctx, initial_ui):
-    from module.umamusume.scenario.mant.race_reward_items import has_new_items_tiles, detect_race_reward_items
-    from module.umamusume.asset.template import REF_HINT_LEVELS_TEXT
-    from module.umamusume.context import log_detected_skill
-    from module.umamusume.script.cultivate_task.parse import get_canonical_skill_name
-    from module.umamusume.script.cultivate_task.event_handlers import parse_hint_skill
-    from bot.recog.ocr import ocr_line
-    try:
-        mant_cfg = getattr(getattr(ctx.task.detail, 'scenario_config', None), 'mant_config', None)
-        items_done = False
-        hint_done = False
-        while ctx.current_ui is initial_ui:
-            if items_done and hint_done:
-                return
-            img = ctx.ctrl.get_screen()
-            if img is None or not getattr(img, 'size', 0):
-                time.sleep(0.1)
-                continue
-            if mant_cfg is not None and not items_done and has_new_items_tiles(img):
-                items = detect_race_reward_items(img)
-                if items:
-                    log.info("Race reward new shop items: %s", items)
-                items_done = True
-            if not hint_done:
-                tpl = REF_HINT_LEVELS_TEXT.template_image
-                if tpl is not None:
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    h, w = gray.shape[:2]
-                    roi = gray[935:min(h, 1132), 205:min(w, 339)]
-                    if roi.shape[0] >= tpl.shape[0] and roi.shape[1] >= tpl.shape[1]:
-                        res = cv2.matchTemplate(roi, tpl, cv2.TM_CCOEFF_NORMED)
-                        _, max_val, _, max_loc = cv2.minMaxLoc(res)
-                        if max_val >= 0.80:
-                            match_y = 935 + max_loc[1]
-                            oy1 = max(0, match_y - 5)
-                            oy2 = min(img.shape[0], match_y + 30)
-                            text = ocr_line(img[oy1:oy2, 60:min(img.shape[1], 660)], lang='en') or ''
-                            skill = parse_hint_skill(text)
-                            if skill:
-                                resolved = get_canonical_skill_name(skill) or skill
-                                log.info("Hint: %s", resolved)
-                                log_detected_skill(resolved, "race")
-                            hint_done = True
-            if mant_cfg is None:
-                items_done = True
-            time.sleep(0.1)
-    except Exception:
-        pass
-
-
 def script_cultivate_race_reward(ctx: UmamusumeContext):
-    threading.Thread(target=detect_reward_items_after_race, args=(ctx, ctx.current_ui), daemon=True).start()
+    from module.umamusume.scenario.mant.race_reward_items import start_race_reward_item_detection_if_mant
+    start_race_reward_item_detection_if_mant(ctx)
     ctx.ctrl.click_by_point(RACE_REWARD_CONFIRM)
