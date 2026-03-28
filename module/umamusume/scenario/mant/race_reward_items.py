@@ -17,17 +17,21 @@ ITEM_ASSETS_DIR = os.path.normpath(
 )
 MANIFEST_PATH = os.path.join(ITEM_ASSETS_DIR, 'manifest.json')
 
-MATCH_SIZE = 96
-MATCH_THRESHOLD = 0.38
-MARGIN_TIE_THRESH = 0.02
-NCC_ACCEPT_LOW = 0.33
-TOP_N = 10
-HIST_BINS_H = 24
-HIST_BINS_S = 8
-HIST_MIN_COMBINED = 0.40
-HIST_MIN_MARGIN = 0.01
-CELL_PAD = 8
-INNER_PAD = 0.12
+TMPL_BASE      = 96
+TARGET_SZ      = 160
+
+INNER_FRAC     = 0.20
+INIT_THRESH    = 0.75
+MAX_PEAKS      = 2
+
+ICON_SZ        = 64
+FINAL_NCC_W    = 0.55
+FINAL_HIST_W   = 0.45
+FINAL_THRESH   = 0.58
+MARGIN_THRESH  = 0.03
+
+NMS_IOU_THRESH = 0.25
+MAX_ITEMS      = 7
 
 template_cache = None
 cache_lock = threading.Lock()
@@ -48,112 +52,83 @@ def load_templates():
             manifest = json.load(fh)
 
         cache = []
+        p = int(TARGET_SZ * INNER_FRAC)
+        isz = TARGET_SZ - 2 * p
         for entry in manifest:
-            filename = entry.get('filename', '')
-            display_name = entry.get('displayName', filename)
-            path = os.path.join(ITEM_ASSETS_DIR, filename)
-
+            fn   = entry.get('filename', '')
+            name = entry.get('displayName', fn)
+            path = os.path.join(ITEM_ASSETS_DIR, fn)
             if not os.path.exists(path):
                 continue
-
             raw = cv2.imread(path, cv2.IMREAD_UNCHANGED)
             if raw is None:
                 continue
-
             if raw.ndim == 2:
                 raw = cv2.cvtColor(raw, cv2.COLOR_GRAY2BGRA)
             elif raw.shape[2] == 3:
-                alpha = np.full(raw.shape[:2], 255, dtype=np.uint8)
-                raw = np.dstack([raw, alpha])
+                raw = np.dstack([raw, np.full(raw.shape[:2], 255, dtype=np.uint8)])
 
-            rs = cv2.resize(raw, (MATCH_SIZE, MATCH_SIZE), interpolation=cv2.INTER_AREA)
-            bgr = rs[:, :, :3]
-            alpha_mask = rs[:, :, 3] > 128
+            base = cv2.resize(raw, (TARGET_SZ, TARGET_SZ), cv2.INTER_AREA)
+            bgr  = base[:, :, :3]
 
-            p = int(MATCH_SIZE * 0.15)
-            inner_bgr = bgr[p:MATCH_SIZE - p, p:MATCH_SIZE - p]
-            hsv = cv2.cvtColor(inner_bgr, cv2.COLOR_BGR2HSV)
-            h_hist = cv2.calcHist([hsv], [0, 1], None, [HIST_BINS_H, HIST_BINS_S], [0, 180, 0, 256])
-            cv2.normalize(h_hist, h_hist)
+            inner_bgr = bgr[p:TARGET_SZ - p, p:TARGET_SZ - p]
 
-            cache.append((display_name, bgr.astype(np.float32), alpha_mask, h_hist.flatten()))
+            icon = cv2.resize(inner_bgr, (ICON_SZ, ICON_SZ), cv2.INTER_AREA)
+            hsv  = cv2.cvtColor(icon, cv2.COLOR_BGR2HSV)
+            hist = cv2.calcHist([hsv], [0, 1], None, [24, 8], [0, 180, 0, 256])
+            cv2.normalize(hist, hist)
+
+            cache.append({
+                'name':      name,
+                'tmpl_inner': inner_bgr,
+                'icon_f32':  icon.astype(np.float32),
+                'hist':      hist.flatten(),
+            })
 
         template_cache = cache
-        log.info("Loaded %d item templates", len(cache))
-        return template_cache
+        log.info("Loaded %d item templates", len(cache) if cache else 0)
+        return cache
 
 
-def robust_ncc(tile_f32, tmpl_f32, alpha_mask, trim_pct=0.10):
-    valid = alpha_mask
-    if not np.any(valid):
+def iou(b1, b2):
+    ax2, ay2 = b1[0] + b1[2], b1[1] + b1[3]
+    bx2, by2 = b2[0] + b2[2], b2[1] + b2[3]
+    ix1, iy1 = max(b1[0], b2[0]), max(b1[1], b2[1])
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    if inter == 0:
         return 0.0
-    I = tile_f32[valid].ravel()
-    T = tmpl_f32[valid].ravel()
-    cap = np.percentile(I, (1.0 - trim_pct) * 100.0)
-    I = np.clip(I, None, cap)
-    I = I - np.median(I)
-    T = T - np.median(T)
-    denom = np.sqrt(np.dot(I, I) * np.dot(T, T))
+    union = b1[2] * b1[3] + b2[2] * b2[3] - inter
+    return inter / union if union > 0 else 0.0
+
+
+def nms(detections):
+    detections = sorted(detections, key=lambda d: -d['score'])
+    kept = []
+    for det in detections:
+        box = (det['x'], det['y'], det['w'], det['h'])
+        if not any(iou(box, (k['x'], k['y'], k['w'], k['h'])) > NMS_IOU_THRESH
+                   for k in kept):
+            kept.append(det)
+    return kept
+
+
+def ncc(a_f32, b_f32):
+    I = a_f32.ravel().copy()
+    T = b_f32.ravel().copy()
+    I -= I.mean()
+    T -= T.mean()
+    denom = np.sqrt((I * I).sum() * (T * T).sum())
     if denom < 1e-6:
         return 0.0
     return float(np.dot(I, T) / denom)
 
 
-def hist_intersection(tile_bgr, tmpl_hist):
-    p = int(tile_bgr.shape[0] * 0.15)
-    inner = tile_bgr[p:tile_bgr.shape[0] - p, p:tile_bgr.shape[1] - p]
-    if inner.size == 0:
-        inner = tile_bgr
-    if inner.dtype != np.uint8:
-        inner = np.clip(inner, 0, 255).astype(np.uint8)
-    hsv = cv2.cvtColor(inner, cv2.COLOR_BGR2HSV)
-    h = cv2.calcHist([hsv], [0, 1], None, [HIST_BINS_H, HIST_BINS_S], [0, 180, 0, 256])
-    cv2.normalize(h, h)
-    return float(np.minimum(h.flatten(), tmpl_hist).sum())
-
-
-def classify_cell(crop_bgr, templates):
-    tile_rs = cv2.resize(crop_bgr, (MATCH_SIZE, MATCH_SIZE), interpolation=cv2.INTER_AREA)
-    tile_f = tile_rs.astype(np.float32)
-
-    ncc_scores = []
-    for display_name, tmpl_f32, alpha_mask, tmpl_hist in templates:
-        score = robust_ncc(tile_f, tmpl_f32, alpha_mask)
-        ncc_scores.append((display_name, score, tmpl_hist))
-    ncc_scores.sort(key=lambda t: -t[1])
-
-    best_name, best_ncc, _ = ncc_scores[0]
-    margin = best_ncc - ncc_scores[1][1]
-
-    if best_ncc >= MATCH_THRESHOLD and margin >= MARGIN_TIE_THRESH:
-        return best_name, best_ncc, 'ncc'
-
-    if best_ncc >= NCC_ACCEPT_LOW:
-        top_n = ncc_scores[:TOP_N]
-        hist_ranked = []
-        for name, ncc, tmpl_hist in top_n:
-            hs = hist_intersection(tile_rs, tmpl_hist)
-            combined = 0.5 * ncc + 0.5 * hs
-            hist_ranked.append((name, combined, ncc, hs))
-        hist_ranked.sort(key=lambda t: -t[1])
-        winner_name, combined, wncc, whs = hist_ranked[0]
-        runner_combined = hist_ranked[1][1] if len(hist_ranked) > 1 else 0.0
-        if combined >= HIST_MIN_COMBINED and (combined - runner_combined) >= HIST_MIN_MARGIN:
-            return winner_name, combined, 'hist_rerank'
-
-    return best_name, best_ncc, 'ncc_raw'
-
-
-def grid_cells(roi_h, roi_w):
-    mid_y = roi_h // 2
-    mid_x = roi_w // 2
-    p = CELL_PAD
-    return [
-        ('TL', p, mid_y - p, p, mid_x - p),
-        ('TR', p, mid_y - p, mid_x + p, roi_w - p),
-        ('BL', mid_y + p, roi_h - p, p, mid_x - p),
-        ('BR', mid_y + p, roi_h - p, mid_x + p, roi_w - p),
-    ]
+def hist_sim(icon_bgr_uint8, tmpl_hist):
+    hsv  = cv2.cvtColor(icon_bgr_uint8, cv2.COLOR_BGR2HSV)
+    hist = cv2.calcHist([hsv], [0, 1], None, [24, 8], [0, 180, 0, 256])
+    cv2.normalize(hist, hist)
+    return float(np.minimum(hist.flatten(), tmpl_hist).sum())
 
 
 def detect_race_reward_items(img):
@@ -164,23 +139,79 @@ def detect_race_reward_items(img):
     x1, y1, x2, y2 = ITEM_ROI
     h_img, w_img = img.shape[:2]
     roi = img[max(0, y1):min(h_img, y2), max(0, x1):min(w_img, x2)]
-    roi_h, roi_w = roi.shape[:2]
+    h_roi, w_roi = roi.shape[:2]
 
-    results = []
-    for label, ys, ye, xs, xe in grid_cells(roi_h, roi_w):
-        crop = roi[ys:ye, xs:xe]
-        if crop.size == 0:
+    p   = int(TARGET_SZ * INNER_FRAC)
+    isz = TARGET_SZ - 2 * p
+    suppress_r = max(TARGET_SZ // 3, 15)
+
+    all_cands = []
+    for tmpl in templates:
+        tmpl_inner = tmpl['tmpl_inner']
+        if isz > h_roi or isz > w_roi:
             continue
-        cy = int(crop.shape[0] * INNER_PAD)
-        cx = int(crop.shape[1] * INNER_PAD)
-        inner = crop[cy:crop.shape[0] - cy, cx:crop.shape[1] - cx]
-        if inner.size == 0:
-            inner = crop
-        name, score, method = classify_cell(inner, templates)
-        if method in ('ncc', 'hist_rerank'):
-            results.append(name)
+            
+        res    = cv2.matchTemplate(roi, tmpl_inner, cv2.TM_CCOEFF_NORMED)
+        h_r, w_r = res.shape
+        res_cp = res.copy()
+        
+        for _ in range(MAX_PEAKS):
+            _, max_val, _, max_loc = cv2.minMaxLoc(res_cp)
+            if max_val < INIT_THRESH:
+                break
+            all_cands.append({
+                'name':  tmpl['name'],
+                'score': float(max_val),
+                'x': max_loc[0] - p,
+                'y': max_loc[1] - p,
+                'w': TARGET_SZ, 'h': TARGET_SZ,
+            })
+            y1s = max(0, max_loc[1] - suppress_r)
+            y2s = min(h_r, max_loc[1] + suppress_r + 1)
+            x1s = max(0, max_loc[0] - suppress_r)
+            x2s = min(w_r, max_loc[0] + suppress_r + 1)
+            res_cp[y1s:y2s, x1s:x2s] = -1.0
 
-    return results
+    if not all_cands:
+        return []
+
+    kept = nms(all_cands)[:MAX_ITEMS]
+
+    result_names = []
+    for cand in kept:
+        bx, by, bw, bh = cand['x'], cand['y'], cand['w'], cand['h']
+        ry1 = max(0, by);      ry2 = min(h_roi, by + bh)
+        rx1 = max(0, bx);      rx2 = min(w_roi, bx + bw)
+        cell = roi[ry1:ry2, rx1:rx2]
+        if cell.size == 0:
+            continue
+
+        h_c, w_c = cell.shape[:2]
+        py = max(1, int(h_c * INNER_FRAC))
+        px = max(1, int(w_c * INNER_FRAC))
+        cell_inner = cell[py:h_c - py, px:w_c - px]
+        if cell_inner.size == 0:
+            cell_inner = cell
+
+        cell_icon = cv2.resize(cell_inner, (ICON_SZ, ICON_SZ), cv2.INTER_AREA)
+        cell_f32  = cell_icon.astype(np.float32)
+
+        scores = []
+        for tmpl in templates:
+            sncc  = ncc(cell_f32, tmpl['icon_f32'])
+            shist = hist_sim(cell_icon, tmpl['hist'])
+            combined = FINAL_NCC_W * sncc + FINAL_HIST_W * shist
+            scores.append((tmpl['name'], combined))
+
+        scores.sort(key=lambda s: -s[1])
+        best_name, best_score = scores[0]
+        runner_score = scores[1][1] if len(scores) > 1 else 0.0
+        margin = best_score - runner_score
+
+        if best_score >= FINAL_THRESH and margin >= MARGIN_THRESH:
+            result_names.append(best_name)
+
+    return result_names
 
 
 def check_and_detect_race_reward_items(img, img_gray):
