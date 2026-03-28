@@ -119,10 +119,13 @@ def handle_mant_shop_scan(ctx, current_date):
     log.info(f"[SHOP BUY] mant_cfg exists: {mant_cfg is not None}, item_tiers: {mant_cfg.item_tiers if mant_cfg else 'N/A'}")
     if mant_cfg and mant_cfg.item_tiers:
         budget = ctx.cultivate_detail.mant_coins
-        shop_names = [name for name, _, _ in items_list]
+        shop_items = items_list
+        log.info(f"[SHOP BUY] budget={budget}, shop_items_with_turns={[(n, t) for n, _, _, t in shop_items]}")
+
+        shop_names = [name for name, _, _, _ in items_list]
         shop_slugs = [display_to_slug(n) for n in shop_names]
         log.info(f"[SHOP BUY] budget={budget}, shop_slugs={shop_slugs}")
-        any_sale = any(ratio < 1.0 for _, _, ratio in items_list)
+        any_sale = False 
         sale_modifier = 0.9 if any_sale else 1.0
         targets = []
         for tier in range(1, mant_cfg.tier_count + 1):

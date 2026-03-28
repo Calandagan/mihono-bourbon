@@ -1,4 +1,3 @@
-import os
 import re
 import time
 import random
@@ -37,7 +36,8 @@ TRACK_BOT = 938
 SCREEN_WIDTH = 720
 
 OCR_NAME_X1 = 135
-OCR_NAME_X2 = 560
+
+OCR_NAME_X2 = 665
 OCR_FUZZY_THRESHOLD = 65
 
 SHOP_ITEM_NAMES = [
@@ -178,8 +178,6 @@ def content_same(before, after):
     return cv2.mean(diff)[0] < 3
 
 
-
-
 def sb_drag(ctx, from_y, to_y):
     sx = random.randint(SB_X_MIN, SB_X_MAX)
     ex = random.randint(SB_X_MIN, SB_X_MAX)
@@ -232,6 +230,7 @@ def classify_items_in_frame(frame):
         return [], False
 
     items = []
+    turns_found = []
     seen_y = []
 
     for entry in raw[0]:
@@ -242,10 +241,18 @@ def classify_items_in_frame(frame):
         conf = entry[1][1]
         y_center = (bbox[0][1] + bbox[2][1]) / 2
 
+        lower = text.lower()
+        turn_match = re.search(r'(\d+)\s*turn', lower)
+        if turn_match:
+            try:
+                turns_found.append((int(turn_match.group(1)), y_center))
+            except Exception:
+                pass
+            continue
+
         if len(text) < 4 or conf < 0.5:
             continue
-        lower = text.lower()
-        if lower in ('effect', 'cost', 'new', 'turn(s)', '6 turn(s)'):
+        if lower in ('effect', 'cost', 'new'):
             continue
         if text.replace('+', '').replace('-', '').replace(' ', '').replace('.', '').isdigit():
             continue
@@ -261,27 +268,32 @@ def classify_items_in_frame(frame):
         matched_name, match_score, _ = match
         abs_y = SHOP_ROI_Y1 + y_center
 
-        is_dup = False
-        for sy in seen_y:
-            if abs(abs_y - sy) < 40:
-                is_dup = True
-                break
-        if is_dup:
+        if any(abs(abs_y - sy) < 40 for sy in seen_y):
             continue
-
         if is_purchased(frame, abs_y):
             continue
 
-        items.append((matched_name, match_score, abs_y))
+        items.append((matched_name, match_score, abs_y, y_center))
         seen_y.append(abs_y)
 
-    items.sort(key=lambda r: r[2])
-    return items, False
+    final_items = []
+    for name, score, abs_y, y_center in items:
+        best_t = 99
+        min_dist = 60
+        for t_val, ty in turns_found:
+            dist = abs(y_center - ty)
+            if dist < min_dist:
+                best_t = t_val
+                min_dist = dist
+        final_items.append((name, score, abs_y, best_t))
+
+    final_items.sort(key=lambda r: r[2])
+    return final_items, False
 
 
 def name_based_shift(by_frame, prev_fi, curr_fi):
-    prev_items = [(k, y) for k, c, y in by_frame[prev_fi]]
-    curr_items = [(k, y) for k, c, y in by_frame[curr_fi]]
+    prev_items = [(k, y) for k, c, y, t in by_frame[prev_fi]]
+    curr_items = [(k, y) for k, c, y, t in by_frame[curr_fi]]
     shifts = []
     used_curr = set()
     for pk, py in prev_items:
@@ -308,8 +320,8 @@ def name_based_shift(by_frame, prev_fi, curr_fi):
 
 def dedup_detections(all_detections, captured_frames):
     by_frame = defaultdict(list)
-    for key, conf, fi, abs_y in all_detections:
-        by_frame[fi].append((key, conf, abs_y))
+    for key, conf, fi, abs_y, turns in all_detections:
+        by_frame[fi].append((key, conf, abs_y, turns))
 
     sorted_frames = sorted(by_frame.keys())
     if not sorted_frames:
@@ -349,34 +361,38 @@ def dedup_detections(all_detections, captured_frames):
         cumulative_shift[curr_fi] = cumulative_shift[prev_fi] + content_shift
 
     global_detections = []
-    for key, conf, fi, abs_y in all_detections:
+    for key, conf, fi, abs_y, turns in all_detections:
         global_y = abs_y + cumulative_shift.get(fi, 0)
-        global_detections.append((key, conf, fi, global_y))
+        global_detections.append((key, conf, fi, global_y, turns))
 
     global_detections.sort(key=lambda d: d[3])
     position_clusters = []
-    for key, conf, fi, gy in global_detections:
+    for key, conf, fi, gy, turns in global_detections:
         placed = False
         for cluster in position_clusters:
             cluster_gy = sum(d[3] for d in cluster) / len(cluster)
             if abs(gy - cluster_gy) < 80:
-                cluster.append((key, conf, fi, gy))
+                cluster.append((key, conf, fi, gy, turns))
                 placed = True
                 break
         if not placed:
-            position_clusters.append([(key, conf, fi, gy)])
+            position_clusters.append([(key, conf, fi, gy, turns)])
 
     items_list = []
     for cluster in position_clusters:
         name_counts = Counter()
         name_best_conf = {}
-        for k, c, fi, gy in cluster:
+        turn_counts = Counter()
+        for k, c, fi, gy, turns in cluster:
             name_counts[k] += 1
             if k not in name_best_conf or c > name_best_conf[k]:
                 name_best_conf[k] = c
+            if turns != 99:
+                turn_counts[turns] += 1
         winner = max(name_counts.keys(), key=lambda n: (name_counts[n], name_best_conf[n]))
+        winner_turns = turn_counts.most_common(1)[0][0] if turn_counts else 99
         avg_gy = sum(d[3] for d in cluster) / len(cluster)
-        items_list.append((winner, name_best_conf[winner], avg_gy))
+        items_list.append((winner, name_best_conf[winner], avg_gy, winner_turns))
 
     items_list.sort(key=lambda x: x[2])
     return items_list
@@ -384,6 +400,7 @@ def dedup_detections(all_detections, captured_frames):
 
 def scan_mant_shop(ctx):
     from module.umamusume.constants.game_constants import is_summer_camp_period
+
     current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     shop_x = SHOP_OPEN_X_SUMMER if is_summer_camp_period(current_date) else SHOP_OPEN_X
     ctx.ctrl.click(shop_x, SHOP_OPEN_Y, "MANT shop open")
@@ -396,8 +413,8 @@ def scan_mant_shop(ctx):
 
     if thumb is None:
         results, _ = classify_items_in_frame(img)
-        items_list = [(key, conf, abs_y) for key, conf, abs_y in results]
-        log.info("shop items: %s", [n for n, _, _ in items_list])
+        items_list = [(key, conf, abs_y, turns) for key, conf, abs_y, turns in results]
+        log.info("shop items: %s", [(n, t) for n, _, _, t in items_list])
         return items_list, 14.0, 1.1, items_list[0][2] if items_list else 0
 
     thumb_h = thumb[1] - thumb[0]
@@ -450,17 +467,14 @@ def scan_mant_shop(ctx):
     first_results, _ = classify_items_in_frame(img)
     all_detections = []
     captured_frames = {0: img.copy()}
-    for key, conf, abs_y in first_results:
-        all_detections.append((key, conf, 0, abs_y))
-
-    shop_debug_dir = os.path.join("scripts", "shop_debug")
-    os.makedirs(shop_debug_dir, exist_ok=True)
-    import datetime as dt
-    ts = dt.datetime.now().strftime("%H%M%S")
-    cv2.imwrite(os.path.join(shop_debug_dir, f"shop_{ts}_f0_top.png"), img)
+    for key, conf, abs_y, turns in first_results:
+        all_detections.append((key, conf, 0, abs_y, turns))
 
     scan_x_end = _gauss_scan_x()
-    swipe_cmd = "shell input swipe " + str(SB_X) + " " + str(start_y) + " " + str(scan_x_end) + " " + str(TRACK_BOT) + " " + str(swipe_dur)
+    swipe_cmd = (
+        "shell input swipe "
+        + str(SB_X) + " " + str(start_y) + " " + str(scan_x_end) + " " + str(TRACK_BOT) + " " + str(swipe_dur)
+    )
     proc = ctx.ctrl.execute_adb_shell(swipe_cmd, False)
 
     time.sleep(0.3)
@@ -497,11 +511,11 @@ def scan_mant_shop(ctx):
 
         for fi, f in futures:
             hits, _ = f.result()
-            for key, conf, abs_y in hits:
-                all_detections.append((key, conf, fi, abs_y))
+            for key, conf, abs_y, turns in hits:
+                all_detections.append((key, conf, fi, abs_y, turns))
 
     time.sleep(0.2)
-    for extra_pass in range(20):
+    for _extra_pass in range(20):
         extra_img = ctx.ctrl.get_screen()
         if extra_img is None:
             break
@@ -510,8 +524,8 @@ def scan_mant_shop(ctx):
             if not content_same(prev_frame, extra_img):
                 captured_frames[frame_idx] = extra_img.copy()
                 hits, _ = classify_items_in_frame(extra_img)
-                for key, conf, abs_y in hits:
-                    all_detections.append((key, conf, frame_idx, abs_y))
+                for key, conf, abs_y, turns in hits:
+                    all_detections.append((key, conf, frame_idx, abs_y, turns))
                 frame_idx += 1
             break
         extra_thumb = find_thumb(extra_rgb)
@@ -528,22 +542,13 @@ def scan_mant_shop(ctx):
         if after_extra is not None and not content_same(prev_frame, after_extra):
             captured_frames[frame_idx] = after_extra.copy()
             hits, _ = classify_items_in_frame(after_extra)
-            for key, conf, abs_y in hits:
-                all_detections.append((key, conf, frame_idx, abs_y))
+            for key, conf, abs_y, turns in hits:
+                all_detections.append((key, conf, frame_idx, abs_y, turns))
             prev_frame = after_extra
             frame_idx += 1
 
     items_list = dedup_detections(all_detections, captured_frames)
-    log.info("shop items %d: %s", len(items_list), [(n, round(gy)) for n, _, gy in items_list])
-
-    try:
-        last_frame_idx = max(captured_frames.keys())
-        cv2.imwrite(os.path.join(shop_debug_dir, f"shop_{ts}_f{last_frame_idx}_bot.png"), captured_frames[last_frame_idx])
-        with open(os.path.join(shop_debug_dir, f"shop_{ts}_items.txt"), "w") as df:
-            for n, c, gy in items_list:
-                df.write(f"{n} (conf={c:.1f}, gy={gy:.0f})\n")
-    except Exception:
-        pass
+    log.info("shop items %d: %s", len(items_list), [(n, round(gy), t) for n, _, gy, t in items_list])
 
     first_item_gy = items_list[0][2] if items_list else 0
 
@@ -570,7 +575,6 @@ EXCHANGE_CLOSE_Y = 1210
 BACK_BTN_X = 95
 BACK_BTN_Y = 1228
 
-
 RESET_BTN_X = 615
 RESET_BTN_Y = 1050
 
@@ -583,11 +587,9 @@ WEBUI_EXCLUDED_PREFIXES = (
 )
 
 
-
 def is_unbuyable(frame, item_y):
     cb_y = int(item_y) + 10
-    roi = frame[max(0, cb_y):min(frame.shape[0], cb_y + 10),
-                CHECKBOX_FILL_X1:CHECKBOX_FILL_X2]
+    roi = frame[max(0, cb_y):min(frame.shape[0], cb_y + 10), CHECKBOX_FILL_X1:CHECKBOX_FILL_X2]
     if roi.size == 0:
         return False
     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -665,10 +667,12 @@ def classify_exchange_items(frame):
         if len(text) < 3 or conf < 0.4:
             continue
         lower = text.lower()
-        if lower in ('held', 'effect', 'cost', 'new', 'turn(s)', 'choose how many to use.',
-                      'close', 'confirm use', 'training items', 'confirm', 'cancel',
-                      'exchange complete', 'purchased the selected training items.',
-                      'automatically used certain training items.'):
+        if lower in (
+            'held', 'effect', 'cost', 'new', 'turn(s)', 'choose how many to use.',
+            'close', 'confirm use', 'training items', 'confirm', 'cancel',
+            'exchange complete', 'purchased the selected training items.',
+            'automatically used certain training items.',
+        ):
             continue
         if text.replace('+', '').replace('-', '').replace(' ', '').replace('.', '').replace('>', '').isdigit():
             continue
@@ -682,8 +686,7 @@ def classify_exchange_items(frame):
         if not match:
             continue
         matched_name = match[0]
-        is_dup = any(abs(abs_y - sy) < 40 for sy in seen_y)
-        if is_dup:
+        if any(abs(abs_y - sy) < 40 for sy in seen_y):
             continue
         qty = read_exchange_qty(frame, abs_y)
         if qty >= 0:
@@ -774,22 +777,28 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         frame = ctx.ctrl.get_screen()
         results, _ = classify_items_in_frame(frame)
 
-        for item_name, conf, abs_y in results:
-            if remaining.get(item_name, 0) <= 0:
-                continue
-            pos_key = int(abs_y) // 30
-            if pos_key in clicked_positions:
-                continue
-            if is_unbuyable(frame, abs_y):
-                continue
 
-            click_y = int(abs_y) + 20
-            ctx.ctrl.click(CHECKBOX_X, click_y)
-            time.sleep(0.3)
-            selected += 1
-            remaining[item_name] -= 1
-            clicked_positions.add(pos_key)
-            log.debug(f"Checked '{item_name}' at y={abs_y:.0f}, remaining={remaining[item_name]}")
+        name_candidates = defaultdict(list)
+        for item_name, conf, abs_y, turns in results:
+            name_candidates[item_name].append((turns, abs_y))
+        for lst in name_candidates.values():
+            lst.sort()
+
+        for item_name, candidates in name_candidates.items():
+            for turns, abs_y in candidates:
+                if remaining.get(item_name, 0) <= 0:
+                    break
+                pos_key = int(abs_y) // 30
+                if pos_key in clicked_positions:
+                    continue
+                if is_unbuyable(frame, abs_y):
+                    continue
+                click_y = int(abs_y) + 20
+                ctx.ctrl.click(CHECKBOX_X, click_y)
+                time.sleep(0.3)
+                selected += 1
+                remaining[item_name] -= 1
+                clicked_positions.add(pos_key)
 
         img = ctx.ctrl.get_screen()
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -798,17 +807,22 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
                 clicked_positions.clear()
                 frame = ctx.ctrl.get_screen()
                 results, _ = classify_items_in_frame(frame)
-                for item_name, conf, abs_y in results:
-                    if remaining.get(item_name, 0) <= 0:
-                        continue
-                    if is_unbuyable(frame, abs_y):
-                        continue
-                    click_y = int(abs_y) + 20
-                    ctx.ctrl.click(CHECKBOX_X, click_y)
-                    time.sleep(0.3)
-                    selected += 1
-                    remaining[item_name] -= 1
-                    log.debug(f"Bottom-edge: checked '{item_name}' at y={abs_y:.0f}")
+                name_candidates = defaultdict(list)
+                for item_name, conf, abs_y, turns in results:
+                    name_candidates[item_name].append((turns, abs_y))
+                for lst in name_candidates.values():
+                    lst.sort()
+                for item_name, candidates in name_candidates.items():
+                    for turns, abs_y in candidates:
+                        if remaining.get(item_name, 0) <= 0:
+                            break
+                        if is_unbuyable(frame, abs_y):
+                            continue
+                        click_y = int(abs_y) + 20
+                        ctx.ctrl.click(CHECKBOX_X, click_y)
+                        time.sleep(0.3)
+                        selected += 1
+                        remaining[item_name] -= 1
             break
 
         thumb = find_thumb(img_rgb)
@@ -833,6 +847,7 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
     from bot.recog.ocr import ocr_line
     from module.umamusume.asset.template import UI_INFO
     from module.umamusume.script.cultivate_task.info import find_similar_text
+
     exchange_ready = False
     for _ in range(40):
         time.sleep(0.3)
