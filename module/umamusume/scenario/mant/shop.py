@@ -36,9 +36,9 @@ TRACK_BOT = 938
 SCREEN_WIDTH = 720
 
 OCR_NAME_X1 = 135
-
-OCR_NAME_X2 = 665
+OCR_NAME_X2 = 690
 OCR_FUZZY_THRESHOLD = 65
+OCR_ROI_SCALE = 2.0
 
 SHOP_ITEM_NAMES = [
     "Speed Notepad", "Stamina Notepad", "Power Notepad", "Guts Notepad", "Wit Notepad",
@@ -224,7 +224,9 @@ def is_purchased(frame, item_y):
 
 def classify_items_in_frame(frame):
     name_roi = frame[SHOP_ROI_Y1:SHOP_ROI_Y2, OCR_NAME_X1:OCR_NAME_X2]
-    raw = ocr(name_roi, lang="en")
+    name_roi_up = cv2.resize(name_roi, None, fx=OCR_ROI_SCALE, fy=OCR_ROI_SCALE,
+                             interpolation=cv2.INTER_CUBIC)
+    raw = ocr(name_roi_up, lang="en")
 
     if not raw or not raw[0]:
         return [], False
@@ -239,7 +241,7 @@ def classify_items_in_frame(frame):
         bbox = entry[0]
         text = entry[1][0].strip()
         conf = entry[1][1]
-        y_center = (bbox[0][1] + bbox[2][1]) / 2
+        y_center = (bbox[0][1] + bbox[2][1]) / 2 / OCR_ROI_SCALE
 
         lower = text.lower()
         turn_match = re.search(r'(\d+)\s*turn', lower)
@@ -482,7 +484,7 @@ def scan_mant_shop(ctx):
     scan_deadline = time.time() + 30
     frame_idx = 1
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:
         futures = []
 
         while ctx.task.running() and time.time() < scan_deadline:
