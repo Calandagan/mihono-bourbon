@@ -19,6 +19,7 @@ log = logger.get_logger(__name__)
 detected_skills_log = {}
 detected_portraits_log = {}
 detected_items_log = {}
+detected_shop_items_log = {}
 
 def log_detected_portrait(name, favor_level, is_npc=False):
     if not name or favor_level == 0:
@@ -72,6 +73,18 @@ def log_detected_items(items):
 
 def clear_detected_items():
     detected_items_log.clear()
+
+def log_detected_shop_items(items):
+    detected_shop_items_log.clear()
+    for name, turns, purchased in items:
+        detected_shop_items_log[name] = {
+            "name": name,
+            "turns": turns,
+            "purchased": purchased,
+        }
+
+def clear_detected_shop_items():
+    detected_shop_items_log.clear()
 
 class CultivateContextDetail:
     turn_info: TurnInfo | None
@@ -184,6 +197,7 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
         clear_detected_skills()
         clear_detected_portraits()
         clear_detected_items()
+        clear_detected_shop_items()
         from module.umamusume.persistence import clear_ignore_cat_food, clear_ignore_grilled_carrots
         clear_ignore_cat_food()
         clear_ignore_grilled_carrots()

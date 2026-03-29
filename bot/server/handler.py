@@ -272,6 +272,12 @@ def get_detected_items():
     return list(detected_items_log.values())
 
 
+@server.get("/api/detected-shop-items")
+def get_detected_shop_items():
+    from module.umamusume.context import detected_shop_items_log
+    return list(detected_shop_items_log.values())
+
+
 @server.post("/api/clear-career-data")
 def clear_career_data_endpoint():
     from module.umamusume.persistence import clear_career_data

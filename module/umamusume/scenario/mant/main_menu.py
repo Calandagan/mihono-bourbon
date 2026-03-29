@@ -114,15 +114,18 @@ def handle_mant_shop_scan(ctx, current_date):
     ctx.cultivate_detail.mant_shop_scanned_this_turn = True
     ctx.cultivate_detail.mant_shop_last_chunk = chunk
 
+    from module.umamusume.context import log_detected_shop_items
+    log_detected_shop_items([(name, turns, purchased) for name, _, _, turns, purchased in items_list])
+
     bought = False
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     log.info(f"[SHOP BUY] mant_cfg exists: {mant_cfg is not None}, item_tiers: {mant_cfg.item_tiers if mant_cfg else 'N/A'}")
     if mant_cfg and mant_cfg.item_tiers:
         budget = ctx.cultivate_detail.mant_coins
         shop_items = items_list
-        log.info(f"[SHOP BUY] budget={budget}, shop_items_with_turns={[(n, t) for n, _, _, t in shop_items]}")
+        log.info(f"[SHOP BUY] budget={budget}, shop_items_with_turns={[(n, t) for n, _, _, t, p in shop_items]}")
 
-        shop_names = [name for name, _, _, _ in items_list]
+        shop_names = [name for name, _, _, _, purchased in items_list if not purchased]
         shop_slugs = [display_to_slug(n) for n in shop_names]
         log.info(f"[SHOP BUY] budget={budget}, shop_slugs={shop_slugs}")
         img = ctx.ctrl.get_screen()

@@ -79,7 +79,7 @@
 
     <div class="row">
       <div class="col-4">
-        <scheduler-panel 
+      <scheduler-panel 
           :waiting-task-list="waitingTaskList"
           :running-task="runningTask"
           :history-task-list="historyTaskList"
@@ -87,6 +87,7 @@
           :detected-skills="detectedSkills"
           :detected-portraits="detectedPortraits"
           :detected-items="detectedItems"
+          :detected-shop-items="detectedShopItems"
         />
       </div>
       <div class="col-8">
@@ -123,7 +124,8 @@ export default {
       editWatchdog: 3,
       detectedSkills: [],
       detectedPortraits: [],
-      detectedItems: []
+      detectedItems: [],
+      detectedShopItems: []
     }
   },
   computed: {
@@ -146,6 +148,8 @@ export default {
     this.pollDetectedPortraits()
     setInterval(() => { this.pollDetectedItems() }, 3000)
     this.pollDetectedItems()
+    setInterval(() => { this.pollDetectedShopItems() }, 3000)
+    this.pollDetectedShopItems()
   },
   methods:{
     scrollToLogs(){
@@ -225,6 +229,13 @@ export default {
       this.axios.get('/api/detected-items').then(res=>{
         if (res && res.data && Array.isArray(res.data)){
           this.detectedItems = res.data
+        }
+      }).catch(()=>{})
+    },
+    pollDetectedShopItems(){
+      this.axios.get('/api/detected-shop-items').then(res=>{
+        if (res && res.data && Array.isArray(res.data)){
+          this.detectedShopItems = res.data
         }
       }).catch(()=>{})
     }

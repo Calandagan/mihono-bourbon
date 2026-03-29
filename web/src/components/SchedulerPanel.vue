@@ -25,6 +25,9 @@
     <div v-if="detectedPortraits && detectedPortraits.length > 0" class="mb-3">
       <detected-portraits-panel :portraits="detectedPortraits"></detected-portraits-panel>
     </div>
+    <div v-if="detectedShopItems && detectedShopItems.length > 0" class="mb-3">
+      <detected-shop-panel :items="detectedShopItems"></detected-shop-panel>
+    </div>
     <div v-if="detectedItems && detectedItems.length > 0" class="mb-3">
       <detected-items-panel :items="detectedItems"></detected-items-panel>
     </div>
@@ -44,13 +47,14 @@ import CronJobList from "@/components/CronJobList.vue";
 import DetectedSkillsPanel from "@/components/DetectedSkillsPanel.vue";
 import DetectedPortraitsPanel from "@/components/DetectedPortraitsPanel.vue";
 import DetectedItemsPanel from "@/components/DetectedItemsPanel.vue";
+import DetectedShopPanel from "@/components/DetectedShopPanel.vue";
 
 import imageBgUrl1 from "../../assets/cunny.png";
 import imageBgUrl2 from "../../assets/cunny2.png";
 export default {
   name: "SchedulerPanel",
-  components: { CronJobList, HistoryTaskList, TaskEditModal, WaitingTaskList, AutoStatusPanel, RunningTaskPanel, DetectedSkillsPanel, DetectedPortraitsPanel, DetectedItemsPanel },
-  props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits", "detectedItems"],
+  components: { CronJobList, HistoryTaskList, TaskEditModal, WaitingTaskList, AutoStatusPanel, RunningTaskPanel, DetectedSkillsPanel, DetectedPortraitsPanel, DetectedItemsPanel, DetectedShopPanel },
+  props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits", "detectedItems", "detectedShopItems"],
   data(){ 
     const savedCharacter = localStorage.getItem('activeCharacter') || '0';
     const activeChar = parseInt(savedCharacter);
