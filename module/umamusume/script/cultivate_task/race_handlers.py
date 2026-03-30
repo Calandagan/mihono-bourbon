@@ -13,7 +13,8 @@ from module.umamusume.asset.point import (
     RACE_RESULT_CONFIRM, RACE_REWARD_CONFIRM, TO_TRAINING_SELECT
 )
 from module.umamusume.asset.template import (
-    REF_RACE_LIST_GOAL_RACE, REF_RACE_LIST_URA_RACE, REF_SUITABLE_RACE
+    REF_RACE_LIST_GOAL_RACE, REF_RACE_LIST_URA_RACE, REF_SUITABLE_RACE,
+    REF_TRAIN_BTN
 )
 from module.umamusume.script.cultivate_task.parse import parse_date, find_race
 
@@ -24,15 +25,17 @@ def script_cultivate_goal_race(ctx: UmamusumeContext):
     log.info("Entering goal race function")
 
     mant_cfg = getattr(getattr(ctx.task.detail, 'scenario_config', None), 'mant_config', None)
-    if mant_cfg is not None and getattr(ctx.cultivate_detail, 'mant_climax_pending_train', False):
-        if ctx.cultivate_detail.turn_info is not None:
-            ctx.cultivate_detail.mant_climax_pending_train = False
-            ctx.cultivate_detail.turn_info.parse_train_info_finish = False
-            ctx.cultivate_detail.turn_info.turn_operation = None
+    if mant_cfg is not None:
+        img_gray = cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
+        train_btn_visible = image_match(img_gray, REF_TRAIN_BTN).find_match
+        if train_btn_visible:
+            if ctx.cultivate_detail.turn_info is not None:
+                ctx.cultivate_detail.mant_climax_pending_train = False
+                ctx.cultivate_detail.turn_info.parse_train_info_finish = False
+                ctx.cultivate_detail.turn_info.turn_operation = None
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
             ctx.ctrl.trigger_decision_reset = True
             return
-        ctx.cultivate_detail.mant_climax_pending_train = False
 
     img = ctx.current_screen
     current_date = parse_date(img, ctx)

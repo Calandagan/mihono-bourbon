@@ -129,6 +129,7 @@ def script_cultivate_event(ctx: UmamusumeContext):
     ctx.cultivate_detail.event_cooldown_until = time.time() + 1.5
 
     log.info("Event handler called")
+    ctx.cultivate_detail.mant_cleat_used = False
     
     img = ctx.ctrl.get_screen()
     if img is None or getattr(img, 'size', 0) == 0:
