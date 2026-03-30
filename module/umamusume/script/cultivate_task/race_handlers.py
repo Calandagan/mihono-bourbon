@@ -13,8 +13,8 @@ from module.umamusume.asset.point import (
     RACE_RESULT_CONFIRM, RACE_REWARD_CONFIRM, TO_TRAINING_SELECT
 )
 from module.umamusume.asset.template import (
-    REF_RACE_LIST_GOAL_RACE, REF_RACE_LIST_URA_RACE, REF_SUITABLE_RACE,
-    REF_TRAIN_BTN
+    REF_RACE_LIST, REF_RACE_LIST_GOAL_RACE, REF_RACE_LIST_URA_RACE,
+    REF_SUITABLE_RACE, REF_TRAIN_BTN
 )
 from module.umamusume.script.cultivate_task.parse import parse_date, find_race
 
@@ -95,7 +95,12 @@ def try_use_cleat(ctx, race_id, is_climax=False):
 
 def script_cultivate_race_list(ctx: UmamusumeContext):
     log.info("Entered Race List menu (CULTIVATE_RACE_LIST)")
-    time.sleep(1.0)
+    deadline = time.time() + 6.0
+    while time.time() < deadline:
+        img_check = ctx.ctrl.get_screen(to_gray=True)
+        if image_match(img_check, REF_RACE_LIST).find_match:
+            break
+        time.sleep(0.17)
     if ctx.cultivate_detail.turn_info is None:
         log.warning("Turn information not initialized")
         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)

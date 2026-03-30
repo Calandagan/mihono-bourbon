@@ -407,33 +407,26 @@ def scan_mant_shop(ctx):
     current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     shop_x = SHOP_OPEN_X_SUMMER if is_summer_camp_period(current_date) else SHOP_OPEN_X
 
-    thumb = None
-    img = None
-    for attempt in range(3):
-        ctx.ctrl.click(shop_x, SHOP_OPEN_Y, "MANT shop open")
-        time.sleep(1.5)
+    from bot.recog.image_matcher import image_match
+    from module.umamusume.asset.template import REF_SHOP_MANT_CHECK
 
-        scroll_to_top(ctx)
-        img = ctx.ctrl.get_screen()
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        thumb = find_thumb(img_rgb)
-        if thumb is not None:
+    ctx.ctrl.click(shop_x, SHOP_OPEN_Y, "MANT shop open")
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        img_check = ctx.ctrl.get_screen(to_gray=True)
+        if image_match(img_check, REF_SHOP_MANT_CHECK).find_match:
             break
-        results, _ = classify_items_in_frame(img)
-        if len(results) >= 2:
-            break
-        time.sleep(0.5)
+        time.sleep(0.17)
+    else:
+        return None
 
-    if thumb is None:
-        results, _ = classify_items_in_frame(img)
-        if not results:
-            return None
-        items_list = [(key, conf, abs_y, turns, bought) for key, conf, abs_y, turns, bought in results]
-        return items_list, 14.0, 1.1, items_list[0][2] if items_list else 0
-
-    thumb_h = thumb[1] - thumb[0]
-    thumb_center = (thumb[0] + thumb[1]) // 2
-    if thumb[0] > TRACK_TOP:
+    scroll_to_top(ctx)
+    img = ctx.ctrl.get_screen()
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    thumb = find_thumb(img_rgb)
+    thumb_h = thumb[1] - thumb[0] if thumb is not None else 30
+    thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2
+    if thumb is not None and thumb[0] > TRACK_TOP:
         sb_drag(ctx, thumb_center, TRACK_TOP)
         img = ctx.ctrl.get_screen()
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

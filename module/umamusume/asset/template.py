@@ -165,6 +165,7 @@ REF_FOLLOW_SUPPORT_CARD_DETECT_LABEL = Template("FOLLOW_SUPPORT_CARD_DETECT_LABE
 REF_BORROW_CARD = Template("borrow_card", UMAMUSUME_REF_TEMPLATE_PATH)
 REF_SELECTOR = Template("SELECTOR", UMAMUSUME_REF_TEMPLATE_PATH, ImageMatchConfig(match_accuracy=0.72))
 REF_TRAIN_BTN = Template("train_btn", UMAMUSUME_REF_TEMPLATE_PATH)
+REF_RACE_LIST = Template("race_list", UMAMUSUME_REF_TEMPLATE_PATH, ImageMatchConfig(match_area=Area(23, 7, 109, 31), match_accuracy=0.83))
 REF_RACE_LIST_GOAL_RACE = Template("RACE_LIST_GOAL_RACE", UMAMUSUME_REF_TEMPLATE_PATH)
 REF_RACE_LIST_URA_RACE = Template("RACE_LIST_URA_RACE", UMAMUSUME_REF_TEMPLATE_PATH)
 REF_RACE_LIST_DETECT_LABEL = Template("RACE_LIST_DETECT_LABEL", UMAMUSUME_REF_TEMPLATE_PATH, ImageMatchConfig(match_accuracy=0.82))
@@ -230,6 +231,7 @@ REF_MANT_ON_SALE = Template("mant_on_sale", UMAMUSUME_REF_TEMPLATE_PATH, ImageMa
 REF_BLUE_LINE = Template("blue_line", UMAMUSUME_REF_TEMPLATE_PATH)
 REF_MANT_FINAL_END = Template("mant_final_end", UMAMUSUME_REF_TEMPLATE_PATH, ImageMatchConfig(match_area=Area(280, 10, 450, 90), match_accuracy=0.80))
 REF_MANT_SHOP_TITLE = Template("shop_title", UMAMUSUME_REF_MANT_SHOP_PATH, ImageMatchConfig(match_area=Area(17, 8, 78, 35)))
+REF_SHOP_MANT_CHECK = Template("shop_mant_check", UMAMUSUME_REF_MANT_SHOP_PATH, ImageMatchConfig(match_area=Area(23, 10, 74, 31), match_accuracy=0.83))
 
 REF_MANT_REWARD_ITEMS = Template("items", UMAMUSUME_REF_TEMPLATE_PATH, ImageMatchConfig(match_area=Area(224, 797, 326, 817), match_accuracy=0.76))
 

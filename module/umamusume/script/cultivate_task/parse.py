@@ -771,10 +771,10 @@ def find_race(ctx: UmamusumeContext, img, race_id: int = 0) -> bool:
         pos = match_result.matched_area
         pos_center = match_result.center_point
         if 685 < pos_center[1] < 1110:
-            y1 = max(0, pos[0][1] - 120)
-            y2 = min(img_height, pos[1][1] + 60)
-            x1 = max(0, pos[0][0] - 250)
-            x2 = min(img_width, pos[1][0] + 400)
+            y1 = max(0, pos[0][1] - 135)
+            y2 = min(img_height, pos[1][1] + 75)
+            x1 = max(0, pos[0][0] - 270)
+            x2 = min(img_width, pos[1][0] + 420)
             race_name_img = img[y1:y2, x1:x2]
 
             if race_name_img.shape[0] > 0 and race_name_img.shape[1] > 0:
