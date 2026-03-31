@@ -331,7 +331,6 @@ MANT_ZERO_ENERGY_RACE_PENALTIES = {
 MANT_ITEM_PRIORITY = {
     "must_buy": [
         MantItemType.WHISTLE,
-        MantItemType.BBQ,
         MantItemType.CHARM,
         MantItemType.MEGAPHONE_LARGE,
         MantItemType.ANKLET,
@@ -345,6 +344,7 @@ MANT_ITEM_PRIORITY = {
         MantItemType.HORSESHOE_LARGE,
     ],
     "situational": [
+        MantItemType.BBQ,
         MantItemType.STAT_BOOK_MEDIUM,
         MantItemType.ENERGY_MEDIUM,
         MantItemType.ENERGY_SMALL,

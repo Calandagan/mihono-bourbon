@@ -49,7 +49,7 @@ class MantConfig:
         self.mega_race_penalty = config.get("mega_race_penalty", 5)
         self.mega_summer_bonus = config.get("mega_summer_bonus", 10)
         self.training_weights_threshold = config.get("training_weights_threshold", 40)
-        self.bbq_unmaxxed_cards = config.get("bbq_unmaxxed_cards", 3)
+        self.bbq_unmaxxed_cards = config.get("bbq_unmaxxed_cards", 1)
         self.charm_threshold = config.get("charm_threshold", 70)
         self.charm_failure_rate = config.get("charm_failure_rate", 30)
         raw_thresholds = config.get("tier_thresholds", {})

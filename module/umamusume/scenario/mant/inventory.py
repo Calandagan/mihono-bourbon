@@ -1045,7 +1045,7 @@ def handle_cupcake_use(ctx):
     for name, boost in [('Berry Sweet Cupcake', 2), ('Plain Cupcake', 1)]:
         if owned.get(name, 0) <= 0:
             continue
-        if mood + boost + incoming > 5:
+        if mood + boost + incoming > 5 and incoming > 0:
             continue
         if use_item_and_update_inventory(ctx, name):
             ctx.cultivate_detail.turn_info.parse_main_menu_finish = False

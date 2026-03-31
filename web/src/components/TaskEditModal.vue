@@ -2292,7 +2292,7 @@ export default {
       mantMegaRacePenalty: 5,
       mantMegaSummerBonus: 10,
       mantTrainingWeightsThreshold: 60,
-      mantBbqUnmaxxedCards: 3,
+      mantBbqUnmaxxedCards: 1,
       mantCharmThreshold: 70,
       mantCharmFailureRate: 30,
       mantSkipRacePercentile: 0,
@@ -3499,7 +3499,7 @@ export default {
         wit_notepad: 5, wit_manual: 1, wit_scroll: 1,
         vita_20: 2, vita_40: 2, vita_65: 2,
         royal_kale_juice: 2, energy_drink_max: 5, energy_drink_max_ex: 6,
-        plain_cupcake: 2, berry_sweet_cupcake: 3, yummy_cat_food: 6, grilled_carrots: 2,
+        plain_cupcake: 2, berry_sweet_cupcake: 3, yummy_cat_food: 6, grilled_carrots: 3,
         pretty_mirror: 6, reporters_binoculars: 6, master_practice_guide: 6, scholars_hat: 3,
         fluffy_pillow: 6, pocket_planner: 6, rich_hand_cream: 4, smart_scale: 6,
         aroma_diffuser: 6, practice_drills_dvd: 6, miracle_cure: 4,
@@ -4138,7 +4138,7 @@ export default {
         this.mantMegaRacePenalty = this.presetsUse.mant_config.mega_race_penalty ?? 5;
         this.mantMegaSummerBonus = this.presetsUse.mant_config.mega_summer_bonus ?? 10;
         this.mantTrainingWeightsThreshold = this.presetsUse.mant_config.training_weights_threshold ?? 40;
-        this.mantBbqUnmaxxedCards = this.presetsUse.mant_config.bbq_unmaxxed_cards ?? 3;
+        this.mantBbqUnmaxxedCards = this.presetsUse.mant_config.bbq_unmaxxed_cards ?? 1;
         this.mantCharmThreshold = this.presetsUse.mant_config.charm_threshold ?? 70;
         this.mantCharmFailureRate = this.presetsUse.mant_config.charm_failure_rate ?? 30;
         this.mantSkipRacePercentile = this.presetsUse.mant_config.skip_race_percentile ?? 81;
@@ -4157,7 +4157,7 @@ export default {
         this.mantMegaRacePenalty = 5;
         this.mantMegaSummerBonus = 10;
         this.mantTrainingWeightsThreshold = 40;
-        this.mantBbqUnmaxxedCards = 3;
+        this.mantBbqUnmaxxedCards = 1;
         this.mantCharmThreshold = 70;
         this.mantCharmFailureRate = 30;
         this.mantSkipRacePercentile = 81;
@@ -4336,7 +4336,7 @@ export default {
         this.mantMegaRacePenalty = data.mant_config.mega_race_penalty ?? 5;
         this.mantMegaSummerBonus = data.mant_config.mega_summer_bonus ?? 10;
         this.mantTrainingWeightsThreshold = data.mant_config.training_weights_threshold ?? 40;
-        this.mantBbqUnmaxxedCards = data.mant_config.bbq_unmaxxed_cards ?? 3;
+        this.mantBbqUnmaxxedCards = data.mant_config.bbq_unmaxxed_cards ?? 1;
         this.mantCharmThreshold = data.mant_config.charm_threshold ?? 70;
         this.mantCharmFailureRate = data.mant_config.charm_failure_rate ?? 30;
         this.mantSkipRacePercentile = data.mant_config.skip_race_percentile ?? 81;

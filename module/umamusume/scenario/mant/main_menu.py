@@ -157,6 +157,15 @@ def handle_mant_shop_scan(ctx, current_date):
         owned_map = {n: q for n, q in owned}
         has_miracle_cure = owned_map.get(AILMENT_CURE_ALL, 0) > 0
 
+        from module.umamusume.context import detected_portraits_log
+        non_rainbow_count = 0
+        for info in detected_portraits_log.values():
+            if not info.get('is_npc', False):
+                if info.get('favor', 0) < 4:
+                    non_rainbow_count += 1
+        bbq_threshold = mant_cfg.bbq_unmaxxed_cards
+        skip_bbq = non_rainbow_count <= bbq_threshold if detected_portraits_log else False
+
         priority_targets = []
         if active_ailments and not has_miracle_cure:
             needed_cures = set()
@@ -189,6 +198,8 @@ def handle_mant_shop_scan(ctx, current_date):
                 return True
             if ignore_carrots and display_name == "Grilled Carrots":
                 return True
+            if skip_bbq and display_name == "Grilled Carrots":
+                return True
             if display_name in all_cures:
                 if has_miracle_cure:
                     return True
@@ -198,31 +209,33 @@ def handle_mant_shop_scan(ctx, current_date):
                 return True
             return False
 
+        from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SENIOR_YEAR_END, SUMMER_CAMP_2_END
+
         cupcake_names = {'Plain Cupcake', 'Berry Sweet Cupcake'}
         skip_cupcakes = False
         total_cupcakes = sum(owned_map.get(n, 0) for n in cupcake_names)
+        is_senior_or_later = current_date > CLASSIC_YEAR_END
+
+        from module.umamusume.scenario.mant.constants import get_incoming_mood
+        cached_mood = getattr(ctx.cultivate_detail.turn_info, 'cached_mood', None)
+        if cached_mood is not None:
+            current_mood = cached_mood
+        else:
+            from bot.conn.fetch import read_mood
+            current_mood = read_mood(ctx.current_screen)
+
         if total_cupcakes >= 2:
             skip_cupcakes = True
+        elif is_senior_or_later and (total_cupcakes >= 1 or current_mood is None or current_mood >= 5):
+            skip_cupcakes = True
+        elif current_mood is None or current_mood >= 5:
+            skip_cupcakes = True
         else:
-            from module.umamusume.scenario.mant.constants import get_incoming_mood
-            cached_mood = getattr(ctx.cultivate_detail.turn_info, 'cached_mood', None)
-            if cached_mood is not None:
-                current_mood = cached_mood
-            else:
-                from bot.conn.fetch import read_mood
-                current_mood = read_mood(ctx.current_screen)
-            if current_mood is None or current_mood >= 5:
+            incoming = get_incoming_mood(current_date, 3)
+            if current_mood + 1 + incoming >= 5:
                 skip_cupcakes = True
-            else:
-                incoming = get_incoming_mood(current_date, 3)
-                if current_mood + 1 + incoming >= 5:
-                    skip_cupcakes = True
-
-        from module.umamusume.constants.game_constants import SUMMER_CAMP_2_END
         post_senior_summer = current_date > SUMMER_CAMP_2_END
 
-
-        from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SENIOR_YEAR_END
         cleat_reserve = 0
         if CLASSIC_YEAR_END < current_date <= SENIOR_YEAR_END:
             owned_total = owned_map.get('Master Cleat Hammer', 0) + owned_map.get('Artisan Cleat Hammer', 0)

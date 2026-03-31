@@ -166,6 +166,20 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                     time.sleep(0.4)
                     return
         if ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
+            race_id_up = ctx.cultivate_detail.turn_info.turn_operation.race_id
+            scroll_up_deadline = time.time() + 1.0
+            while time.time() < scroll_up_deadline:
+                img_up = ctx.ctrl.get_screen()
+                selected_up = find_race(ctx, img_up, race_id_up)
+                if selected_up:
+                    try_use_cleat(ctx, race_id_up)
+                    time.sleep(0.58)
+                    ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
+                    time.sleep(0.58)
+                    return
+                ctx.ctrl.swipe(x1=340, y1=741, x2=347, y2=898, duration=580, name="")
+                time.sleep(0.58)
+
             swiped = False
             while True:
                 img = cv2.cvtColor(ctx.ctrl.get_screen(), cv2.COLOR_BGR2RGB)
