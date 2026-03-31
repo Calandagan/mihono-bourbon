@@ -272,6 +272,7 @@ def script_cultivate_before_race(ctx: UmamusumeContext):
     if p_check_skip[0] < 200 and p_check_skip[1] < 200 and p_check_skip[2] < 200:
         ctx.ctrl.click_by_point(BEFORE_RACE_START)
     else:
+        ctx.cultivate_detail.mant_cleat_used = False
         ctx.ctrl.click_by_point(BEFORE_RACE_SKIP)
 
 

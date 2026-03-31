@@ -64,6 +64,10 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         return
 
     turn_op = ctx.cultivate_detail.turn_info.turn_operation
+    prev_was_race = (turn_op is not None and
+                     turn_op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE)
+    if prev_was_race:
+        ctx.cultivate_detail._prev_op_was_race = True
 
     if turn_op is not None:
         try:
@@ -75,6 +79,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     log.info(f"Cache invalid. was {cached_stats}, now {current_stats})")
                     ctx.cultivate_detail.turn_info.turn_operation = None
                     ctx.cultivate_detail.turn_info.parse_train_info_finish = False
+                    ctx.cultivate_detail.mant_cleat_used = False
                     turn_op = None
         except Exception:
             pass
@@ -847,10 +852,16 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRAINING
         op.training_type = local_training_type
         ctx.cultivate_detail.turn_info.turn_operation = op
+        new_is_race = False
     else:
         if op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING and (op_ai.training_type == TrainingType.TRAINING_TYPE_UNKNOWN):
             op_ai.training_type = local_training_type
         ctx.cultivate_detail.turn_info.turn_operation = op_ai
+        new_is_race = (op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE)
+
+    if not new_is_race and getattr(ctx.cultivate_detail, '_prev_op_was_race', False):
+        ctx.cultivate_detail.mant_cleat_used = False
+        ctx.cultivate_detail._prev_op_was_race = False
 
     try:
         best_idx_tmp = int(np.argmax(computed_scores))
@@ -901,6 +912,8 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     
                     if mood_below and energy_below and score_below:
                         log.info("All 3 conditions < thresholds - overriding to pal outing")
+                        if op_from_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
+                            ctx.cultivate_detail.mant_cleat_used = False
                         op_from_ai.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRIP
                         ctx.cultivate_detail.turn_info.turn_operation = op_from_ai
                         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
