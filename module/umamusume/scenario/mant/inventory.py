@@ -359,15 +359,59 @@ def scan_inventory(ctx, stop_when_found=None):
     thumb_h = thumb[1] - thumb[0]
     start_y = (thumb[0] + thumb[1]) // 2
 
+    if thumb[0] > INV_TRACK_TOP:
+        sb_drag(ctx, start_y, INV_TRACK_TOP)
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        thumb = inv_find_thumb(img_rgb)
+        start_y = (thumb[0] + thumb[1]) // 2 if thumb else INV_TRACK_TOP + thumb_h // 2
+
+    before_cal = img
+    cal_px = 30
+    sb_drag(ctx, start_y, start_y + cal_px)
+    after_cal = ctx.ctrl.get_screen()
+    shift_cal, conf_cal = inv_find_content_shift(before_cal, after_cal)
+    ratio = shift_cal / cal_px if (shift_cal > 0 and conf_cal > 0.85) else 14.0
+
+    img_dr = ctx.ctrl.get_screen()
+    img_dr_rgb = cv2.cvtColor(img_dr, cv2.COLOR_BGR2RGB)
+    thumb_cal = inv_find_thumb(img_dr_rgb)
+    drag_ratio = 1.1
+    if thumb_cal:
+        cal_from = (thumb_cal[0] + thumb_cal[1]) // 2
+        cal_dist = 30
+        sb_drag(ctx, cal_from, cal_from + cal_dist)
+        img_dr2 = ctx.ctrl.get_screen()
+        img_dr2_rgb = cv2.cvtColor(img_dr2, cv2.COLOR_BGR2RGB)
+        thumb_cal2 = inv_find_thumb(img_dr2_rgb)
+        if thumb_cal2:
+            cal_to = (thumb_cal2[0] + thumb_cal2[1]) // 2
+            actual_move = cal_to - cal_from
+            if actual_move > 3:
+                drag_ratio = cal_dist / actual_move
+
+    scroll_to_top(ctx)
+    img = ctx.ctrl.get_screen()
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    thumb = inv_find_thumb(img_rgb)
+    start_y = (thumb[0] + thumb[1]) // 2 if thumb else INV_TRACK_TOP + thumb_h // 2 + 5
+
+    content_h = INV_CONTENT_BOT - INV_CONTENT_TOP
+    track_len = INV_TRACK_BOT - INV_TRACK_TOP
+    total_content = track_len * ratio + content_h
+    desired_overlap = 160
+    desired_shift = content_h - desired_overlap
+    est_frames = total_content / desired_shift
+    swipe_dur = max(5000, min(25000, int(est_frames * 600)))
+
     scan_x_end = _gauss_scan_x()
-    swipe_dur = 12000
     swipe_cmd = f"shell input swipe {SB_X} {start_y} {scan_x_end} {INV_TRACK_BOT} {swipe_dur}"
     proc = ctx.ctrl.execute_adb_shell(swipe_cmd, False)
 
     item_qtys = {}
     scan_deadline = time.time() + 40
     last_new_item_time = time.time()
-    idle_timeout = 1.11
+    idle_timeout = 1.16
     idle_terminated = False
 
     results = classify_with_qty(img)
@@ -417,6 +461,16 @@ def scan_inventory(ctx, stop_when_found=None):
         proc.terminate()
     except Exception:
         pass
+
+    prev_frame = ctx.ctrl.get_screen()
+    for _ in range(15):
+        time.sleep(0.15)
+        cur_frame = ctx.ctrl.get_screen()
+        if cur_frame is None or prev_frame is None:
+            break
+        if inv_content_same(prev_frame, cur_frame):
+            break
+        prev_frame = cur_frame
 
     prev_cursor = -1
     stall_count = 0
