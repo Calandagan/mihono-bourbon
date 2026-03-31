@@ -1117,6 +1117,60 @@ def get_stat_only_percentile(ctx):
 MEGA_STAT_MULT = {1: 1.20, 2: 1.40, 3: 1.60}
 
 
+def save_megaphone_scan_state_and_tick(ctx):
+    ctx.cultivate_detail.turn_info._mega_scan_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
+    ctx.cultivate_detail.turn_info._mega_scan_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
+    tick_megaphone(ctx)
+
+
+def megaphone_reevaluate(ctx, current_op):
+    pre_item_tier = getattr(ctx.cultivate_detail.turn_info, '_pre_item_tier', None)
+    pre_item_turns = getattr(ctx.cultivate_detail.turn_info, '_pre_item_turns', None)
+    if pre_item_tier is None or pre_item_turns is None:
+        return False
+
+    post_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
+    post_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
+
+    if post_item_tier == pre_item_tier and post_item_turns == pre_item_turns:
+        return False
+
+    scan_tier = getattr(ctx.cultivate_detail.turn_info, '_mega_scan_tier', 0)
+    scan_turns = getattr(ctx.cultivate_detail.turn_info, '_mega_scan_turns', 0)
+    old_mult = MEGA_STAT_MULT.get(scan_tier, 1.0) if scan_turns > 1 else 1.0
+    new_mult = MEGA_STAT_MULT.get(post_item_tier, 1.0) if post_item_turns > 0 else 1.0
+
+    if new_mult == old_mult:
+        return False
+
+    ratio = new_mult / old_mult
+    cached_stat_scores = getattr(ctx.cultivate_detail.turn_info, 'cached_stat_scores', None)
+    cached_scores = getattr(ctx.cultivate_detail.turn_info, 'cached_computed_scores', None)
+    cached_mults = getattr(ctx.cultivate_detail.turn_info, 'cached_facility_mults', None)
+    if not cached_stat_scores or not cached_scores or len(cached_stat_scores) != 5 or len(cached_scores) != 5:
+        return False
+
+    buffed_scores = []
+    for bi in range(5):
+        mult = cached_mults[bi] if cached_mults and len(cached_mults) == 5 else 1.0
+        delta = cached_stat_scores[bi] * (ratio - 1.0) * mult
+        buffed_scores.append(cached_scores[bi] + delta)
+
+    buffed_max = max(buffed_scores)
+    eps = 1e-9
+    ties = [bi for bi, bv in enumerate(buffed_scores) if abs(bv - buffed_max) < eps]
+    new_chosen = 4 if 4 in ties else (min(ties) if ties else int(np.argmax(buffed_scores)))
+
+    from module.umamusume.define import TrainingType
+    new_type = TrainingType(new_chosen + 1)
+
+    if new_type != current_op.training_type:
+        current_op.training_type = new_type
+        return True
+    else:
+        return False
+
+
 def count_races_in_window(ctx, duration):
     current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     extra_races = getattr(ctx.cultivate_detail, 'extra_race_list', [])

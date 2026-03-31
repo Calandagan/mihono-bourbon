@@ -407,6 +407,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         original_scores = [0.0, 0.0, 0.0, 0.0, 0.0]
         stat_scores = [0.0, 0.0, 0.0, 0.0, 0.0]
         stat_contributions = [[0.0] * 6 for _ in range(5)]
+        facility_mults = [1.0] * 5
 
         pre_highest_stat_idx = None
         try:
@@ -582,6 +583,8 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 pass
             score += scenario_additive
 
+            pre_mult_score = score
+
             pal_mult = 1.0
             if pal_count > 0:
                 clamped_multiplier = max(0.0, min(1.0, ctx.cultivate_detail.pal_card_multiplier))
@@ -652,6 +655,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
             computed_scores[idx] = score
             original_scores[idx] = pre_fail_score
+            facility_mults[idx] = score / pre_mult_score if abs(pre_mult_score) > 1e-12 else 0.0
             
             base_val = base_scores[idx] if isinstance(base_scores, (list, tuple)) and len(base_scores) > idx else 0.0
             lv1_contrib = lv1_total
@@ -703,15 +707,16 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
         if is_mant:
             try:
-                from module.umamusume.scenario.mant.inventory import tick_megaphone
-                tick_megaphone(ctx)
+                from module.umamusume.scenario.mant.inventory import save_megaphone_scan_state_and_tick
+                save_megaphone_scan_state_and_tick(ctx)
             except Exception:
                 pass
 
         ctx.cultivate_detail.turn_info.parse_train_info_finish = True
         
-        ctx.cultivate_detail.turn_info.cached_computed_scores = list(computed_scores)
         ctx.cultivate_detail.turn_info.cached_original_scores = list(original_scores)
+
+        ctx.cultivate_detail.turn_info.cached_stat_scores = list(stat_scores)
 
         best_stat_score = max(stat_scores) if stat_scores else 0.0
         if not hasattr(ctx.cultivate_detail, 'stat_only_history'):
@@ -760,18 +765,16 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 highest_stat_idx = int(np.argmax(stats)) if len(stats) == 5 else None
                 if highest_stat_idx is not None:
                     computed_scores[highest_stat_idx] *= 0.95
-                    penalty_parts = []
+                    facility_mults[highest_stat_idx] *= 0.95
                     for i in range(5):
                         penalty = stat_contributions[i][highest_stat_idx] * 0.05
                         if penalty > 0:
                             computed_scores[i] -= penalty
-                            penalty_parts.append(f"{names[i]}:-{penalty:.3f}")
-                    try:
-                        log.info(f"-5% to {names[highest_stat_idx]} facility (highest stat); -5% {stat_keys[highest_stat_idx]} score across: {', '.join(penalty_parts) if penalty_parts else 'none'}")
-                    except Exception:
-                        pass
             except Exception:
                 pass
+
+        ctx.cultivate_detail.turn_info.cached_computed_scores = list(computed_scores)
+        ctx.cultivate_detail.turn_info.cached_facility_mults = list(facility_mults)
 
         max_score = max(computed_scores) if len(computed_scores) == 5 else 0.0
         eps = 1e-9
@@ -913,8 +916,18 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     from module.umamusume.scenario.mant.inventory import handle_energy_recovery
                     handle_energy_recovery(ctx)
                     ctx.cultivate_detail.turn_info.energy_recovery_deferred = False
+
+                ctx.cultivate_detail.turn_info._pre_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
+                ctx.cultivate_detail.turn_info._pre_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
+
                 from module.umamusume.scenario.mant.inventory import item_loop
                 item_loop(ctx)
+
+                try:
+                    from module.umamusume.scenario.mant.inventory import megaphone_reevaluate
+                    megaphone_reevaluate(ctx, op)
+                except Exception:
+                    pass
         except Exception:
             pass
 
