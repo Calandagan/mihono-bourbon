@@ -367,7 +367,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
 
     rest = False
     pal_outing_available = False
-    if energy <= limit:
+    if energy <= limit and not mant_skip_fast_path:
         if trip and limit < 90 and energy > 26:
             rest = False
         elif getattr(ctx.cultivate_detail, 'prioritize_recreation', False) and ctx.cultivate_detail.pal_event_stage > 0:
@@ -410,7 +410,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                 rest = True
         else:
             rest = True
-    elif (ctx.cultivate_detail.turn_info.date == 36 or ctx.cultivate_detail.turn_info.date == 60) and energy < ENERGY_REST_EXTRA_DAY:
+    elif (ctx.cultivate_detail.turn_info.date == 36 or ctx.cultivate_detail.turn_info.date == 60) and energy < ENERGY_REST_EXTRA_DAY and not mant_skip_fast_path:
         rest = True
 
     expect_operation_type = TurnOperationType.TURN_OPERATION_TYPE_UNKNOWN
