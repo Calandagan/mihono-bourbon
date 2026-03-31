@@ -1389,7 +1389,7 @@ def handle_cleat_before_race(ctx, race_id, is_climax_override=False):
     is_climax_race = is_climax_override or date in MANT_CLIMAX_RACE_TURNS
     is_senior_year = CLASSIC_YEAR_END < date <= SENIOR_YEAR_END
 
-    if is_senior_year and not is_climax_race and total_cleats <= 3:
+    if is_senior_year and not is_climax_race and total_cleats <= 2:
         return False
 
     if is_climax_race:

@@ -221,6 +221,14 @@ def handle_mant_shop_scan(ctx, current_date):
         from module.umamusume.constants.game_constants import SUMMER_CAMP_2_END
         post_senior_summer = current_date > SUMMER_CAMP_2_END
 
+
+        from module.umamusume.constants.game_constants import CLASSIC_YEAR_END
+        cleat_reserve = 0
+        if CLASSIC_YEAR_END < current_date <= SENIOR_YEAR_END:
+            owned_total = owned_map.get('Master Cleat Hammer', 0) + owned_map.get('Artisan Cleat Hammer', 0)
+            if owned_total < 3:
+                cleat_reserve = 40
+
         tier_targets = []
         for tier in range(1, mant_cfg.tier_count + 1):
             threshold = 0
@@ -241,7 +249,7 @@ def handle_mant_shop_scan(ctx, current_date):
                     continue
 
                 cost = SHOP_ITEM_COSTS.get(display, 9999)
-                remaining_after = budget - cost
+                remaining_after = budget - cost - cleat_reserve
                 if remaining_after < 0:
                     continue
                 if tier > 1 and remaining_after < threshold:
@@ -404,6 +412,9 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
     return True
 
 
+CLIMAX_MASTER_RESERVE = 40
+
+
 def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
     from module.umamusume.scenario.mant.inventory import MANT_CLIMAX_RACE_TURNS, remaining_climax_races
     from module.umamusume.asset.race_data import is_g1_race
@@ -426,6 +437,9 @@ def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
     master_spare = master_qty - master_reserve
     artisan_spare = artisan_qty - artisan_reserve
 
+    if master_qty + artisan_qty <= 2:
+        return False
+
     if is_g1_race(race_id):
         return master_spare > 0 or artisan_spare > 0
     else:
@@ -433,46 +447,70 @@ def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
 
 
 def handle_mant_cleat_shop_buy(ctx, current_date):
+    from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SENIOR_YEAR_END
+    from module.umamusume.scenario.mant.shop import (
+        SHOP_ITEM_COSTS, scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
+    )
+    import time as _t
+
     if getattr(ctx.cultivate_detail.turn_info, 'mant_cleat_shop_done', False):
         return False
 
-    turn_op = getattr(ctx.cultivate_detail.turn_info, 'turn_operation', None)
-    if turn_op is None:
-        return False
-    if turn_op.turn_operation_type != TurnOperationType.TURN_OPERATION_TYPE_RACE:
-        return False
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    if owned_map.get('Master Cleat Hammer', 0) > 0 or owned_map.get('Artisan Cleat Hammer', 0) > 0:
-        return False
+    owned = dict(getattr(ctx.cultivate_detail, 'mant_owned_items', {}))
+    master_qty = owned.get('Master Cleat Hammer', 0)
+    artisan_qty = owned.get('Artisan Cleat Hammer', 0)
+    total_cleats = master_qty + artisan_qty
+    budget = ctx.cultivate_detail.mant_coins
 
     shop_items = getattr(ctx.cultivate_detail, 'mant_shop_items', [])
     if not shop_items:
         return False
-
     shop_available = {name for name, _, _, _, purchased in shop_items if not purchased}
-    race_id = turn_op.race_id
-    budget = ctx.cultivate_detail.mant_coins
 
-    from module.umamusume.scenario.mant.shop import SHOP_ITEM_COSTS, scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
-    import time as _t
+    is_senior = CLASSIC_YEAR_END < current_date <= SENIOR_YEAR_END
+    is_climax = current_date > SENIOR_YEAR_END
 
-    cleat_to_buy = None
-    for candidate in ('Master Cleat Hammer', 'Artisan Cleat Hammer'):
-        if candidate not in shop_available:
-            continue
-        cost = SHOP_ITEM_COSTS.get(candidate, 9999)
-        if cost > budget:
-            continue
-        if _would_cleat_be_used(candidate, race_id, current_date, owned_map):
-            cleat_to_buy = candidate
-            break
-
-    if cleat_to_buy is None:
+    if not (is_senior or is_climax):
         return False
 
-    cost = SHOP_ITEM_COSTS.get(cleat_to_buy, 0)
+
+    if is_senior:
+        if total_cleats >= 2:
+            return False
+        for candidate in ('Master Cleat Hammer', 'Artisan Cleat Hammer'):
+            if candidate not in shop_available:
+                continue
+            cost = SHOP_ITEM_COSTS.get(candidate, 9999)
+            if cost > budget:
+                continue
+            return _execute_cleat_buy(ctx, candidate, cost)
+        return False
+
+
+    if is_climax:
+        if total_cleats >= 3:
+            return False
+        if total_cleats < 2 and budget < 40:
+            return False
+        for candidate in ('Master Cleat Hammer', 'Artisan Cleat Hammer'):
+            if candidate not in shop_available:
+                continue
+            cost = SHOP_ITEM_COSTS.get(candidate, 9999)
+            if cost > budget:
+                continue
+            if total_cleats < 2 and budget - cost < 40:
+                continue
+            return _execute_cleat_buy(ctx, candidate, cost)
+        return False
+
+    return False
+
+
+def _execute_cleat_buy(ctx, cleat_name, cost):
+    from module.umamusume.scenario.mant.shop import (
+        scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
+    )
+    import time as _t
 
     scan_result = scan_mant_shop(ctx)
     if scan_result is None:
@@ -483,28 +521,27 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
     items_list, ratio, drag_ratio, first_item_gy = scan_result
     ctx.cultivate_detail.mant_shop_items = items_list
 
-    fresh_available = {name for name, _, _, _, purchased in items_list if not purchased}
-    if cleat_to_buy not in fresh_available:
+    fresh_available = {n for n, _, _, _, p in items_list if not p}
+    if cleat_name not in fresh_available:
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         _t.sleep(1)
         return True
 
-    bought, _ = buy_shop_items(ctx, [cleat_to_buy], items_list, ratio, drag_ratio, first_item_gy)
+    bought, _ = buy_shop_items(ctx, [cleat_name], items_list, ratio, drag_ratio, first_item_gy)
     if bought:
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
         ctx.cultivate_detail.mant_coins = max(0, ctx.cultivate_detail.mant_coins - cost)
-        owned_map[cleat_to_buy] = owned_map.get(cleat_to_buy, 0) + 1
-        ctx.cultivate_detail.mant_owned_items = list(owned_map.items())
-        bought_set = {cleat_to_buy}
+        owned = dict(getattr(ctx.cultivate_detail, 'mant_owned_items', {}))
+        owned[cleat_name] = owned.get(cleat_name, 0) + 1
+        ctx.cultivate_detail.mant_owned_items = list(owned.items())
         ctx.cultivate_detail.mant_shop_items = [
-            (name, conf, gy, turns, purchased or (name in bought_set))
-            for name, conf, gy, turns, purchased in items_list
+            (n, c, g, t, p or (n == cleat_name))
+            for n, c, g, t, p in items_list
         ]
         from module.umamusume.context import log_detected_shop_items
-        remaining = [(name, turns, purchased)
-                     for name, _, _, turns, purchased in items_list
-                     if not purchased and name != cleat_to_buy]
-        log_detected_shop_items(remaining)
+        log_detected_shop_items(
+            [(n, t, p) for n, _, _, t, p in items_list if not p and n != cleat_name]
+        )
     else:
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         _t.sleep(1)
