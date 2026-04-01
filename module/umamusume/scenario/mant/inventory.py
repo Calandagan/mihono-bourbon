@@ -561,7 +561,9 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
                 return abs_y
         return None
 
-    while True:
+    scroll_to_top(ctx)
+
+    for _ in range(60):
         frame = ctx.ctrl.get_screen()
         if frame is None:
             time.sleep(0.2)
@@ -579,21 +581,32 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
             time.sleep(0.25)
             return True
 
+        frame = ctx.ctrl.get_screen()
+        if frame is None:
+            continue
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        if inv_at_bottom(img_rgb):
-            return False
-
         thumb = inv_find_thumb(img_rgb)
         if thumb is None:
+            time.sleep(0.15)
+            frame = ctx.ctrl.get_screen()
+            if frame is None:
+                continue
+            img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            thumb = inv_find_thumb(img_rgb)
+            if thumb is None:
+                continue
+        if inv_at_bottom(img_rgb):
             return False
 
         cursor = (thumb[0] + thumb[1]) // 2
         th = thumb[1] - thumb[0]
-        next_y = min(INV_TRACK_BOT, cursor + max(th, 30))
-        if next_y <= cursor + 3:
+        next_y = min(INV_TRACK_BOT, cursor + max(th // 2, 10))
+        if next_y <= cursor:
             return False
         sb_drag(ctx, cursor, next_y)
         time.sleep(0.25)
+
+    return False
 
 
 def is_on_training_screen(frame):
