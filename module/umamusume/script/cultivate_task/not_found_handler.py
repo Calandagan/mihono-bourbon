@@ -115,15 +115,39 @@ def script_not_found_ui(ctx: UmamusumeContext):
                 log.info(f"Fallback goal screen detected: '{combined_text[:50]}...'")
                 
                 if any(word in combined_text for word in ['complete', 'achieved']):
-                    log.info(f"Goal Achieved detected - clicking confirmation")
+                    try:
+                        from module.umamusume.asset.template import REF_NEXT
+                        img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
+                        next_match = image_match(img_full, REF_NEXT)
+                        if next_match.find_match:
+                            ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
+                            return
+                    except Exception:
+                        pass
                     ctx.ctrl.click_by_point(GOAL_ACHIEVE_CONFIRM)
                     return
                 elif any(word in combined_text for word in ['failed']):
-                    log.info(f"Goal Failed detected - clicking confirmation")
+                    try:
+                        from module.umamusume.asset.template import REF_NEXT
+                        img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
+                        next_match = image_match(img_full, REF_NEXT)
+                        if next_match.find_match:
+                            ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
+                            return
+                    except Exception:
+                        pass
                     ctx.ctrl.click_by_point(GOAL_FAIL_CONFIRM)
                     return
                 elif any(word in combined_text for word in ['next']):
-                    log.info(f"Next Goal detected - clicking confirmation")
+                    try:
+                        from module.umamusume.asset.template import REF_NEXT
+                        img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
+                        next_match = image_match(img_full, REF_NEXT)
+                        if next_match.find_match:
+                            ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
+                            return
+                    except Exception:
+                        pass
                     ctx.ctrl.click_by_point(NEXT_GOAL_CONFIRM)
                     return
                 else:
