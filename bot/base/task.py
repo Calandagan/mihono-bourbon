@@ -63,8 +63,16 @@ class Task(metaclass=ABCMeta):
         self.cron_job_config = cron_job_config
 
     @abstractmethod
-    def end_task(self, status, reason) -> None:
-        log.info("Task ended: " + self.task_status.name + "->" + status.name)
+    def end_task(self, status, reason=None) -> None:
+        msg = "Task ended: " + self.task_status.name + "->" + status.name
+        if reason is not None:
+            msg += " (reason: "
+            if hasattr(reason, 'value'):
+                msg += reason.value
+            else:
+                msg += str(reason)
+            msg += ")"
+        log.info(msg)
         self.task_status = status
         self.end_task_reason = reason
         try:

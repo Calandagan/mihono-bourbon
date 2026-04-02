@@ -181,18 +181,22 @@ def handle_mant_shop_scan(ctx, current_date):
                 for active in active_ailments:
                     if ailment.lower() in active.lower():
                         needed_cures.add(cure)
+            bought_cures_set = set()
             for cure in needed_cures:
-                if cure in shop_available and owned_map.get(cure, 0) <= 0:
+                if cure in bought_cures_set:
+                    continue
+                if owned_map.get(cure, 0) <= 0 and cure in shop_available:
                     cost = SHOP_ITEM_COSTS.get(cure, 9999)
                     if cost <= budget:
                         priority_targets.append(cure)
+                        bought_cures_set.add(cure)
                         budget -= cost
-            if needed_cures and not priority_targets:
-                if AILMENT_CURE_ALL in shop_available:
-                    cost = SHOP_ITEM_COSTS.get(AILMENT_CURE_ALL, 9999)
-                    if cost <= budget:
-                        priority_targets.append(AILMENT_CURE_ALL)
-                        budget -= cost
+            if not bought_cures_set and AILMENT_CURE_ALL in shop_available and owned_map.get(AILMENT_CURE_ALL, 0) <= 0:
+                cost = SHOP_ITEM_COSTS.get(AILMENT_CURE_ALL, 9999)
+                if cost <= budget:
+                    priority_targets.append(AILMENT_CURE_ALL)
+                    bought_cures_set.add(AILMENT_CURE_ALL)
+                    budget -= cost
         priority_set = set(priority_targets)
 
         all_cures = set(AILMENT_CURE_MAP.values())
@@ -287,7 +291,8 @@ def handle_mant_shop_scan(ctx, current_date):
                 if copies <= 0:
                     continue
 
-                for _ in range(copies):
+                actual_copies = 1 if display in all_cures or display == AILMENT_CURE_ALL else copies
+                for i in range(actual_copies):
                     remaining_after = budget - cost
                     if remaining_after < 0:
                         break
@@ -405,6 +410,8 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
                     display = SLUG_TO_DISPLAY.get(slug)
                     if not display or display not in expiring:
                         continue
+                    if display in set(AILMENT_CURE_MAP.values()) or display == AILMENT_CURE_ALL:
+                        continue
 
                     cost = SHOP_ITEM_COSTS.get(display, 9999)
                     copies = expiring_counts.get(display, 0)
@@ -424,40 +431,6 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
                         emergency_targets.append(display)
                         tmp_budget -= cost
                         budget = tmp_budget
-
-    active_ailments = getattr(ctx.cultivate_detail, 'mant_afflictions', [])
-    if active_ailments:
-        owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-        owned_map = {n: q for n, q in owned}
-        shop_available = {name for name, _, _, _, purchased in shop_items if not purchased}
-
-        if not owned_map.get(AILMENT_CURE_ALL, 0):
-            any_uncovered = False
-            for ailment in active_ailments:
-                covered = False
-                for ailment_name, cure_name in AILMENT_CURE_MAP.items():
-                    if ailment_name.lower() not in ailment.lower():
-                        continue
-                    if owned_map.get(cure_name, 0) > 0 or cure_name in emergency_targets:
-                        covered = True
-                        break
-                    if cure_name in shop_available:
-                        cost = SHOP_ITEM_COSTS.get(cure_name, 9999)
-                        if cost <= budget:
-                            emergency_targets.append(cure_name)
-                            budget -= cost
-                            covered = True
-                    break
-                if not covered:
-                    any_uncovered = True
-
-            if (any_uncovered
-                    and AILMENT_CURE_ALL in shop_available
-                    and AILMENT_CURE_ALL not in emergency_targets):
-                cost = SHOP_ITEM_COSTS.get(AILMENT_CURE_ALL, 9999)
-                if cost <= budget:
-                    emergency_targets.append(AILMENT_CURE_ALL)
-                    budget -= cost
 
     if not emergency_targets:
         return False

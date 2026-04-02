@@ -362,6 +362,8 @@ class Executor:
                     time.sleep(0.38)
         except Exception:
             task.end_task(TaskStatus.TASK_STATUS_FAILED, EndTaskReason.SYSTEM_ERROR)
+            tb = traceback.format_exc()
+            log.error("Task failed with unhandled exception:\n" + tb + "\nReason: " + str(EndTaskReason.SYSTEM_ERROR.value))
             traceback.print_exc()
         if not self.active:
             task.end_task(TaskStatus.TASK_STATUS_INTERRUPT, EndTaskReason.MANUAL_ABORTED)
