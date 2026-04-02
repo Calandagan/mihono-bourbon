@@ -174,6 +174,18 @@ def handle_mant_shop_scan(ctx, current_date):
         if bbq_base_tier is not None:
             bbq_effective_tier = bbq_base_tier - bbq_shift
 
+        charm_owned = owned_map.get("Good-Luck Charm", 0)
+        charm_base_tier = mant_cfg.item_tiers.get("good-luck_charm")
+        charm_shift = charm_owned
+        charm_effective_tier = 0
+        if charm_base_tier is not None:
+            charm_effective_tier = charm_base_tier - charm_shift
+
+        from module.umamusume.constants.game_constants import CLASSIC_YEAR_END
+        is_senior_or_later_for_charm = current_date > CLASSIC_YEAR_END
+        charm_stop_qty = 2 if is_senior_or_later_for_charm else 3
+        charm_stop = charm_owned >= charm_stop_qty
+
         bought_cures = set()
         priority_targets = []
         if active_ailments and not has_miracle_cure:
@@ -277,6 +289,10 @@ def handle_mant_shop_scan(ctx, current_date):
                     if bbq_effective_tier <= 0 or bbq_effective_tier > mant_cfg.tier_count:
                         continue
                     effective_tier = bbq_effective_tier
+                elif slug == "good-luck_charm" and charm_effective_tier is not None:
+                    if charm_stop or charm_effective_tier <= 0 or charm_effective_tier > mant_cfg.tier_count:
+                        continue
+                    effective_tier = charm_effective_tier
                 else:
                     effective_tier = t
                 if effective_tier != tier or slug not in shop_slugs:
@@ -386,6 +402,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
             if bbq_base_tier_em is not None:
                 bbq_eff_em = bbq_base_tier_em - bbq_shift_em
 
+        
             if bbq_eff_em is not None and bbq_eff_em <= 0 and not ignore_grilled_carrots_em:
                 bbq_display_em = SLUG_TO_DISPLAY.get("grilled_carrots")
                 if bbq_display_em and bbq_display_em in expiring and bbq_display_em in shop_slugs:
