@@ -280,7 +280,7 @@ def classify_items_in_frame(frame):
 
     final_items = []
     for name, score, abs_y, y_center, bought in items:
-        best_t = 99
+        best_t = 1
         min_dist = 60
         for t_val, ty in turns_found:
             dist = abs(y_center - ty)

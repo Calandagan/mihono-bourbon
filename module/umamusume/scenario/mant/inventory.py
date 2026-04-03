@@ -712,6 +712,8 @@ def use_training_item(ctx, item_name, quantity=1):
             if not is_items_panel_open(frame):
                 return True
 
+    if confirm_tap:
+        close_items_panel(ctx)
     return confirm_tap
 
 
