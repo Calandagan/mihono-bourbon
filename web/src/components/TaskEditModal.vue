@@ -251,26 +251,8 @@
                 </div>
               </div>
             </div>
-            <!-- Limited Time Module: Fujikiseki Show Mode -->
-            <!-- <div class="row">
-              <div class="col-3">
-                <div class="form-group">
-                  <label>⏰ Fujikiseki Show Mode</label>
-                  <select v-model="fujikisekiShowMode" class="form-control">
-                    <option :value=true>Yes</option>
-                    <option :value=false>No</option>
-                  </select>
-                </div>
-              </div>
-              <div class="col-2">
-                <div class="form-group">
-                  <label :style="{ color: fujikisekiShowMode ? '' : 'lightgrey' }">Select Difficulty</label>
-                  <select v-model="fujikisekiShowDifficulty" class="form-control" :disabled="!fujikisekiShowMode">
-                    <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
-                  </select>
-                </div>
-              </div>
-            </div> -->
+            
+            
             <div class="category-card" id="category-preset">
               <div class="category-title">Preset &amp; Support Card</div>
               <div class="row">
@@ -1227,196 +1209,48 @@
                   </div>
                 </div>
                 <div v-if="showRaceList" class="race-options-content">
-                  <!-- Race Filter Controls (tidy grid) -->
-                  <div class="race-filters mb-3">
-                    <div class="filter">
-                      <label>Search Races:</label>
-                      <input type="text" v-model="raceSearch" class="form-control" placeholder="Search by race name...">
-                    </div>
-                    <div class="filter">
-                      <label>Character Filter: <i class="fas fa-info-circle text-muted"
-                          title="Filter races based on character's terrain/distance aptitude and training schedule"></i></label>
-                      <select v-model="selectedCharacter" class="form-control" @change="onCharacterChange">
-                        <option value="">All Characters</option>
-                        <option v-for="character in characterList" :key="character.name" :value="character.name">
-                          {{ character.name }}</option>
-                      </select>
-                      <small v-if="selectedCharacter" class="text-info">
-                        {{ getCompatibleRacesCount() }} compatible, {{ getIncompatibleRacesCount() }} filtered out
-                      </small>
-                      <small v-else class="text-muted">
-                        Select a character to filter races by compatibility
-                      </small>
-                    </div>
-                    <div class="quick">
-                      <label>Quick Selection:</label>
-                      <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-sm btn-outline-success" @click="selectAllGI">Select All
-                          GI</button>
-                        <button type="button" class="btn btn-sm btn-outline-success" @click="selectAllGII">Select All
-                          GII</button>
-                        <button type="button" class="btn btn-sm btn-outline-success" @click="selectAllGIII">Select All
-                          GIII</button>
-                        <button type="button" class="btn btn-sm btn-outline-warning" @click="clearAllRaces">Clear
-                          All</button>
-                      </div>
-                    </div>
-
-                    <div class="filter">
-                      <label>Grade:</label>
-                      <div class="btn-group btn-group-sm d-flex" role="group">
-                        <button type="button" class="btn" :class="{ 'btn-primary': showGI, 'btn-outline-primary': !showGI }" @click="showGI = !showGI"><span>GI</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-primary': showGII, 'btn-outline-primary': !showGII }" @click="showGII = !showGII"><span>GII</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-primary': showGIII, 'btn-outline-primary': !showGIII }" @click="showGIII = !showGIII"><span>GIII</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-primary': showOP, 'btn-outline-primary': !showOP }" @click="showOP = !showOP"><span>OP</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-primary': showPREOP, 'btn-outline-primary': !showPREOP }" @click="showPREOP = !showPREOP"><span>PRE-OP</span></button>
-                      </div>
-                    </div>
-                    <div class="filter">
-                      <label>Terrain:</label>
-                      <div class="btn-group btn-group-sm d-flex" role="group">
-                        <button type="button" class="btn" :class="{ 'btn-success': showTurf, 'btn-outline-success': !showTurf }" @click="showTurf = !showTurf"><span>Turf</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-warning': showDirt, 'btn-outline-warning': !showDirt }" @click="showDirt = !showDirt"><span>Dirt</span></button>
-                      </div>
-                    </div>
-                    <div class="distance">
-                      <label>Distance:</label>
-                      <div class="btn-group btn-group-sm d-flex" role="group">
-                        <button type="button" class="btn" :class="{ 'btn-info': showSprint, 'btn-outline-info': !showSprint }" @click="showSprint = !showSprint"><span>Sprint</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-info': showMile, 'btn-outline-info': !showMile }" @click="showMile = !showMile"><span>Mile</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-info': showMedium, 'btn-outline-info': !showMedium }" @click="showMedium = !showMedium"><span>Medium</span></button>
-                        <button type="button" class="btn" :class="{ 'btn-info': showLong, 'btn-outline-info': !showLong }" @click="showLong = !showLong"><span>Long</span></button>
+                  <div class="race-year-block" v-for="(yearRaces, yi) in [filteredRaces_1, filteredRaces_2, filteredRaces_3]" :key="yi">
+                    <div class="race-year-title">{{ ['Junior Year', 'Classic Year', 'Senior Year'][yi] }}</div>
+                    <div class="race-time-grid">
+                      <div class="race-time-cell" v-for="(slot, si) in getYearSlots(yearRaces)" :key="si" @click="openSlotPopup(yi, si)">
+                        <div class="race-time-label">{{ slot.period }}</div>
+                        <template v-if="getSelectedRaceForSlot(slot)">
+                          <div class="race-cell-selected-img">
+                            <img :src="`./races/${getSelectedRaceForSlot(slot).name}.png`" :alt="getSelectedRaceForSlot(slot).name" loading="lazy" @error="onRaceImageError($event, getSelectedRaceForSlot(slot).id)" />
+                            <span class="race-cell-selected-grade" :class="getSelectedRaceForSlot(slot).type.toLowerCase().replace('-', '')">{{ getSelectedRaceForSlot(slot).type }}</span>
+                          </div>
+                          <div class="race-cell-selected-name">{{ getSelectedRaceForSlot(slot).name }}</div>
+                        </template>
+                        <div v-else class="race-time-plus">+</div>
                       </div>
                     </div>
                   </div>
-
-
-
-                  <!-- Race Lists -->
-                  <div class="row">
-                    <div class="col-md-4">
-                      <div class="card">
-                        <div class="card-header">
-                          <h6 class="mb-0">Year 1 (Junior Year)</h6>
-                        </div>
-                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                          <div class="race-grid">
-                            <div v-for="race in filteredRaces_1" :key="race.id" class="race-toggle"
-                              :class="{ 'selected': extraRace.includes(race.id) }" @click="toggleRace(race.id)">
-                              <div class="race-content">
-                                <div class="race-name">{{ race.name }}</div>
-                                <div class="race-badges">
-                                  <span v-if="race.type === 'G3'" class="badge badge-pill"
-                                    style="background-color: #58C471;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'G2'" class="badge badge-pill"
-                                    style="background-color: #F75A86;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'G1'" class="badge badge-pill"
-                                    style="background-color: #3485E3;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'OP'" class="badge badge-pill"
-                                    style="background-color: #FFA500;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'PRE-OP'" class="badge badge-pill"
-                                    style="background-color: #9370DB;">{{ race.type }}</span>
-                                  <span v-if="race.terrain === 'Turf'" class="badge badge-pill"
-                                    style="background-color: #28a745; color: white;">{{ race.terrain }}</span>
-                                  <span v-if="race.terrain === 'Dirt'" class="badge badge-pill"
-                                    style="background-color: #ffc107; color: black;">{{ race.terrain }}</span>
-                                  <span v-if="race.distance === 'Sprint'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Mile'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Medium'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Long'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                </div>
-                                <div class="race-details">{{ race.date }} ({{ getTurnFromDate(race.date) }}) - {{ race.venue }}</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                </div>
+                <div v-if="showSlotPopup" class="race-slot-popup-overlay" @click.self="showSlotPopup = false">
+                  <div class="race-slot-popup">
+                    <div class="race-slot-popup-header">
+                      <span>{{ slotPopupTitle }}</span>
+                      <button class="race-slot-popup-close" @click="showSlotPopup = false">&times;</button>
                     </div>
-                    <div class="col-md-4">
-                      <div class="card">
-                        <div class="card-header">
-                          <h6 class="mb-0">Year 2 (Classic Year)</h6>
-                        </div>
-                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                          <div class="race-grid">
-                            <div v-for="race in filteredRaces_2" :key="race.id" class="race-toggle"
-                              :class="{ 'selected': extraRace.includes(race.id) }" @click="toggleRace(race.id)">
-                              <div class="race-content">
-                                <div class="race-name">{{ race.name }}</div>
-                                <div class="race-badges">
-                                  <span v-if="race.type === 'G3'" class="badge badge-pill"
-                                    style="background-color: #58C471;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'G2'" class="badge badge-pill"
-                                    style="background-color: #F75A86;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'G1'" class="badge badge-pill"
-                                    style="background-color: #3485E3;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'OP'" class="badge badge-pill"
-                                    style="background-color: #FFA500;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'PRE-OP'" class="badge badge-pill"
-                                    style="background-color: #9370DB;">{{ race.type }}</span>
-                                  <span v-if="race.terrain === 'Turf'" class="badge badge-pill"
-                                    style="background-color: #28a745; color: white;">{{ race.terrain }}</span>
-                                  <span v-if="race.terrain === 'Dirt'" class="badge badge-pill"
-                                    style="background-color: #ffc107; color: black;">{{ race.terrain }}</span>
-                                  <span v-if="race.distance === 'Sprint'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Mile'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Medium'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Long'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                </div>
-                                <div class="race-details">{{ race.date }} ({{ getTurnFromDate(race.date) }}) - {{ race.venue }}</div>
-                              </div>
+                    <div class="race-slot-popup-body">
+                      <div v-if="slotPopupRaces.length === 0" class="race-slot-popup-empty">No races available</div>
+                      <div v-else class="race-slot-popup-list">
+                        <div class="race-slot-popup-item" v-for="race in slotPopupRaces" :key="race.id" :class="{ 'on': extraRace.includes(race.id) }" @click="selectRaceForSlot(race.id)">
+                          <div class="race-slot-popup-img">
+                            <img :src="`./races/${race.name}.png`" :alt="race.name" loading="lazy" @error="onRaceImageError($event, race.id)" />
+                          </div>
+                          <div class="race-slot-popup-info">
+                            <div class="race-slot-popup-name-row">
+                              <span class="race-slot-popup-grade" :class="race.type.toLowerCase().replace('-', '')">{{ race.type }}</span>
+                              <span class="race-slot-popup-name">{{ race.name }}</span>
+                            </div>
+                            <div class="race-slot-popup-meta">
+                              <span class="race-slot-popup-terrain" :class="race.terrain.toLowerCase()">{{ race.terrain }}</span>
+                              <span class="race-slot-popup-distance">{{ race.distance }}</span>
+                              <span v-if="race.fanGain" class="race-slot-popup-fans">👥 {{ race.fanGain }}</span>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <div class="card">
-                        <div class="card-header">
-                          <h6 class="mb-0">Year 3 (Senior Year)</h6>
-                        </div>
-                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                          <div class="race-grid">
-                            <div v-for="race in filteredRaces_3" :key="race.id" class="race-toggle"
-                              :class="{ 'selected': extraRace.includes(race.id) }" @click="toggleRace(race.id)">
-                              <div class="race-content">
-                                <div class="race-name">{{ race.name }}</div>
-                                <div class="race-badges">
-                                  <span v-if="race.type === 'G3'" class="badge badge-pill"
-                                    style="background-color: #58C471;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'G2'" class="badge badge-pill"
-                                    style="background-color: #F75A86;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'G1'" class="badge badge-pill"
-                                    style="background-color: #3485E3;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'OP'" class="badge badge-pill"
-                                    style="background-color: #FFA500;">{{ race.type }}</span>
-                                  <span v-if="race.type === 'PRE-OP'" class="badge badge-pill"
-                                    style="background-color: #9370DB;">{{ race.type }}</span>
-                                  <span v-if="race.terrain === 'Turf'" class="badge badge-pill"
-                                    style="background-color: #28a745; color: white;">{{ race.terrain }}</span>
-                                  <span v-if="race.terrain === 'Dirt'" class="badge badge-pill"
-                                    style="background-color: #ffc107; color: black;">{{ race.terrain }}</span>
-                                  <span v-if="race.distance === 'Sprint'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Mile'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Medium'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                  <span v-if="race.distance === 'Long'" class="badge badge-pill"
-                                    style="background-color: #17a2b8; color: white;">{{ race.distance }}</span>
-                                </div>
-                                <div class="race-details">{{ race.date }} ({{ getTurnFromDate(race.date) }}) - {{ race.venue }}</div>
-                              </div>
-                            </div>
-                          </div>
+                          <i v-if="extraRace.includes(race.id)" class="bi bi-check-circle-fill race-slot-popup-check"></i>
                         </div>
                       </div>
                     </div>
@@ -1444,10 +1278,10 @@
                 </div>
               </div>
 
-              <!-- Skill Learning Section -->
+              
               <div class="form-group">
 
-                <!-- Priority 0 Section -->
+                
                 <div class="priority-section">
                   <label class="form-label section-heading">
                     <i class="fas fa-trophy"></i>
@@ -1475,7 +1309,7 @@
                   </div>
                 </div>
 
-                <!-- Dynamic Priority Sections -->
+                
                 <div v-for="priority in getActivePriorities().slice(1)" :key="priority" class="priority-section">
                   <label class="form-label section-heading">
                     <i class="fas fa-medal"></i>
@@ -1503,7 +1337,7 @@
                   </div>
                 </div>
 
-                <!-- Add/Remove Priority Buttons -->
+                
                 <div class="form-group mt-3">
                   <div class="btn-group" role="group">
                     <button type="button" class="btn btn-outline-primary btn-sm" @click="addPriority">
@@ -1517,7 +1351,7 @@
                 </div>
               </div>
 
-              <!-- Blacklist Section (inside Skill Settings card) -->
+              
               <div class="form-group">
                 <label class="form-label section-heading">
                   <i class="fas fa-ban"></i>
@@ -1544,7 +1378,7 @@
                 </div>
               </div>
 
-              <!-- Skill List Section (inside Skill Settings card) -->
+              
               <div class="form-group">
                 <div class="skill-list-header" @click="toggleSkillList">
                   <div class="skill-list-title">
@@ -1557,9 +1391,8 @@
                   </div>
                 </div>
 
-
                 <div v-if="showSkillList" class="skill-list-content">
-                  <!-- Skill Filter System -->
+                  
                   <div class="skill-filter-section">
                     <div class="row">
                       <div class="col-md-3">
@@ -1651,7 +1484,7 @@
                 </div>
               </div>
 
-              <!-- Skill Learning Settings (inside Skill Settings card) -->
+              
               <div class="form-group toggle-row">
                 <div class="row align-items-center">
                   <div class="col-md-3">
@@ -1873,31 +1706,21 @@
             </div>
 
           </form>
-          <!-- <div class="part">
-            <br>
-                            <h6>Scheduled Settings</h6>
-            <hr />
-            <div class="row">
-              <label for="cronInput" class="col-2 col-form-label">Cron Expression</label>
-              <div class="col-10">
-                <input v-model="cron"  class="form-control" id="cronInput">
-              </div>
-            </div>
-          </div> -->
+          
         </div>
         <div class="modal-footer d-none"></div>
       </div>
-      <!-- Aoharu Cup Configuration Modal -->
+      
       <AoharuConfigModal v-model:show="showAoharuConfigModal" :preliminaryRoundSelections="preliminaryRoundSelections"
         :aoharuTeamNameSelection="aoharuTeamNameSelection" @confirm="handleAoharuConfigConfirm"></AoharuConfigModal>
       
-      <!-- Support Card Selection Modal -->
+      
       <SupportCardSelectModal v-model:show="showSupportCardSelectModal" @cancel="closeSupportCardSelectModal"
         @confirm="handleSupportCardConfirm"></SupportCardSelectModal>
-      <!-- Overlay layer, supports two types of modals -->
+      
       <div v-if="showAoharuConfigModal || showSupportCardSelectModal"
         class="modal-backdrop-overlay" @click.stop></div>
-      <!-- Notification -->
+      
       <div class="position-fixed" style="z-index: 5; right: 40%; width: 300px;">
         <div id="liveToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true" data-delay="2000">
           <div class="toast-body">
@@ -1905,7 +1728,7 @@
           </div>
         </div>
       </div>
-      <!-- Weight Warning Notification -->
+      
       <div class="position-fixed" style="z-index: 5; right: 40%; width: 300px;">
         <div id="weightWarningToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true"
           data-delay="2000">
@@ -1917,7 +1740,7 @@
     </div>
   </div>
 
-  <!-- Custom Character Change Confirmation Modal -->
+  
   <div v-if="showCharacterChangeModal" class="modal fade show character-change-modal"
     style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -1959,7 +1782,7 @@
 </template>
 
 <style scoped>
-/***** Event Settings styling *****/
+
 #category-event .event-choice-btn.selected {
   background-color: var(--accent);
   color: #000;
@@ -2254,7 +2077,6 @@ export default {
       dataReady: false,
       hideG2: false,
       hideG3: false,
-      // Race filtering properties
       raceSearch: '',
       showGI: true,
       showGII: true,
@@ -2267,7 +2089,6 @@ export default {
       showMile: true,
       showMedium: true,
       showLong: true,
-      // Character filter properties
       selectedCharacter: '',
       characterList: [],
       characterAptitudes: {},
@@ -2275,7 +2096,6 @@ export default {
       showCharacterChangeModal: false,
       fujikisekiShowMode: false,
       fujikisekiShowDifficulty: 1,
-      // MANT item selection
       mantDragOverTier: null,
       mantDragItemId: null,
       mantTierCount: 8,
@@ -2345,13 +2165,10 @@ export default {
         { id: 24, name: 'Matikanefukukitaru' },
         { id: 25, name: 'Nice Nature' },
         { id: 26, name: 'King Halo' }],
-      // Character data from JSON file
       characterList: [],
-      // Character training periods from JSON file
       characterTrainingPeriods: {
 
       },
-      // Race data from JSON file
       umamusumeRaceList_1: [],
       umamusumeRaceList_2: [],
       umamusumeRaceList_3: [],
@@ -2381,7 +2198,6 @@ export default {
         tactic_actions: [],
         extraWeight: [],
       },
-      // ===  已选择  ===
       selectedExecuteMode: 3,
       expectTimes: 0,
       cron: "* * * * *",
@@ -2428,7 +2244,6 @@ export default {
       spiritExplosionSeniorAfterSummer: [0.16, 0.16, 0.16, 0.06, 0.11],
       spiritExplosionFinale: [0.16, 0.16, 0.16, 0.06, 0.11],
 
-      // Motivation thresholds for trip decisions
       motivationThresholdYear1: 3,
       motivationThresholdYear2: 4,
       motivationThresholdYear3: 4,
@@ -2436,7 +2251,6 @@ export default {
       showPalConfigPanel: true,
       palSelected: "",
       palCardStore: {},
-      // Pal card scoring configuration
       palFriendshipScore: [0.08, 0.057, 0.018],
       palCardMultiplier: 0.01,
       hintBoostCharacters: [],
@@ -2457,25 +2271,21 @@ export default {
       skillEventWeight: [0, 0, 0],
       resetSkillEventWeightList: '',
 
-      // 青春杯配置
       preliminaryRoundSelections: [2, 1, 1, 1],
       aoharuTeamNameSelection: 4,
       showAoharuConfigModal: false,
       showSupportCardSelectModal: false,
 
-      // Skill data from JSON file
       skillPriority0: [],
       skillPriority1: [],
       skillPriority2: [],
       selectedSkills: [],
       blacklistedSkills: [],
-      // Spoiler states for each priority section
       showPriority0: true,
       showPriority1: true,
       showPriority2: true,
-      // New properties for dynamic priority system
-      activePriorities: [0], // Start with Priority 0
-      skillAssignments: {}, // Track which skills are assigned to which priority
+      activePriorities: [0],
+      skillAssignments: {},
       skillFilter: {
         strategy: '',
         distance: '',
@@ -2490,6 +2300,10 @@ export default {
       showSkillList: false
       , showPresetMenu: false,
       sharePresetText: '',
+
+      showSlotPopup: false,
+      slotPopupRaces: [],
+      slotPopupTitle: '',
 
             draggingSkillName: null,
       dragOrigin: null,
@@ -2527,7 +2341,6 @@ export default {
       dropHoverTarget: null,
       didValidDrop: false,
 
-      // Event list UI
       showEventList: false,
       eventQuery: '',
       eventList: [],
@@ -2545,7 +2358,6 @@ export default {
       specialFinale: 0,
       witSpecialJunior: 1.57,
       witSpecialClassic: 1.37,
-      // Stat Value Multiplier [speed, stamina, power, guts, wits, sp]
       statValueMultiplier: [0.01, 0.01, 0.01, 0.01, 0.01, 0.005],
       raceTacticConditions: [
         { op: 'range', val: 0, val2: 25, tactic: 3 },
@@ -2592,21 +2404,17 @@ export default {
           (race.distance === 'Medium' && this.showMedium) ||
           (race.distance === 'Long' && this.showLong);
 
-        // Character filter logic
         let matchesCharacter = true;
         if (this.selectedCharacter) {
           const character = this.characterList.find(c => c.name === this.selectedCharacter);
           if (character) {
-            // Check if race matches character's aptitude (terrain and distance)
             const matchesCharacterTerrain = race.terrain === character.terrain;
 
-            // Handle multiple distances (e.g., "Medium, Long")
             const characterDistances = character.distance.split(', ').map(d => d.trim());
             const matchesCharacterDistance = characterDistances.includes(race.distance);
 
             const matchesAptitude = matchesCharacterTerrain && matchesCharacterDistance;
 
-            // Check if race date is within character's training periods
             const characterPeriods = this.characterTrainingPeriods[this.selectedCharacter];
             const matchesTrainingPeriod = characterPeriods && (
               (characterPeriods['Junior Year'] && characterPeriods['Junior Year'].includes(race.date)) ||
@@ -2641,21 +2449,17 @@ export default {
           (race.distance === 'Medium' && this.showMedium) ||
           (race.distance === 'Long' && this.showLong);
 
-        // Character filter logic
         let matchesCharacter = true;
         if (this.selectedCharacter) {
           const character = this.characterList.find(c => c.name === this.selectedCharacter);
           if (character) {
-            // Check if race matches character's aptitude (terrain and distance)
             const matchesCharacterTerrain = race.terrain === character.terrain;
 
-            // Handle multiple distances (e.g., "Medium, Long")
             const characterDistances = character.distance.split(', ').map(d => d.trim());
             const matchesCharacterDistance = characterDistances.includes(race.distance);
 
             const matchesAptitude = matchesCharacterTerrain && matchesCharacterDistance;
 
-            // Check if race date is within character's training periods
             const characterPeriods = this.characterTrainingPeriods[this.selectedCharacter];
             const matchesTrainingPeriod = characterPeriods && (
               (characterPeriods['Junior Year'] && characterPeriods['Junior Year'].includes(race.date)) ||
@@ -2690,21 +2494,17 @@ export default {
           (race.distance === 'Medium' && this.showMedium) ||
           (race.distance === 'Long' && this.showLong);
 
-        // Character filter logic
         let matchesCharacter = true;
         if (this.selectedCharacter) {
           const character = this.characterList.find(c => c.name === this.selectedCharacter);
           if (character) {
-            // Check if race matches character's aptitude (terrain and distance)
             const matchesCharacterTerrain = race.terrain === character.terrain;
 
-            // Handle multiple distances (e.g., "Medium, Long")
             const characterDistances = character.distance.split(', ').map(d => d.trim());
             const matchesCharacterDistance = characterDistances.includes(race.distance);
 
             const matchesAptitude = matchesCharacterTerrain && matchesCharacterDistance;
 
-            // Check if race date is within character's training periods
             const characterPeriods = this.characterTrainingPeriods[this.selectedCharacter];
             const matchesTrainingPeriod = characterPeriods && (
               (characterPeriods['Junior Year'] && characterPeriods['Junior Year'].includes(race.date)) ||
@@ -2719,7 +2519,6 @@ export default {
         return matchesSearch && matchesType && matchesTerrain && matchesDistance && matchesCharacter;
       });
     },
-    // Group skills by skill_type within each priority
     skillsByTypePriority0() {
       const grouped = {};
       this.skillPriority0.forEach(skill => {
@@ -2750,7 +2549,6 @@ export default {
       });
       return grouped;
     },
-    // New computed property for all skills grouped by type
     allSkillsByType() {
       const allSkills = skillsData;
       const grouped = {};
@@ -2766,7 +2564,6 @@ export default {
       const { strategy, distance, tier, rarity, query } = this.skillFilter;
       const allSkills = skillsData;
 
-      // Filter skills based on selected criteria
       const filteredSkills = allSkills.filter(skill => {
         const matchesStrategy = !strategy || (skill.strategy && skill.strategy === strategy);
         const matchesDistance = !distance || (skill.distance && skill.distance === distance);
@@ -2779,7 +2576,6 @@ export default {
         return matchesStrategy && matchesDistance && matchesTier && matchesRarity && matchesQuery;
       });
 
-      // Group filtered skills by type
       const grouped = {};
       filteredSkills.forEach(skill => {
         if (!grouped[skill.skill_type]) {
@@ -2802,8 +2598,6 @@ export default {
         if (turn === 12) {
            desc = "Debut";
         } else if (turn <= 72) {
-          // Calculation based on Turn 1 = Junior Jan Early (index 0)
-          // 0: Jan E, 1: Jan L
           const absIndex = turn - 1; 
           
           const yearIdx = Math.floor(absIndex / 24);
@@ -2816,7 +2610,6 @@ export default {
              desc = "Unknown";
           }
         } else {
-          // Special URA handling
           if (turn === 73) desc = "URA Qualifiers";
           else if (turn === 74) desc = "Training";
           else if (turn === 75) desc = "URA Semis";
@@ -2825,7 +2618,6 @@ export default {
           else desc = "Post-Game";
         }
 
-        // Distribute into 6 columns (66 turns total / 6 cols = 11 rows/col)
         const colIdx = Math.floor((turn - 12) / 11);
         if (colIdx < 6) {
           columns[colIdx].push({ turn, desc });
@@ -2886,7 +2678,6 @@ export default {
       if (dateStr.includes('Classic')) y = 1;
       else if (dateStr.includes('Senior')) y = 2;
       
-      // Avoid matching "Jun" in "Junior" by removing "Junior" before checking months
       const monthCheckStr = dateStr.replace('Junior', '');
       
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -3130,14 +2921,12 @@ export default {
         const bi = this.blacklistedSkills.indexOf(skillName);
         if (bi > -1) this.blacklistedSkills.splice(bi, 1);
       },
-      // Event Settings
       toggleEventList() {
         this.showEventList = !this.showEventList;
         if (this.showEventList && this.eventList.length === 0) {
           this.loadEventList();
         }
       },
-      // Event option helpers
       getEventOptionCount(name) {
         return eventOptionCounts && typeof eventOptionCounts === 'object' ? (eventOptionCounts[name] || 0) : 0;
       },
@@ -3147,10 +2936,8 @@ export default {
       onEventChoiceClick(name, n) {
         const cur = this.eventChoicesSelected[name];
         if (cur === n) {
-          // deselect
           try { delete this.eventChoicesSelected[name]; } catch (e) { this.eventChoicesSelected[name] = undefined; }
         } else {
-          // select only this one
           this.eventChoicesSelected[name] = n;
         }
       },
@@ -3223,7 +3010,6 @@ export default {
       });
     },
     loadRaceData: function () {
-      // Split races by year based on date
       const juniorRaces = raceData.races.filter(race => race.date.includes('Junior Year'));
       const classicRaces = raceData.races.filter(race => race.date.includes('Classic Year'));
       const seniorRaces = raceData.races.filter(race => race.date.includes('Senior Year'));
@@ -3233,10 +3019,8 @@ export default {
       this.umamusumeRaceList_3 = seniorRaces;
     },
     loadSkillData: function () {
-      // Load all skills from JSON and organize by priority/tier
       const allSkills = skillsData;
 
-      // Organize skills by tier/priority - store full skill objects
       this.skillPriority0 = allSkills.filter(skill => skill.tier === 'SS');
       this.skillPriority1 = allSkills.filter(skill => skill.tier === 'S');
       this.skillPriority2 = allSkills.filter(skill => skill.tier === 'A');
@@ -3299,18 +3083,15 @@ export default {
     switchRaceList: function () {
       this.showRaceList = !this.showRaceList
     },
-    // Helper: check whether a race matches the currently selected character's aptitude and schedule
     isRaceCompatibleWithSelectedCharacter(race) {
       if (!this.selectedCharacter) return true
       const character = this.characterList.find(c => c.name === this.selectedCharacter)
       if (!character) return true
-      // Terrain/distance aptitude
       const matchesTerrain = race.terrain === character.terrain
       const characterDistances = character.distance.split(', ').map(d => d.trim())
       const matchesDistance = characterDistances.includes(race.distance)
       const matchesAptitude = matchesTerrain && matchesDistance
       if (!matchesAptitude) return false
-      // Training period (by date label string)
       const periods = this.characterTrainingPeriods[this.selectedCharacter]
       if (!periods) return true
       const inPeriod = (periods['Junior Year'] && periods['Junior Year'].includes(race.date)) ||
@@ -3318,7 +3099,6 @@ export default {
         (periods['Senior Year'] && periods['Senior Year'].includes(race.date))
       return !!inPeriod
     },
-    // Quick selection methods
     selectAllGI: function () {
       const pool = [
         ...this.umamusumeRaceList_1,
@@ -3350,7 +3130,6 @@ export default {
       this.extraRace = [];
     },
     onCharacterChange: function () {
-      // Smart filtering: Show custom confirmation modal when character changes
       if (this.extraRace.length > 0) {
         this.showCharacterChangeModal = true;
       }
@@ -3360,7 +3139,6 @@ export default {
       if (!this.selectedCharacter) return 0;
 
       let count = 0;
-      // Count compatible races from all three race lists
       [this.filteredRaces_1, this.filteredRaces_2, this.filteredRaces_3].forEach(races => {
         if (races) count += races.length;
       });
@@ -3374,7 +3152,6 @@ export default {
       let totalRaces = 0;
       let compatibleRaces = 0;
 
-      // Count total races from all three race lists
       [this.umamusumeRaceList_1, this.umamusumeRaceList_2, this.umamusumeRaceList_3].forEach(races => {
         if (races) totalRaces += races.length;
       });
@@ -3383,25 +3160,20 @@ export default {
       return totalRaces - compatibleRaces;
     },
 
-    // Character change modal methods
     closeCharacterChangeModal: function () {
       this.showCharacterChangeModal = false;
     },
 
     handleClearSelection: function () {
-      // Clear the entire selection
       this.extraRace = [];
       this.closeCharacterChangeModal();
     },
 
     handleFilterSelection: function () {
-      // Keep the selection but only keep races that are compatible with the selected character
       if (this.selectedCharacter) {
         const character = this.characterList.find(c => c.name === this.selectedCharacter);
         if (character) {
-          // Filter races to only keep compatible ones
           this.extraRace = this.extraRace.filter(raceId => {
-            // Find the race in any of the three race lists
             let race = null;
             [this.umamusumeRaceList_1, this.umamusumeRaceList_2, this.umamusumeRaceList_3].forEach(raceList => {
               if (!race) {
@@ -3411,16 +3183,13 @@ export default {
 
             if (!race) return false;
 
-            // Check if race matches character's aptitude (terrain and distance)
             const matchesTerrain = race.terrain === character.terrain;
 
-            // Handle multiple distances (e.g., "Medium, Long")
             const characterDistances = character.distance.split(', ').map(d => d.trim());
             const matchesDistance = characterDistances.includes(race.distance);
 
             const matchesAptitude = matchesTerrain && matchesDistance;
 
-            // Check if race date is within character's training periods
             const characterPeriods = this.characterTrainingPeriods[this.selectedCharacter];
             if (characterPeriods && characterPeriods.length > 0) {
               const raceDate = new Date(race.date);
@@ -3446,14 +3215,56 @@ export default {
         this.extraRace.push(raceId);
       }
     },
+    openSlotPopup: function (yearIdx, slotIdx) {
+      const yearLabels = ['Junior Year', 'Classic Year', 'Senior Year'];
+      const yearRaces = [this.filteredRaces_1, this.filteredRaces_2, this.filteredRaces_3][yearIdx];
+      const slot = this.getYearSlots(yearRaces)[slotIdx];
+      this.slotPopupTitle = yearLabels[yearIdx] + ' - ' + slot.period;
+      this.slotPopupRaces = slot.races;
+      this.showSlotPopup = true;
+    },
+    selectRaceForSlot: function (raceId) {
+      const slotRaceIds = this.slotPopupRaces.map(r => r.id);
+      this.extraRace = this.extraRace.filter(id => !slotRaceIds.includes(id));
+      const index = this.extraRace.indexOf(raceId);
+      if (index === -1) {
+        this.extraRace.push(raceId);
+      }
+    },
+    getSelectedRaceForSlot: function (slot) {
+      if (!slot || !slot.races || slot.races.length === 0) return null;
+      return slot.races.find(r => this.extraRace.includes(r.id)) || null;
+    },
+    onRaceImageError: function (event, raceId) {
+      const img = event.target;
+      img.style.display = 'none';
+      const parent = img.parentElement;
+      if (parent && !parent.querySelector('.race-image-fallback')) {
+        const fallback = document.createElement('div');
+        fallback.className = 'race-image-fallback';
+        fallback.textContent = raceId;
+        parent.appendChild(fallback);
+      }
+    },
+    getYearSlots: function (yearRaces) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const periods = ['Early', 'Late'];
+      const slots = [];
+      for (const month of months) {
+        for (const period of periods) {
+          const label = period + ' ' + month;
+          const races = yearRaces.filter(r => r.date.includes(label));
+          slots.push({ period: label, races: races });
+        }
+      }
+      return slots;
+    },
     toggleSkill: function (skillName) {
       const index = this.selectedSkills.indexOf(skillName);
       if (index > -1) {
-        // Remove from selected skills
         this.selectedSkills.splice(index, 1);
         delete this.skillAssignments[skillName];
       } else {
-        // Add to selected skills and assign to highest priority
         this.selectedSkills.push(skillName);
         const highestPriority = Math.max(...this.activePriorities);
         this.skillAssignments[skillName] = highestPriority;
@@ -3465,7 +3276,6 @@ export default {
         this.blacklistedSkills.splice(index, 1);
       } else {
         this.blacklistedSkills.push(skillName);
-        // Remove from selected skills if it was selected
         const selectedIndex = this.selectedSkills.indexOf(skillName);
         if (selectedIndex > -1) {
           this.selectedSkills.splice(selectedIndex, 1);
@@ -3473,7 +3283,6 @@ export default {
         }
       }
     },
-    // Spoiler toggle methods
     togglePriority0: function () {
       this.showPriority0 = !this.showPriority0;
     },
@@ -3579,7 +3388,6 @@ export default {
           }
         }
       }
-      // Ensure all items have a valid tier
       for (const id of ids) {
         if (this.mantItemTiers[id] === undefined || this.mantItemTiers[id] < 1) {
           this.mantItemTiers[id] = this.mantTierCount;
@@ -3594,7 +3402,6 @@ export default {
     },
     mantRemoveTier() {
       if (this.mantTierCount > 1) {
-        // Move items from the removed tier to the new last tier
         const removedTier = this.mantTierCount;
         const newLast = this.mantTierCount - 1;
         this.mantGetAllItemIds().forEach(id => {
@@ -3630,10 +3437,8 @@ export default {
       }
     },
     addTask: function () {
-      // Convert new skill system to bot-expected format
       var learn_skill_list = []
 
-      // Group selected skills by priority
       const skillsByPriority = {};
       this.selectedSkills.forEach(skillName => {
         const priority = this.skillAssignments[skillName] || 0;
@@ -3643,7 +3448,6 @@ export default {
         skillsByPriority[priority].push(skillName);
       });
 
-      // Convert to bot-expected format (list of lists)
       for (let priority = 0; priority <= Math.max(...this.activePriorities); priority++) {
         if (skillsByPriority[priority] && skillsByPriority[priority].length > 0) {
           learn_skill_list.push(skillsByPriority[priority]);
@@ -3652,7 +3456,6 @@ export default {
         }
       }
 
-      // Convert blacklisted skills to bot-expected format
       var learn_skill_blacklist = [...this.blacklistedSkills];
 
       console.log(learn_skill_list)
@@ -3671,7 +3474,7 @@ export default {
           "extra_race_list": this.extraRace,
           "learn_skill_list": learn_skill_list,
           "learn_skill_blacklist": learn_skill_blacklist,
-          "tactic_list": [4, 4, 4], // Legacy dummy values
+          "tactic_list": [4, 4, 4],
           "tactic_actions": this.raceTacticConditions,
           "clock_use_limit": this.clockUseLimit,
           "manual_purchase_at_end": this.manualPurchase,
@@ -3706,12 +3509,10 @@ export default {
           ],
           "stat_value_multiplier": [...this.statValueMultiplier],
           "wit_special_multiplier": [this.witSpecialJunior, this.witSpecialClassic],
-          // Motivation thresholds for trip decisions
           "motivation_threshold_year1": this.motivationThresholdYear1,
           "motivation_threshold_year2": this.motivationThresholdYear2,
           "motivation_threshold_year3": this.motivationThresholdYear3,
           "prioritize_recreation": this.prioritizeRecreation,
-          // 限时: 富士奇石的表演秀
           "fujikiseki_show_mode": this.fujikisekiShowMode,
           "fujikiseki_show_difficulty": this.fujikisekiShowDifficulty,
           "skillEventWeight": [...this.skillEventWeight],
@@ -3750,7 +3551,6 @@ export default {
       payload.attachment_data = payload.attachment_data || {};
       payload.attachment_data.event_choices = this.buildEventChoices();
       
-      // Add event weights to payload
       payload.attachment_data.event_weights = {
         junior: {
           Friendship: this.eventWeightsJunior.Friendship,
@@ -3846,7 +3646,6 @@ export default {
         this.friendshipScoreGroups = [{ characters: [], multiplier: 100, search: '', expanded: false }, { characters: [], multiplier: 100, search: '', expanded: false }]
       }
         this.learnSkillThreshold = this.presetsUse.learn_skill_threshold
-        // Convert legacy race tactics to new condition system if actions not present
         if (this.presetsUse.tactic_actions && this.presetsUse.tactic_actions.length > 0) {
           this.raceTacticConditions = this.presetsUse.tactic_actions;
         } else {
@@ -3854,14 +3653,13 @@ export default {
           const t2 = this.presetsUse.race_tactic_2 || 3;
           const t3 = this.presetsUse.race_tactic_3 || 3;
           this.raceTacticConditions = [
-            { op: 'range', val: 0, val2: 25, tactic: t1 }, // Year 1: Turns 1-24
-            { op: 'range', val: 24, val2: 49, tactic: t2 }, // Year 2: Turns 25-48
-            { op: '>', val: 48, val2: 0, tactic: t3 }      // Year 3+: Turns 49+
+            { op: 'range', val: 0, val2: 25, tactic: t1 },
+            { op: 'range', val: 24, val2: 49, tactic: t2 },
+            { op: '>', val: 48, val2: 0, tactic: t3 }
           ];
         }
         this.skillLearnBlacklist = this.presetsUse.skill_blacklist
      this.cureAsapConditions = this.presetsUse.cureAsapConditions
-      // Load motivation thresholds (with defaults)
       this.motivationThresholdYear1 = parseInt(this.presetsUse.motivation_threshold_year1) || 3
       this.motivationThresholdYear2 = parseInt(this.presetsUse.motivation_threshold_year2) || 4
       this.motivationThresholdYear3 = parseInt(this.presetsUse.motivation_threshold_year3) || 4
@@ -3920,7 +3718,6 @@ export default {
           this.scoreValueFinale = [...this.presetsUse.scoreValue[4]]
         }
         
-        // Extract special training values if present (5th element in each array)
         if (this.selectedScenario === 2) {
           if (this.scoreValueJunior.length >= 5) {
             this.specialJunior = this.scoreValueJunior[4]
@@ -4016,16 +3813,13 @@ export default {
       }
 
       if ('selectedSkills' in this.presetsUse && 'blacklistedSkills' in this.presetsUse && 'skillAssignments' in this.presetsUse && 'activePriorities' in this.presetsUse) {
-        // New format - load directly
         this.selectedSkills = [...this.presetsUse.selectedSkills];
         this.blacklistedSkills = [...this.presetsUse.blacklistedSkills];
         this.skillAssignments = { ...this.presetsUse.skillAssignments };
         this.activePriorities = [...this.presetsUse.activePriorities];
 
-        // Also populate old system for UI compatibility
         this.skillLearnBlacklist = this.blacklistedSkills.join(", ");
 
-        // Convert new system back to old format for UI display
         const skillsByPriority = {};
         this.selectedSkills.forEach(skillName => {
           const priority = this.skillAssignments[skillName] || 0;
@@ -4035,11 +3829,9 @@ export default {
           skillsByPriority[priority].push(skillName);
         });
 
-        // Reset old system
         this.skillLearnPriorityList = [{ priority: 0, skills: "" }];
         this.skillPriorityNum = 1;
 
-        // Populate old system from new system
         for (let priority = 0; priority <= Math.max(...this.activePriorities); priority++) {
           if (skillsByPriority[priority] && skillsByPriority[priority].length > 0) {
             if (priority > 0) {
@@ -4049,18 +3841,15 @@ export default {
           }
         }
       } else {
-        // Old format - convert from skill_priority_list and skill_blacklist
         this.selectedSkills = [];
         this.blacklistedSkills = [];
         this.skillAssignments = {};
         this.activePriorities = [0];
 
-        // Load blacklisted skills
         if (this.presetsUse.skill_blacklist && this.presetsUse.skill_blacklist !== "") {
           this.blacklistedSkills = this.presetsUse.skill_blacklist.split(",").map(skill => skill.trim());
         }
 
-        // Load selected skills from priority list
         if (this.presetsUse.skill_priority_list && this.presetsUse.skill_priority_list.length > 0) {
           this.presetsUse.skill_priority_list.forEach((prioritySkills, priorityIndex) => {
             if (prioritySkills && prioritySkills.length > 0) {
@@ -4079,7 +3868,6 @@ export default {
         }
       }
 
-      // Legacy skill loading for backward compatibility
       if ('skill' in this.presetsUse && this.presetsUse.skill != "") {
         this.skillLearnPriorityList[0].skills = this.presetsUse.skill
         while (this.skillPriorityNum > 1) {
@@ -4099,7 +3887,6 @@ export default {
         }
       }
 
-      // Load event weights if present in preset
       if ('event_weights' in this.presetsUse && this.presetsUse.event_weights) {
         const ew = this.presetsUse.event_weights;
         if (ew.junior) {
@@ -4139,7 +3926,6 @@ export default {
           };
         }
       } else {
-        // Reset to defaults if not in preset
         this.resetEventWeights();
       }
 
@@ -4417,17 +4203,14 @@ export default {
     getPresets: function () {
       return this.axios.post("/umamusume/get-presets", "").then(
         res => {
-          // All presets now come from the server (including starter presets)
           this.cultivatePresets = res.data
         }
       )
     },
     addPresets: function () {
-      // Convert new skill system to old format for backward compatibility
       var skill_priority_list = [];
       var skill_blacklist = this.blacklistedSkills.join(", ");
 
-      // Group selected skills by priority
       const skillsByPriority = {};
       this.selectedSkills.forEach(skillName => {
         const priority = this.skillAssignments[skillName] || 0;
@@ -4437,7 +4220,6 @@ export default {
         skillsByPriority[priority].push(skillName);
       });
 
-      // Convert to old format (skill_priority_list)
       for (let priority = 0; priority <= Math.max(...this.activePriorities); priority++) {
         if (skillsByPriority[priority] && skillsByPriority[priority].length > 0) {
           skill_priority_list.push([skillsByPriority[priority].join(", ")]);
@@ -4538,7 +4320,6 @@ export default {
         ],
         baseScore: [...this.baseScore],
         statValueMultiplier: [...this.statValueMultiplier],
-        // Motivation thresholds for trip decisions
         motivation_threshold_year1: this.motivationThresholdYear1,
         motivation_threshold_year2: this.motivationThresholdYear2,
         motivation_threshold_year3: this.motivationThresholdYear3,
@@ -4628,7 +4409,6 @@ export default {
     },
     confirmOverwritePreset() {
       if (!this.overwritePresetName) return;
-      // For overwrite we simply save with the same name
       this.presetNameEdit = this.overwritePresetName;
       const toastBody = document.querySelector('#liveToast .toast-body');
       if (toastBody) toastBody.textContent = 'Preset overwritten successfully';
@@ -4745,13 +4525,10 @@ export default {
       this.successToast.toast('show');
     },
     onExtraWeightInput(arr, idx) {
-      // 限制输入范围 [-1, 1]
       if (arr[idx] > 1) arr[idx] = 1;
       if (arr[idx] < -1) arr[idx] = -1;
-      // 检查是否全为-1，若是则重置最后一个输入为0并弹出警告
       if (arr.filter(v => v === -1).length === arr.length) {
         arr[idx] = 0;
-        // 显示警告通知
         this.showWeightWarning();
       }
     },
@@ -4790,7 +4567,6 @@ export default {
         return `【${card.name}】${card.desc}`;
       }
     },
-    // New methods for dynamic priority system
     getActivePriorities: function () {
       return this.activePriorities;
     },
@@ -4806,7 +4582,6 @@ export default {
     removeLastPriority: function () {
       if (this.activePriorities.length > 1) {
         const removedPriority = this.activePriorities.pop();
-        // Move skills from removed priority to the highest remaining priority
         Object.keys(this.skillAssignments).forEach(skillName => {
           if (this.skillAssignments[skillName] === removedPriority) {
             const newHighestPriority = Math.max(...this.activePriorities);
@@ -4855,7 +4630,6 @@ export default {
       };
       root.addEventListener('scroll', this.onScrollSpy, { passive: true });
       window.addEventListener('resize', this.onScrollSpy, { passive: true });
-      // run once
       this.onScrollSpy();
     },
     destroyScrollSpy() {
@@ -4886,27 +4660,25 @@ export default {
   border-radius: 0.25rem;
 }
 
-/* 取消按钮样式 */
 .cancel-btn {
   background-color: #dc3545 !important;
-  /* Bootstrap的danger红色 */
+  
   color: white !important;
   padding: 0.4rem 0.8rem !important;
   font-size: 1rem !important;
   border-radius: 0.25rem;
   margin-right: 10px;
-  /* 与确认按钮间距 */
+  
   border: none;
   cursor: pointer;
 }
 
 .cancel-btn:hover {
   background-color: #c82333 !important;
-  /* 悬停时更深的红色 */
+  
   color: white !important;
 }
 
-/* 确保modal body可以正确滚动 */
 .modal-body {
   max-height: 80vh;
   overflow-y: auto;
@@ -4918,7 +4690,6 @@ export default {
   gap: 16px;
 }
 
-/* Enlarge modal size slightly */
 #create-task-list-modal .modal-dialog {
   max-width: 1320px;
   width: 96vw;
@@ -4973,7 +4744,6 @@ export default {
   min-width: 0;
 }
 
-/* 遮罩层样式 - 让TaskEditModal背景变暗并阻止交互 */
 .modal-backdrop-overlay {
   position: fixed;
   top: 0;
@@ -4982,12 +4752,11 @@ export default {
   height: 100%;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 1055;
-  /* 确保在TaskEditModal之上，但在AoharuConfigModal之下 */
+  
   pointer-events: auto;
-  /* 阻止与背景元素的交互 */
+  
 }
 
-/* 只有青春杯配置弹窗时让TaskEditModal变暗 */
 #create-task-list-modal.modal.show .modal-content {
   transition: opacity 0.3s ease;
 }
@@ -4996,7 +4765,6 @@ export default {
   opacity: 0.6;
 }
 
-/* Smooth scroll behavior for in-pane anchors */
 .content-pane {
   scroll-behavior: smooth;
 }
@@ -5037,15 +4805,487 @@ export default {
   transition: all 0.3s ease;
 }
 
-/* Race Toggle Styles */
-.race-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-  padding: 8px;
+.race-list-body {
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 8px !important;
 }
 
-/* Category cards (section grouping) */
+.race-year-block {
+  margin-bottom: 20px;
+}
+
+.race-year-title {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 8px 8px 0 0;
+  letter-spacing: 0.5px;
+}
+
+.race-time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+
+.race-time-cell {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 6px;
+  min-height: 70px;
+  display: flex;
+  flex-direction: column;
+}
+
+.race-time-cell.has-races {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.race-time-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  margin-bottom: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.race-thumb {
+  cursor: pointer;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 4px;
+}
+
+.race-thumb:last-child {
+  margin-bottom: 0;
+}
+
+.race-thumb:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.race-thumb.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(52, 133, 227, 0.2) inset, 0 0 6px rgba(52, 133, 227, 0.15);
+}
+
+.race-thumb-img {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+}
+
+.race-thumb-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.race-thumb-img .race-image-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.race-thumb-grade {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  font-size: 7px;
+  font-weight: 800;
+  padding: 0 3px;
+  border-radius: 2px;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  line-height: 1.3;
+}
+
+.race-thumb-grade.g1 { background: linear-gradient(135deg, #3485E3, #1a5fb4); }
+.race-thumb-grade.g2 { background: linear-gradient(135deg, #F75A86, #c9184a); }
+.race-thumb-grade.g3 { background: linear-gradient(135deg, #58C471, #2d6a4f); }
+.race-thumb-grade.op { background: linear-gradient(135deg, #FFA500, #e76f51); }
+.race-thumb-grade.preop { background: linear-gradient(135deg, #9370DB, #7b2cbf); }
+
+.race-thumb-check {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  color: #3485E3;
+  font-size: 12px;
+  filter: drop-shadow(0 0 3px rgba(52, 133, 227, 0.6));
+  line-height: 1;
+}
+
+.race-thumb-name {
+  font-size: 7px;
+  font-weight: 600;
+  padding: 2px 3px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.race-time-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.1);
+  font-weight: 300;
+}
+
+.race-year-block {
+  margin-bottom: 20px;
+}
+
+.race-year-title {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 8px 8px 0 0;
+  letter-spacing: 0.5px;
+}
+
+.race-time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+
+.race-time-cell {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 6px;
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.race-time-cell:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.race-time-cell:has(.race-cell-selected-img) {
+  background: rgba(52, 133, 227, 0.08);
+  border-color: rgba(52, 133, 227, 0.3);
+}
+
+.race-time-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.race-time-plus {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.12);
+  font-weight: 300;
+  margin-top: 2px;
+}
+
+.race-cell-selected-img {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0a0a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.race-cell-selected-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.race-cell-selected-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.race-cell-selected-grade {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  line-height: 1.2;
+}
+
+.race-cell-selected-grade.g1 { background: linear-gradient(135deg, #3485E3, #1a5fb4); }
+.race-cell-selected-grade.g2 { background: linear-gradient(135deg, #F75A86, #c9184a); }
+.race-cell-selected-grade.g3 { background: linear-gradient(135deg, #58C471, #2d6a4f); }
+.race-cell-selected-grade.op { background: linear-gradient(135deg, #FFA500, #e76f51); }
+.race-cell-selected-grade.preop { background: linear-gradient(135deg, #9370DB, #7b2cbf); }
+
+.race-cell-selected-name {
+  font-size: 8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.race-slot-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.race-slot-popup {
+  background: #1a1a2e;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.race-slot-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+}
+
+.race-slot-popup-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.race-slot-popup-close:hover {
+  color: white;
+}
+
+.race-slot-popup-body {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.race-slot-popup-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 20px;
+  font-size: 14px;
+}
+
+.race-slot-popup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.race-slot-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.race-slot-popup-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.race-slot-popup-item.on {
+  border-color: var(--accent);
+  background: rgba(52, 133, 227, 0.1);
+}
+
+.race-slot-popup-img {
+  position: relative;
+  width: 64px;
+  min-width: 64px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0a0a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.race-slot-popup-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  image-rendering: auto;
+}
+
+.race-slot-popup-img .race-image-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.race-slot-popup-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.race-slot-popup-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.race-slot-popup-grade {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.race-slot-popup-grade.g1 { background: linear-gradient(135deg, #3485E3, #1a5fb4); }
+.race-slot-popup-grade.g2 { background: linear-gradient(135deg, #F75A86, #c9184a); }
+.race-slot-popup-grade.g3 { background: linear-gradient(135deg, #58C471, #2d6a4f); }
+.race-slot-popup-grade.op { background: linear-gradient(135deg, #FFA500, #e76f51); }
+.race-slot-popup-grade.preop { background: linear-gradient(135deg, #9370DB, #7b2cbf); }
+
+.race-slot-popup-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.race-slot-popup-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.race-slot-popup-terrain {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.race-slot-popup-terrain.turf {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.race-slot-popup-terrain.dirt {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.race-slot-popup-distance {
+  color: #67e8f9;
+  background: rgba(103, 232, 249, 0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.race-slot-popup-check {
+  color: #3485E3;
+  font-size: 18px;
+  filter: drop-shadow(0 0 3px rgba(52, 133, 227, 0.6));
+  flex-shrink: 0;
+}
+
 .category-card {
   background: transparent;
   border: 1px solid var(--accent);
@@ -5061,73 +5301,6 @@ export default {
   font-size: 16px;
 }
 
-.race-toggle {
-  background: #f8f9fa;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.race-toggle:hover {
-  background: #e9ecef;
-  border-color: #007bff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
-}
-
-.race-toggle.selected {
-  background: #007bff;
-  border-color: #0056b3;
-  color: white;
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
-.race-toggle.selected:hover {
-  background: #0056b3;
-  border-color: #004085;
-}
-
-.race-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.race-name {
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.3;
-  margin-bottom: 4px;
-}
-
-.race-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-
-.race-badges .badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 12px;
-}
-
-.race-details {
-  font-size: 11px;
-  opacity: 0.8;
-  line-height: 1.2;
-}
-
-.race-toggle.selected .race-details {
-  opacity: 0.9;
-}
-
-/* Skill Toggle Styles */
 .skill-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -5247,7 +5420,6 @@ export default {
   color: #495057;
 }
 
-/* New styles for the redesigned skill learning interface */
 .priority-section {
   margin-bottom: 16px;
 }
@@ -5446,7 +5618,6 @@ export default {
   opacity: 0.9;
 }
 
-/* Button group styling */
 .btn-group {
   display: flex;
   gap: 8px;
@@ -5500,7 +5671,6 @@ export default {
   border: 1px solid rgba(255,255,255,.12);
 }
 
-/* Toggle row switch alignment */
 .toggle-row .form-check.form-switch {
   display: flex;
   align-items: center;
@@ -5516,7 +5686,6 @@ export default {
   margin-left: 4px;
 }
 
-/* Token toggles */
 .token-toggle {
   display: inline-flex;
   background: transparent;
@@ -5688,12 +5857,10 @@ export default {
   margin-bottom: 10px;
 }
 
-/* Header action buttons */
 .header-actions button.btn.btn-sm.btn-outline-secondary {
   margin-right: 8px;
 }
 
-/* Reference palette tweaks */
 .btn.auto-btn,
 .btn.btn-primary {
   background-color: #1e40af !important;
@@ -5752,7 +5919,6 @@ export default {
   color: #1e40af;
 }
 
-/* Align inline buttons with inputs */
 .input-group .btn.btn-sm {
   height: 32px;
   display: inline-flex;
@@ -5924,7 +6090,6 @@ export default {
   animation: fadeIn 0.3s ease;
 }
 
-/* Race filter layout tidy */
 .race-filters {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
@@ -5950,7 +6115,6 @@ export default {
   min-width: 220px;
 }
 
-/* Custom Character Change Modal Styles */
 .character-change-modal.show {
   z-index: 1050;
 }
@@ -5996,8 +6160,6 @@ export default {
 .Cure-asap textarea {
   min-height: 60px;
 }
-.race-toggle:hover{background:color-mix(in srgb, var(--accent) 8%, transparent)!important;border-color:var(--accent)!important;transform:translateY(-1px)}
-.race-toggle.selected{background:transparent!important;border-color:var(--accent)!important}
 .skill-toggle:hover{background:color-mix(in srgb, var(--accent) 8%, transparent)!important;border-color:var(--accent)!important;transform:translateY(-1px)}
 .skill-toggle.selected{background:transparent!important;border-color:var(--accent)!important}
 .skill-type-header,.section-heading,.skill-list-header,.hint-boost-header{background:transparent!important;color:var(--text)!important}
@@ -6025,8 +6187,6 @@ export default {
 .skill-item.selected{background:rgba(52,133,227,.08)!important;border-color:#3485E3!important;box-shadow:inset 0 0 0 2px rgba(52,133,227,.2)!important;color:var(--text)!important}
 .skill-item.blacklisted{background:rgba(255,77,109,.08)!important;border-color:#ff4d6d!important}
 .blacklisted-skill-item{background:transparent!important;color:#ffb3c1!important}
-.race-toggle:hover{background:color-mix(in srgb, var(--accent) 8%, transparent)!important;border-color:var(--accent)!important}
-.race-toggle.selected{background:transparent!important;border:2px solid var(--accent)!important;box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent) inset,0 0 14px color-mix(in srgb, var(--accent) 35%, transparent)!important}
 .btn-outline-primary.dropdown-toggle,.show>.btn-outline-primary.dropdown-toggle{border-color:var(--accent)!important;color:var(--accent)!important;background:transparent!important}
 
 .event-weights-section {

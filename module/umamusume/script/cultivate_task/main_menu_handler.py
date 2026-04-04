@@ -383,13 +383,6 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     ti.race_search_started_at = time.time()
                     ti.race_search_id = race_id
                 elif time.time() - ti.race_search_started_at > RACE_SEARCH_TIMEOUT:
-                    try:
-                        if getattr(ctx.task.detail, 'extra_race_list', None) is ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list = list(ctx.cultivate_detail.extra_race_list)
-                        if race_id and race_id in ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list.remove(race_id)
-                    except Exception as e:
-                        log.debug(f"fail: {e}")
                     ctx.cultivate_detail.turn_info.turn_operation = None
                     if hasattr(ti, 'race_search_started_at'):
                         delattr(ti, 'race_search_started_at')

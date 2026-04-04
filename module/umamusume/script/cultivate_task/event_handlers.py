@@ -126,7 +126,7 @@ def script_cultivate_event(ctx: UmamusumeContext):
     except Exception:
         pass
 
-    ctx.cultivate_detail.event_cooldown_until = time.time() + 1.5
+    ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
 
     log.info("Event handler called")
     ctx.cultivate_detail.mant_cleat_used = False

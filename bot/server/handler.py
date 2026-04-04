@@ -312,9 +312,17 @@ async def get_training_icon(name: str):
 
 
 
-@server.get("/race-icon/{race_id}")
-async def get_race_icon(race_id: str):
-    file_path = os.path.join("resource", "umamusume", "race", race_id + ".png")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+@server.get("/race-icon/{race_name:path}")
+async def get_race_icon(race_name: str):
+    from urllib.parse import unquote
+    race_name = unquote(race_name)
+    file_path = os.path.join(BASE_DIR, "races", race_name + ".png")
+    if os.path.isfile(file_path):
+        return FileResponse(file_path, media_type="image/png")
+    file_path = os.path.join(BASE_DIR, "resource", "umamusume", "race", race_name + ".png")
     if os.path.isfile(file_path):
         return FileResponse(file_path, media_type="image/png")
     return JSONResponse(status_code=404, content={"error": "not found"})

@@ -200,13 +200,6 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 ti.race_search_id = current_race_id
             while True:
                 if time.time() - ti.race_search_started_at > 30:
-                    try:
-                        if getattr(ctx.task.detail, 'extra_race_list', None) is ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list = list(ctx.cultivate_detail.extra_race_list)
-                        if current_race_id and current_race_id in ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list.remove(current_race_id)
-                    except Exception as e:
-                        log.debug(f"Race removal error: {e}")
                     ctx.cultivate_detail.turn_info.turn_operation = None
                     if hasattr(ti, 'race_search_started_at'):
                         delattr(ti, 'race_search_started_at')
