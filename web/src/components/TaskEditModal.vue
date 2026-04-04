@@ -558,12 +558,12 @@
                       </template>
                       <template v-else-if="palData.group === 'team_sirius'">
                         <div class="pal-stage-row">
-                          <div class="stage-label">PERCENTILE</div>
+                          <div class="stage-label">Percentile</div>
                           <div class="stage-inputs">
-                            <div class="input-group input-group-sm" style="flex:1;">
-                              <span class="input-group-text">Replace training when &lt;</span>
-                              <input type="range" class="hint-slider" v-model.number="palCardStore[palName].percentile" min="0" max="100" step="1" style="flex:1;margin:0 8px;">
-                              <span class="input-group-text" style="min-width:40px;">{{ palCardStore[palName].percentile }}</span>
+                            <div class="slider-row">
+                              <span class="slider-label">Replace training when &lt;</span>
+                              <input type="range" class="form-range" v-model.number="palCardStore[palName].percentile" min="0" max="100" step="1" style="flex:1;margin:0 12px;">
+                              <span class="slider-value">{{ palCardStore[palName].percentile }}</span>
                             </div>
                           </div>
                         </div>
@@ -6506,6 +6506,44 @@ export default {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+.slider-label {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.slider-value {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 28px;
+  text-align: right;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+.slider-label {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.slider-value {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 28px;
+  text-align: right;
 }
 
 </style>
