@@ -145,19 +145,20 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                         ctx.cultivate_detail.pal_event_stage = 0
 
     if has_extra_race and not is_mant(ctx):
-        log.info("extra race this turn, prioritizing")
-        if ctx.cultivate_detail.turn_info.turn_operation is None:
-            ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-        ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-        matching_races = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in ctx.cultivate_detail.turn_info.cached_available_races]
-        if matching_races:
-            target_race_id = matching_races[0]
-            ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-            log.info(f"Set race: {target_race_id}")
-        else:
-            log.info("extra race not in available races")
-        ctx.cultivate_detail.turn_info.parse_train_info_finish = True
-        return
+        if ctx.cultivate_detail.turn_info.turn_operation is None or ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type != TurnOperationType.TURN_OPERATION_TYPE_RACE:
+            log.info("extra race this turn, prioritizing")
+            if ctx.cultivate_detail.turn_info.turn_operation is None:
+                ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
+            ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+            matching_races = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in ctx.cultivate_detail.turn_info.cached_available_races]
+            if matching_races:
+                target_race_id = matching_races[0]
+                ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
+                log.info(f"Set race: {target_race_id}")
+            else:
+                log.info("extra race not in available races")
+            ctx.cultivate_detail.turn_info.parse_train_info_finish = True
+            return
     if has_extra_race and is_mant(ctx):
         log.info("MANT: extra race available but scanning training first")
 
@@ -367,6 +368,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                         handle_glow_sticks_before_race(ctx)
                     is_summer = is_summer_camp_period(ctx.cultivate_detail.turn_info.date)
                     ctx.ctrl.click_by_point(get_race(ctx, summer=is_summer))
+                    return
                 else:
                     log.info(f"URA {ura_phase} not yet available - continuing with normal flow")
                     ctx.cultivate_detail.turn_info.turn_operation = None
@@ -375,6 +377,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                         return
                     else:
                         ctx.ctrl.click_by_point(TO_TRAINING_SELECT)
+                        return
             else:
                 log.info(f"Proceeding with race operation (race_id: {race_id})")
                 ti = ctx.cultivate_detail.turn_info
@@ -395,3 +398,4 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     handle_glow_sticks_before_race(ctx)
                 is_summer = is_summer_camp_period(ctx.cultivate_detail.turn_info.date)
                 ctx.ctrl.click_by_point(get_race(ctx, summer=is_summer))
+                return
