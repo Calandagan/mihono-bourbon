@@ -222,6 +222,21 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             ctx.ctrl.click_by_point(get_trip(ctx))
         return
 
+    mood = ctx.cultivate_detail.turn_info.cached_mood
+    is_summer = is_summer_camp_period(ctx.cultivate_detail.turn_info.date)
+    if is_summer and mood is not None and mood <= 2:
+        from bot.conn.fetch import read_energy
+        energy = read_energy()
+        if energy == 0:
+            time.sleep(0.15)
+            energy = read_energy()
+        if energy > 0 and energy < 33:
+            if should_use_pal_outing_simple(ctx):
+                ctx.ctrl.click_by_point(get_trip(ctx))
+            else:
+                ctx.ctrl.click_by_point(CULTIVATE_REST)
+            return
+
     if is_mant(ctx):
         from module.umamusume.scenario.mant.main_menu import handle_mant_rival_race
         handle_mant_rival_race(ctx, img)

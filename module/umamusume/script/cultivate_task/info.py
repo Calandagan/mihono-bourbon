@@ -254,7 +254,8 @@ def script_info(ctx: UmamusumeContext):
             time.sleep(0.5)
             ctx.ctrl.click_by_point(SCENARIO_SHORTEN_CONFIRM)
         if title_text == TITLE[8]:
-            if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False):
+            ts_dates = getattr(ctx.cultivate_detail, 'team_sirius_available_dates', [])
+            if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False) and ts_dates:
                 ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
             else:
                 img = ctx.current_screen
