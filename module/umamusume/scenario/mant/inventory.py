@@ -664,10 +664,6 @@ def open_items_panel(ctx):
         btn = find_training_items_button(frame)
         if btn:
             ctx.ctrl.click(int(btn[0]), int(btn[1]), "Training Items button")
-        elif is_on_training_screen(frame):
-            ctx.ctrl.click(37, 347, "Training Items fallback (training)")
-        else:
-            ctx.ctrl.click(552, 771, "Training Items fallback (menu)")
         for _ in range(10):
             time.sleep(0.3)
             if is_items_panel_open(ctx.ctrl.get_screen()):

@@ -94,6 +94,7 @@ class URAScenario(BaseScenario):
                 (REF_SUPPORT_CARD_TYPE_WILL,SupportCardType.SUPPORT_CARD_TYPE_WILL),
                 (REF_SUPPORT_CARD_TYPE_INTELLIGENCE,SupportCardType.SUPPORT_CARD_TYPE_INTELLIGENCE),
                 (REF_SUPPORT_CARD_TYPE_FRIEND,SupportCardType.SUPPORT_CARD_TYPE_FRIEND),
+                (REF_SUPPORT_CARD_TYPE_GROUP,SupportCardType.SUPPORT_CARD_TYPE_GROUP),
             ):
                 r = image_match(support_card_icon, ref)
                 if getattr(r, "find_match", False):

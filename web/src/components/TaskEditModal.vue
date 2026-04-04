@@ -534,26 +534,40 @@
                           <i class="fas fa-check" v-if="palSelected === palName"></i>
                         </button>
                       </div>
-                      <div class="pal-card-name">{{ palName }}</div>
+                      <div class="pal-card-name">{{ palData.group === 'team_sirius' ? 'Team Sirius' : palName }}</div>
                     </div>
                     <div v-if="palSelected === palName" class="pal-stages-list">
-                      <div v-for="(stageData, stageIdx) in palData" :key="stageIdx" class="pal-stage-row">
-                        <div class="stage-label">Stage {{ stageIdx + 1 }}</div>
-                        <div class="stage-inputs">
-                          <div class="input-group input-group-sm">
-                            <span class="input-group-text">Mood</span>
-                            <input type="number" class="form-control" v-model.number="palCardStore[palName][stageIdx][0]" min="0" max="5">
-                          </div>
-                          <div class="input-group input-group-sm">
-                            <span class="input-group-text">Energy</span>
-                            <input type="number" class="form-control" v-model.number="palCardStore[palName][stageIdx][1]" min="0" max="100">
-                          </div>
-                          <div class="input-group input-group-sm">
-                            <span class="input-group-text">Score</span>
-                            <input type="number" step="0.01" class="form-control" v-model.number="palCardStore[palName][stageIdx][2]" min="0" max="1">
+                      <template v-if="Array.isArray(palData)">
+                        <div v-for="(stageData, stageIdx) in palData" :key="stageIdx" class="pal-stage-row">
+                          <div class="stage-label">Stage {{ stageIdx + 1 }}</div>
+                          <div class="stage-inputs">
+                            <div class="input-group input-group-sm">
+                              <span class="input-group-text">Mood</span>
+                              <input type="number" class="form-control" v-model.number="palCardStore[palName][stageIdx][0]" min="0" max="5">
+                            </div>
+                            <div class="input-group input-group-sm">
+                              <span class="input-group-text">Energy</span>
+                              <input type="number" class="form-control" v-model.number="palCardStore[palName][stageIdx][1]" min="0" max="100">
+                            </div>
+                            <div class="input-group input-group-sm">
+                              <span class="input-group-text">Score</span>
+                              <input type="number" step="0.01" class="form-control" v-model.number="palCardStore[palName][stageIdx][2]" min="0" max="1">
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </template>
+                      <template v-else-if="palData.group === 'team_sirius'">
+                        <div class="pal-stage-row">
+                          <div class="stage-label">PERCENTILE</div>
+                          <div class="stage-inputs">
+                            <div class="input-group input-group-sm" style="flex:1;">
+                              <span class="input-group-text">Replace training when &lt;</span>
+                              <input type="range" class="hint-slider" v-model.number="palCardStore[palName].percentile" min="0" max="100" step="1" style="flex:1;margin:0 8px;">
+                              <span class="input-group-text" style="min-width:40px;">{{ palCardStore[palName].percentile }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -2420,8 +2434,8 @@ export default {
       motivationThresholdYear3: 4,
       prioritizeRecreation: false,
       showPalConfigPanel: true,
-      palCardStore: {},
       palSelected: "",
+      palCardStore: {},
       // Pal card scoring configuration
       palFriendshipScore: [0.08, 0.057, 0.018],
       palCardMultiplier: 0.01,
@@ -2891,7 +2905,10 @@ export default {
       this.axios.get('/api/pal-defaults', null, false)
         .then(res => {
           if (res && res.data) {
-            this.palCardStore = res.data;
+            const apiStore = res.data;
+            for (const key in apiStore) {
+              this.palCardStore[key] = apiStore[key];
+            }
             const palNames = Object.keys(this.palCardStore);
             if (palNames.length > 0 && !this.palSelected) {
               this.palSelected = palNames[0];
@@ -2937,11 +2954,23 @@ export default {
     },
     togglePalCardSelection(palName) {
     if (this.palSelected === palName) {
-    if (!this.prioritizeRecreation) {
-      this.palSelected = null;
-    }
+      const entry = this.palCardStore[palName];
+      if (entry && typeof entry === 'object' && entry.group) {
+        entry.enabled = false;
+        if (!this.palCardStore['team_sirius']?.enabled) {
+          this.prioritizeRecreation = false;
+        }
+      }
+      if (!this.prioritizeRecreation) {
+        this.palSelected = null;
+      }
     } else {
-    this.palSelected = palName;
+      const entry = this.palCardStore[palName];
+      if (entry && typeof entry === 'object' && entry.group) {
+        entry.enabled = true;
+        this.prioritizeRecreation = true;
+      }
+      this.palSelected = palName;
     }
     },
     getFilteredNames() {
@@ -3756,10 +3785,12 @@ export default {
       };
 
       const palThresholds = this.palCardStore[this.palSelected];
-      if (this.prioritizeRecreation && this.palSelected && Array.isArray(palThresholds) && palThresholds.length > 0) {
+      const tsData = this.palCardStore['team_sirius'];
+      const tsEnabled = tsData && typeof tsData === 'object' && tsData.group === 'team_sirius' && tsData.enabled;
+      if ((this.prioritizeRecreation && this.palSelected && Array.isArray(palThresholds) && palThresholds.length > 0) || tsEnabled) {
         payload.attachment_data.prioritize_recreation = true;
-        payload.attachment_data.pal_name = this.palSelected;
-        payload.attachment_data.pal_thresholds = palThresholds;
+        payload.attachment_data.pal_name = this.palSelected || "";
+        payload.attachment_data.pal_thresholds = Array.isArray(palThresholds) ? palThresholds : [];
         payload.attachment_data.pal_friendship_score = [...this.palFriendshipScore];
         payload.attachment_data.pal_card_multiplier = this.palCardMultiplier;
       } else {
@@ -3769,6 +3800,7 @@ export default {
         payload.attachment_data.pal_friendship_score = [0.08, 0.057, 0.018];
         payload.attachment_data.pal_card_multiplier = 0.1;
       }
+      payload.attachment_data.pal_card_store = Object.fromEntries(Object.entries(this.palCardStore).filter(([k, v]) => (Array.isArray(v) && v.length > 0) || (typeof v === 'object' && v !== null && v.group)));
       payload.attachment_data.npc_score_value = [
         [...this.npcScoreJunior],
         [...this.npcScoreClassic],
@@ -3840,10 +3872,14 @@ export default {
       if ('pal_card_store' in this.presetsUse && this.presetsUse.pal_card_store) {
         const presetStore = this.presetsUse.pal_card_store
         for (const key in presetStore) {
-          if (Array.isArray(presetStore[key]) && presetStore[key].length > 0) {
-            this.palCardStore[key] = presetStore[key]
+          const val = presetStore[key]
+          if ((Array.isArray(val) && val.length > 0) || (typeof val === 'object' && val !== null && val.group)) {
+            this.palCardStore[key] = val
           }
         }
+      }
+      if (!this.palCardStore['team_sirius']) {
+        this.palCardStore['team_sirius'] = { group: 'team_sirius', enabled: false, percentile: 26 }
       }
 
       if ('pal_friendship_score' in this.presetsUse && Array.isArray(this.presetsUse.pal_friendship_score)) {
@@ -4219,6 +4255,23 @@ export default {
       if (data.pal_thresholds && this.palSelected) {
         this.palCardStore[this.palSelected] = data.pal_thresholds;
       }
+      if (data.pal_card_store && typeof data.pal_card_store === 'object') {
+        for (const key in data.pal_card_store) {
+          const val = data.pal_card_store[key];
+          if ((Array.isArray(val) && val.length > 0) || (typeof val === 'object' && val !== null && val.group)) {
+            this.palCardStore[key] = val;
+          }
+        }
+      }
+      if (!this.palCardStore['team_sirius']) {
+        this.palCardStore['team_sirius'] = { group: 'team_sirius', enabled: false, percentile: 26 };
+      }
+      if (this.palCardStore['team_sirius']?.enabled) {
+        this.prioritizeRecreation = true;
+      }
+      if (!this.palSelected) {
+        this.palSelected = '5 event chain (Defaults optimized for riko)';
+      }
       if (data.pal_friendship_score) this.palFriendshipScore = [...data.pal_friendship_score];
       if (data.pal_card_multiplier !== undefined) this.palCardMultiplier = data.pal_card_multiplier;
       if (data.npc_score_value && Array.isArray(data.npc_score_value) && data.npc_score_value.length >= 5) {
@@ -4492,7 +4545,7 @@ export default {
         prioritize_recreation: this.prioritizeRecreation,
 
         pal_selected: this.palSelected,
-        pal_card_store: Object.fromEntries(Object.entries(this.palCardStore).filter(([k, v]) => Array.isArray(v) && v.length > 0)),
+        pal_card_store: Object.fromEntries(Object.entries(this.palCardStore).filter(([k, v]) => (Array.isArray(v) && v.length > 0) || (typeof v === 'object' && v !== null && v.group))),
 
         pal_friendship_score: [...this.palFriendshipScore],
         pal_card_multiplier: this.palCardMultiplier,
@@ -4658,7 +4711,7 @@ export default {
         motivation_threshold_year3: this.motivationThresholdYear3,
         prioritize_recreation: this.prioritizeRecreation,
         pal_selected: this.palSelected,
-        pal_card_store: Object.fromEntries(Object.entries(this.palCardStore).filter(([k, v]) => Array.isArray(v) && v.length > 0)),
+        pal_card_store: Object.fromEntries(Object.entries(this.palCardStore).filter(([k, v]) => (Array.isArray(v) && v.length > 0) || (typeof v === 'object' && v !== null && v.group))),
         pal_friendship_score: [...this.palFriendshipScore],
         pal_card_multiplier: this.palCardMultiplier,
         npc_score_value: [[...this.npcScoreJunior], [...this.npcScoreClassic], [...this.npcScoreSenior], [...this.npcScoreSeniorAfterSummer], [...this.npcScoreFinale]],

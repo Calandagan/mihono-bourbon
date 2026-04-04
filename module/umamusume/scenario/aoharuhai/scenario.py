@@ -11,6 +11,7 @@ from module.umamusume.asset.template import (
     REF_SUPPORT_CARD_TYPE_SPEED, REF_SUPPORT_CARD_TYPE_STAMINA,
     REF_SUPPORT_CARD_TYPE_POWER, REF_SUPPORT_CARD_TYPE_WILL,
     REF_SUPPORT_CARD_TYPE_INTELLIGENCE, REF_SUPPORT_CARD_TYPE_FRIEND,
+    REF_SUPPORT_CARD_TYPE_GROUP,
 )
 from bot.recog.training_stat_scanner import parse_training_result_template
 from .handlers import get_aoharuhai_ui_handlers
@@ -36,6 +37,7 @@ CARD_TYPE_MAP = (
     (REF_SUPPORT_CARD_TYPE_WILL, SupportCardType.SUPPORT_CARD_TYPE_WILL),
     (REF_SUPPORT_CARD_TYPE_INTELLIGENCE, SupportCardType.SUPPORT_CARD_TYPE_INTELLIGENCE),
     (REF_SUPPORT_CARD_TYPE_FRIEND, SupportCardType.SUPPORT_CARD_TYPE_FRIEND),
+    (REF_SUPPORT_CARD_TYPE_GROUP, SupportCardType.SUPPORT_CARD_TYPE_GROUP),
 )
 
 CARD_TYPE_NAMES = {
@@ -45,6 +47,7 @@ CARD_TYPE_NAMES = {
     SupportCardType.SUPPORT_CARD_TYPE_WILL: "support_card_type_will",
     SupportCardType.SUPPORT_CARD_TYPE_INTELLIGENCE: "support_card_type_intelligence",
     SupportCardType.SUPPORT_CARD_TYPE_FRIEND: "support_card_type_friend",
+    SupportCardType.SUPPORT_CARD_TYPE_GROUP: "support_card_type_group",
 }
 
 ORANGE_LO = np.array([8, 180, 180], dtype=np.uint8)

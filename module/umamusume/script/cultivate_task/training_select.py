@@ -507,6 +507,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     elif favor in (SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_3, SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_4):
                         score += pal_scores[2]
                     continue
+                if ctype == SupportCardType.SUPPORT_CARD_TYPE_GROUP:
+                    if favor == SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_1:
+                        score += w_lv1
+                    elif favor == SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_2:
+                        score += w_lv2
+                    continue
                 if favor in (SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_3, SupportCardFavorLevel.SUPPORT_CARD_FAVOR_LEVEL_4) and ctype == target_type:
                     continue
                 char_name = slot_name_map.get(sc_idx)

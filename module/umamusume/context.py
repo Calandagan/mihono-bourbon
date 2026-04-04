@@ -188,6 +188,10 @@ class CultivateContextDetail:
         self.summer_score_threshold = DEFAULT_SUMMER_SCORE_THRESHOLD
         self.stat_value_multiplier = list(DEFAULT_STAT_VALUE_MULTIPLIER)
         self.wit_special_multiplier = list(DEFAULT_WIT_SPECIAL_MULTIPLIER)
+        self.team_sirius_enabled = False
+        self.team_sirius_percentile = 26
+        self.team_sirius_available_dates = []
+        self.team_sirius_last_date = -1
 
     def reset_skill_learn(self):
         self.learn_skill_done = False
@@ -294,6 +298,17 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
         
         ctx.cultivate_detail = detail
 
+        detail.team_sirius_available_dates = []
+        detail.team_sirius_enabled = False
+        detail.team_sirius_percentile = 26
+        detail.team_sirius_last_date = -1
+        pcs = getattr(task.detail, 'pal_card_store', None)
+        if isinstance(pcs, dict):
+            ts_data = pcs.get('team_sirius', None)
+            if isinstance(ts_data, dict) and ts_data.get('group') == 'team_sirius':
+                detail.team_sirius_enabled = bool(ts_data.get('enabled', False))
+                detail.team_sirius_percentile = int(ts_data.get('percentile', 26))
+        
         try:
             from module.umamusume.persistence import load_megaphone_state
             mega_tier, mega_turns = load_megaphone_state()

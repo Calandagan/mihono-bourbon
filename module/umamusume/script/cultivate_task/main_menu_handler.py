@@ -67,6 +67,11 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         ctx.cultivate_detail.turn_info = TurnInfo()
         ctx.cultivate_detail.turn_info.date = current_date
         ctx.cultivate_detail.mant_shop_scanned_this_turn = False
+        if current_date > 0:
+            ctx.cultivate_detail.team_sirius_available_dates = []
+            ctx.cultivate_detail.pal_event_stage = 0
+            if hasattr(ctx.cultivate_detail, 'pal_last_detection_date'):
+                delattr(ctx.cultivate_detail, 'pal_last_detection_date')
 
         if is_mant(ctx):
             from module.umamusume.scenario.mant.main_menu import handle_mant_turn_start
@@ -81,82 +86,85 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
     from bot.conn.fetch import read_mood
     ctx.cultivate_detail.turn_info.cached_mood = read_mood(img)
 
-    if is_mant(ctx):
-        from module.umamusume.scenario.mant.main_menu import handle_mant_main_menu
-        if handle_mant_main_menu(ctx, img, current_date):
-            return
-
     if not ctx.cultivate_detail.turn_info.parse_main_menu_finish:
         parse_cultivate_main_menu(ctx, img)
         
         from module.umamusume.asset.race_data import get_races_for_period
         available_races = get_races_for_period(ctx.cultivate_detail.turn_info.date)
         ctx.cultivate_detail.turn_info.cached_available_races = available_races
-        has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
-                             if race_id in available_races]) != 0
-        
-        if has_extra_race and not is_mant(ctx):
-            log.info("Extra races available for current date - prioritizing races above all else")
-            if ctx.cultivate_detail.turn_info.turn_operation is None:
-                ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-            ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-            matching_races = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in available_races]
-            if matching_races:
-                target_race_id = matching_races[0]
-                ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-                log.info(f"Set specific race ID: {target_race_id} from user's selected races")
-            else:
-                log.warning("No matching races found in available races for current date")
-            ctx.cultivate_detail.turn_info.parse_train_info_finish = True
-            ctx.cultivate_detail.turn_info.parse_main_menu_finish = True
-            return
-        if has_extra_race and is_mant(ctx):
-            log.info("MANT: extra race available but scanning training first")
-        
-        if ctx.cultivate_detail.prioritize_recreation:
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            from module.umamusume.asset.template import UI_RECREATION_FRIEND_NOTIFICATION
-            result = image_match(img_gray, UI_RECREATION_FRIEND_NOTIFICATION)
-            log.info(f"Recreation friend notification detection: {result.find_match}")
-            
-            need_detection = False
-            if result.find_match:
-                last_detection_date = getattr(ctx.cultivate_detail, 'pal_last_detection_date', -1)
-                if last_detection_date != current_date:
-                    need_detection = True
-                    log.info(f"Notification present - need detection (last: {last_detection_date}, now: {current_date})")
-                else:
-                    log.info(f"Stage {ctx.cultivate_detail.pal_event_stage} already detected for date {current_date}")
-            else:
-                if ctx.cultivate_detail.pal_event_stage > 0:
-                    log.info("Notification absent - resetting stage to 0")
-                    ctx.cultivate_detail.pal_event_stage = 0
-                    if hasattr(ctx.cultivate_detail, 'pal_last_detection_date'):
-                        delattr(ctx.cultivate_detail, 'pal_last_detection_date')
-            
-            if need_detection:
-                log.info("Opening recreation menu to detect stage")
-                ctx.ctrl.click_by_point(get_trip(ctx))
-                time.sleep(0.15)
-                img = ctx.ctrl.get_screen()
-                
-                calculated_stage = detect_pal_stage(ctx, img)
-                ctx.cultivate_detail.pal_event_stage = calculated_stage
-                ctx.cultivate_detail.pal_last_detection_date = current_date
-                
-                pal_thresholds = ctx.cultivate_detail.pal_thresholds
-                if pal_thresholds and calculated_stage <= len(pal_thresholds):
-                    log.info(f"STAGE DETECTED: {calculated_stage}")
-                    thresholds = pal_thresholds[calculated_stage - 1]
-                    mood, energy, score = thresholds
-                    log.info(f"Stage {calculated_stage} thresholds - Mood: {mood}, Energy: {energy}, Score: {score}")
-
-                ctx.ctrl.click(5, 5)
-                time.sleep(0.15)
-                ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
-                return
-                
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = True
+
+    has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
+                         if race_id in ctx.cultivate_detail.turn_info.cached_available_races]) != 0
+
+    if not has_extra_race:
+        ts_enabled = getattr(ctx.cultivate_detail, 'team_sirius_enabled', False)
+        if ts_enabled:
+            if not ctx.cultivate_detail.team_sirius_available_dates:
+                img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                from module.umamusume.asset.template import UI_RECREATION_FRIEND_NOTIFICATION
+                ts_result = image_match(img_gray, UI_RECREATION_FRIEND_NOTIFICATION)
+                if ts_result.find_match:
+                    from module.umamusume.script.cultivate_task.helpers import detect_team_sirius_dates
+                    dates = detect_team_sirius_dates(ctx)
+                    ctx.cultivate_detail.team_sirius_available_dates = dates
+                    log.info(f"Team Sirius: Available dates: {dates}")
+                time.sleep(0.5)
+                img = ctx.ctrl.get_screen()
+                ctx.current_screen = img
+
+        if not ts_enabled and ctx.cultivate_detail.prioritize_recreation:
+            if ctx.cultivate_detail.pal_event_stage <= 0:
+                img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                from module.umamusume.asset.template import UI_RECREATION_FRIEND_NOTIFICATION
+                result = image_match(img_gray, UI_RECREATION_FRIEND_NOTIFICATION)
+                log.info(f"Recreation notification: {result.find_match}")
+                
+                if result.find_match:
+                    log.info("opening recreation menu to detect stage")
+                    ctx.ctrl.click_by_point(get_trip(ctx))
+                    time.sleep(0.15)
+                    img = ctx.ctrl.get_screen()
+                    
+                    calculated_stage = detect_pal_stage(ctx, img)
+                    ctx.cultivate_detail.pal_event_stage = calculated_stage
+                    
+                    pal_thresholds = ctx.cultivate_detail.pal_thresholds
+                    if pal_thresholds and calculated_stage <= len(pal_thresholds):
+                        thresholds = pal_thresholds[calculated_stage - 1]
+                        mood, energy, score = thresholds
+                        log.info(f"Stage {calculated_stage}: mood={mood} energy={energy} score={score}")
+
+                    ctx.ctrl.click(5, 5)
+                    time.sleep(0.15)
+                    ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
+                    return
+                else:
+                    if ctx.cultivate_detail.pal_event_stage > 0:
+                        log.info("pal notification gone, resetting stage")
+                        ctx.cultivate_detail.pal_event_stage = 0
+
+    if has_extra_race and not is_mant(ctx):
+        log.info("extra race this turn, prioritizing")
+        if ctx.cultivate_detail.turn_info.turn_operation is None:
+            ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
+        ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+        matching_races = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in ctx.cultivate_detail.turn_info.cached_available_races]
+        if matching_races:
+            target_race_id = matching_races[0]
+            ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
+            log.info(f"Set race: {target_race_id}")
+        else:
+            log.info("extra race not in available races")
+        ctx.cultivate_detail.turn_info.parse_train_info_finish = True
+        return
+    if has_extra_race and is_mant(ctx):
+        log.info("MANT: extra race available but scanning training first")
+
+    if is_mant(ctx):
+        from module.umamusume.scenario.mant.main_menu import handle_mant_main_menu
+        if handle_mant_main_menu(ctx, img, current_date):
+            return
 
     available_races = getattr(ctx.cultivate_detail.turn_info, 'cached_available_races', None)
     if available_races is None:
