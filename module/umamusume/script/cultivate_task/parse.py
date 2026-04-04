@@ -883,6 +883,9 @@ def find_skill(ctx: UmamusumeContext, img, skill: list[str], learn_any_skill: bo
                                 log.info(f"Buying skill '{detected_text}' - Points: {pt}, Cost: {skill_pt_cost}")
                                 ctx.ctrl.click(match_result.center_point[0] + 128, match_result.center_point[1],
                                                "Bonus Skills" + detected_text)
+                                target_name = target_match if target_match else detected_text
+                                ctx.cultivate_detail.learned_skill_names.add(target_name)
+                                ctx.cultivate_detail.learned_skill_names.add(detected_text)
                                 if target_match is not None and target_match in skill:
                                     skill.remove(target_match)
                                     log.info(f"Removed '{target_match}' from skill list. Remaining: {skill}")
@@ -904,7 +907,7 @@ def find_skill(ctx: UmamusumeContext, img, skill: list[str], learn_any_skill: bo
     return find
 
 
-def get_skill_list(img, skill: list[str], skill_blacklist: list[str]) -> list:
+def get_skill_list(img, skill: list[str], skill_blacklist: list[str], learned_skills: set | None = None) -> list:
     origin_img = img
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     res = []
@@ -996,6 +999,10 @@ def get_skill_list(img, skill: list[str], skill_blacklist: list[str]) -> list:
                     priority = len(skill)
 
                 available = not image_match(skill_info_img, REF_SKILL_LEARNED).find_match
+
+                if available and learned_skills is not None:
+                    if name_for_match in learned_skills or detected_text in learned_skills:
+                        available = False
 
                 if priority != -1: # Exclude skills that appear in blacklist
                     res.append({"skill_name": detected_text,

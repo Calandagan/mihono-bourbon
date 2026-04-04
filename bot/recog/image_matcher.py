@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from bot.base.resource import Template
 import bot.base.log as logger
@@ -20,6 +21,7 @@ SMALL_TEMPLATE_MIN_SIZE = 16
 QUARTER_TEMPLATE_MIN_SIZE = 32
 EXECUTOR = None
 
+cache_lock = threading.Lock()
 half_target_cache_id = None
 half_target_cache_img = None
 quarter_target_cache_id = None
@@ -157,6 +159,7 @@ def image_match(target, template: Template) -> ImageMatchResult:
 
 
 def template_match(target, template, accuracy: float = 0.86) -> ImageMatchResult:
+    global half_target_cache_id, half_target_cache_img, quarter_target_cache_id, quarter_target_cache_img
     if target is None or target.size == 0:
         return ImageMatchResult()
     try:
@@ -172,7 +175,6 @@ def template_match(target, template, accuracy: float = 0.86) -> ImageMatchResult
                 return ImageMatchResult()
             
             if target.size > 100000:
-                global half_target_cache_id, half_target_cache_img, quarter_target_cache_id, quarter_target_cache_img
                 tpl_path = getattr(template, 'template_path', None)
                 tgt_id = id(target)
                 quarter_loc = None
@@ -181,12 +183,14 @@ def template_match(target, template, accuracy: float = 0.86) -> ImageMatchResult
                     if arr_quarter is None:
                         arr_quarter = cv2.resize(arr, None, fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
                     if arr_quarter.shape[0] >= 4 and arr_quarter.shape[1] >= 4:
-                        if quarter_target_cache_id == tgt_id:
-                            tgt_quarter = quarter_target_cache_img
-                        else:
+                        with cache_lock:
+                            use_cached_q = (quarter_target_cache_id == tgt_id)
+                            tgt_quarter = quarter_target_cache_img if use_cached_q else None
+                        if tgt_quarter is None:
                             tgt_quarter = cv2.resize(target, None, fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
-                            quarter_target_cache_id = tgt_id
-                            quarter_target_cache_img = tgt_quarter
+                            with cache_lock:
+                                quarter_target_cache_id = tgt_id
+                                quarter_target_cache_img = tgt_quarter
                         if tgt_quarter.shape[0] >= arr_quarter.shape[0] and tgt_quarter.shape[1] >= arr_quarter.shape[1]:
                             q_result = cv2.matchTemplate(tgt_quarter, arr_quarter, cv2.TM_CCOEFF_NORMED)
                             _, q_val, _, q_loc = cv2.minMaxLoc(q_result)
@@ -202,12 +206,14 @@ def template_match(target, template, accuracy: float = 0.86) -> ImageMatchResult
                         arr_half = cv2.resize(arr, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
                     hth, htw = arr_half.shape[:2]
                     if hth >= 4 and htw >= 4:
-                        if half_target_cache_id == tgt_id:
-                            tgt_half = half_target_cache_img
-                        else:
+                        with cache_lock:
+                            use_cached_h = (half_target_cache_id == tgt_id)
+                            tgt_half = half_target_cache_img if use_cached_h else None
+                        if tgt_half is None:
                             tgt_half = cv2.resize(target, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-                            half_target_cache_id = tgt_id
-                            half_target_cache_img = tgt_half
+                            with cache_lock:
+                                half_target_cache_id = tgt_id
+                                half_target_cache_img = tgt_half
                         if tgt_half.shape[0] >= hth and tgt_half.shape[1] >= htw:
                             if quarter_loc is not None:
                                 hmargin = max(hth, htw)

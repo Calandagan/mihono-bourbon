@@ -99,7 +99,7 @@ def detect_team_sirius_dates(ctx: UmamusumeContext):
     for _ in range(10):
         if is_menu(ctx):
             break
-        x = random.randint(100, 600)
+        x = random.randint(500, 600)
         y = random.randint(15, 22)
         ctx.ctrl.click(x, y)
         time.sleep(0.3)
@@ -123,7 +123,7 @@ def get_team_sirius_recreation_date(ctx: UmamusumeContext) -> int:
     available = getattr(ctx.cultivate_detail, 'team_sirius_available_dates', [])
     if not available:
         return 0
-    for date in [2, 6, 7]:
+    for date in [7, 5, 1, 4, 3]:
         if date in available:
             return date
     return 0
@@ -141,49 +141,80 @@ def execute_team_sirius_recreation(ctx: UmamusumeContext, trip_click_point=None)
     else:
         from module.umamusume.asset.point import CULTIVATE_TRIP_MANT
         ctx.ctrl.click_by_point(CULTIVATE_TRIP_MANT)
-    time.sleep(0.5)
+    time.sleep(0.3)
 
-    if not ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=3.2):
+    if not ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=2.0):
         ctx.ctrl.click_by_point(ESCAPE)
-        if not ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=2.0):
+        if not ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=1.5):
             return False
 
     ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
-    time.sleep(0.5)
+    time.sleep(0.3)
 
     ctx.ctrl.click(*TS_CLICK)
-    time.sleep(0.5)
+    time.sleep(0.3)
 
-    if not ts_wait_cancel(ctx, *TS_MENU_CANCEL, timeout=3.2):
+    if not ts_wait_cancel(ctx, *TS_MENU_CANCEL, timeout=2.0):
         ctx.ctrl.click_by_point(ESCAPE)
-        ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=2.0)
+        ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=1.5)
         ctx.ctrl.click_by_point(ESCAPE)
-        ts_wait_cancel_gone(ctx, *TS_RECREATION_CANCEL, timeout=2.0)
+        ts_wait_cancel_gone(ctx, *TS_RECREATION_CANCEL, timeout=1.5)
         return False
 
     click_y = TS_DATE_CLICK_Y[date_slot - 1]
     ctx.ctrl.click(TS_DATE_CLICK_X, click_y)
-    time.sleep(0.5)
+    time.sleep(0.3)
 
     import random
     for _ in range(10):
         if is_menu(ctx):
             break
-        x = random.randint(100, 600)
+        x = random.randint(500, 600)
         y = random.randint(15, 22)
         ctx.ctrl.click(x, y)
-        time.sleep(0.3)
+        time.sleep(0.2)
 
     return True
 
 
 def execute_regular_recreation(ctx: UmamusumeContext, trip_click_point=None) -> bool:
+    from module.umamusume.asset.point import CULTIVATE_OPERATION_COMMON_CONFIRM, ESCAPE
     if trip_click_point:
         ctx.ctrl.click_by_point(trip_click_point)
     else:
         from module.umamusume.asset.point import CULTIVATE_TRIP_MANT
         ctx.ctrl.click_by_point(CULTIVATE_TRIP_MANT)
+    time.sleep(0.3)
+    if not ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=2.0):
+        ctx.ctrl.click_by_point(ESCAPE)
+        if not ts_wait_cancel(ctx, *TS_RECREATION_CANCEL, timeout=1.5):
+            return False
+    ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
     time.sleep(0.5)
+    ts_dates = getattr(ctx.cultivate_detail, 'team_sirius_available_dates', [])
+    if 3 in ts_dates:
+        ctx.ctrl.click(*TS_CLICK)
+        time.sleep(0.3)
+        if ts_wait_cancel(ctx, *TS_MENU_CANCEL, timeout=2.0):
+            ctx.ctrl.click(TS_DATE_CLICK_X, TS_DATE_CLICK_Y[2])
+            time.sleep(0.3)
+            ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
+            time.sleep(0.5)
+        else:
+            ctx.ctrl.click_by_point(ESCAPE)
+    else:
+        ctx.ctrl.click(329, 604)
+        time.sleep(0.5)
+        ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
+        time.sleep(0.5)
+    import random
+    for _ in range(10):
+        if is_menu(ctx):
+            break
+        x = random.randint(500, 600)
+        y = random.randint(15, 22)
+        ctx.ctrl.click(x, y)
+        time.sleep(0.2)
     return True
 
 

@@ -181,7 +181,10 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 time.sleep(0.58)
 
             swiped = False
-            while True:
+            scroll_attempts = 0
+            max_scroll_attempts = 50
+            while scroll_attempts < max_scroll_attempts:
+                scroll_attempts += 1
                 img = cv2.cvtColor(ctx.ctrl.get_screen(), cv2.COLOR_BGR2RGB)
                 if not compare_color_equal(img[705, 701], [211, 209, 219]):
                     if swiped is True:
@@ -197,13 +200,6 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 ti.race_search_id = current_race_id
             while True:
                 if time.time() - ti.race_search_started_at > 30:
-                    try:
-                        if getattr(ctx.task.detail, 'extra_race_list', None) is ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list = list(ctx.cultivate_detail.extra_race_list)
-                        if current_race_id and current_race_id in ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list.remove(current_race_id)
-                    except Exception as e:
-                        log.debug(f"Race removal error: {e}")
                     ctx.cultivate_detail.turn_info.turn_operation = None
                     if hasattr(ti, 'race_search_started_at'):
                         delattr(ti, 'race_search_started_at')

@@ -128,6 +128,7 @@ class CultivateContextDetail:
     parse_factor_done: bool
     extra_weight: list
     spirit_explosion: list
+    learned_skill_names: set
     manual_purchase_completed: bool
     final_skill_sweep_active: bool
     user_provided_priority: bool
@@ -167,6 +168,7 @@ class CultivateContextDetail:
         self.parse_factor_done = False
         self.extra_weight = []
         self.spirit_explosion = [0.16, 0.16, 0.16, 0.06, 0.11]
+        self.learned_skill_names = set()
         self.manual_purchase_completed = False
         self.final_skill_sweep_active = False
         self.mant_shop_items = []

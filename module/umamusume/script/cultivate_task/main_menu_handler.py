@@ -109,9 +109,9 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     dates = detect_team_sirius_dates(ctx)
                     ctx.cultivate_detail.team_sirius_available_dates = dates
                     log.info(f"Team Sirius: Available dates: {dates}")
-                time.sleep(0.5)
-                img = ctx.ctrl.get_screen()
-                ctx.current_screen = img
+                    time.sleep(0.5)
+                    img = ctx.ctrl.get_screen()
+                    ctx.current_screen = img
 
         if not ts_enabled and ctx.cultivate_detail.prioritize_recreation:
             if ctx.cultivate_detail.pal_event_stage <= 0:
@@ -221,6 +221,21 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         else:
             ctx.ctrl.click_by_point(get_trip(ctx))
         return
+
+    mood = ctx.cultivate_detail.turn_info.cached_mood
+    is_summer = is_summer_camp_period(ctx.cultivate_detail.turn_info.date)
+    if is_summer and mood is not None and mood <= 2:
+        from bot.conn.fetch import read_energy
+        energy = read_energy()
+        if energy == 0:
+            time.sleep(0.15)
+            energy = read_energy()
+        if energy > 0 and energy < 33:
+            if should_use_pal_outing_simple(ctx):
+                ctx.ctrl.click_by_point(get_trip(ctx))
+            else:
+                ctx.ctrl.click_by_point(CULTIVATE_REST)
+            return
 
     if is_mant(ctx):
         from module.umamusume.scenario.mant.main_menu import handle_mant_rival_race
@@ -368,13 +383,6 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     ti.race_search_started_at = time.time()
                     ti.race_search_id = race_id
                 elif time.time() - ti.race_search_started_at > RACE_SEARCH_TIMEOUT:
-                    try:
-                        if getattr(ctx.task.detail, 'extra_race_list', None) is ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list = list(ctx.cultivate_detail.extra_race_list)
-                        if race_id and race_id in ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list.remove(race_id)
-                    except Exception as e:
-                        log.debug(f"fail: {e}")
                     ctx.cultivate_detail.turn_info.turn_operation = None
                     if hasattr(ti, 'race_search_started_at'):
                         delattr(ti, 'race_search_started_at')

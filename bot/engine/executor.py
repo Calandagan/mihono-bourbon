@@ -31,12 +31,11 @@ def get_controller() -> U2AndroidController:
 
 
 class Executor:
-    active = True
-
     app_alive_check_counter = 5
     app_alive_check_interval = 5
 
     def __init__(self):
+        self.active = True
         psutil.Process().cpu_affinity(list(range(CONFIG.bot.auto.cpu_alloc)))
         self.detect_ui_results_write_lock = threading.Lock()
         self.detect_ui_results = []
@@ -71,7 +70,8 @@ class Executor:
         self.active = True
         self.ensure_pool()
         try:
-            self.detect_ui_results.clear()
+            with self.detect_ui_results_write_lock:
+                self.detect_ui_results.clear()
         except Exception:
             self.detect_ui_results = []
         self.run_work_flow(task)
@@ -88,12 +88,14 @@ class Executor:
         if len(target.shape) == 3:
             target = cv2.cvtColor(target, cv2.COLOR_BGR2GRAY)
         if prev_ui is not None and prev_ui is not NOT_FOUND_UI:
-            self.detect_ui_results = []
-            self.detect_ui_sub(prev_ui, target)
-            if len(self.detect_ui_results) > 0:
+            with self.detect_ui_results_write_lock:
                 self.detect_ui_results = []
-                return prev_ui
-            self.detect_ui_results = []
+            self.detect_ui_sub(prev_ui, target)
+            with self.detect_ui_results_write_lock:
+                if len(self.detect_ui_results) > 0:
+                    self.detect_ui_results = []
+                    return prev_ui
+                self.detect_ui_results = []
         if len(ui_list) < 3:
             for ui in ui_list:
                 result = self.detect_ui_sub(ui, target)
@@ -117,14 +119,16 @@ class Executor:
                 break
         if found is not None:
             self.cancel_futures(futures)
-            self.detect_ui_results = []
+            with self.detect_ui_results_write_lock:
+                self.detect_ui_results = []
             return found
         for f in futures:
             try:
                 f.result()
             except Exception:
                 pass
-        self.detect_ui_results = []
+        with self.detect_ui_results_write_lock:
+            self.detect_ui_results = []
         return NOT_FOUND_UI
 
     def detect_ui_sub(self, ui: UI, target) -> None:
@@ -357,9 +361,9 @@ class Executor:
                     break
                 try:
                     sleep_ms = int(os.getenv("UAT_EXECUTOR_LOOP_SLEEP_MS", "80"))
-                    time.sleep(max(0.0, sleep_ms / 1000.0))
+                    time.sleep(max(0.05, sleep_ms / 1000.0))
                 except Exception:
-                    time.sleep(0.38)
+                    time.sleep(0.08)
         except Exception:
             task.end_task(TaskStatus.TASK_STATUS_FAILED, EndTaskReason.SYSTEM_ERROR)
             tb = traceback.format_exc()
