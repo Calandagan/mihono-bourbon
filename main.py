@@ -42,7 +42,7 @@ log = logger.get_logger(__name__)
 _gpu_available = gpu_utils.detect_gpu_capabilities()
 _opencv_gpu = gpu_utils.configure_opencv_gpu()
 
-start_time = 4
+start_time = 0
 end_time = 24
 KEEPALIVE_ACTIVE = True
 DAILY_WAIT_OFFSET = random.randint(16, 188)
