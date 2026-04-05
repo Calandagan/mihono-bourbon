@@ -1022,7 +1022,6 @@ def handle_energy_recovery(ctx):
             energy += raw_energy
             qty -= 1
             used_any = True
-            ctx.cultivate_detail.turn_info.cached_energy = energy
         if energy > limit:
             break
 
@@ -1031,7 +1030,6 @@ def handle_energy_recovery(ctx):
         ok = use_item_and_update_inventory(ctx, smallest[0])
         if ok:
             used_any = True
-            ctx.cultivate_detail.turn_info.cached_energy = energy + smallest[1]
 
     if used_any:
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = False

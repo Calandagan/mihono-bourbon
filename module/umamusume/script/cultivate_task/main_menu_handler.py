@@ -263,18 +263,12 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             else:
                 from module.umamusume.scenario.mant.inventory import handle_energy_recovery
                 if handle_energy_recovery(ctx):
-                    energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', energy)
+                    energy = read_energy()
         if energy <= limit:
             if getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False):
                 base_energy, _, _ = scan_energy(ctx.ctrl)
                 ctx.cultivate_detail.turn_info.base_energy = base_energy
                 ctx.ctrl.click_by_point(TO_TRAINING_SELECT)
-                return
-            if should_use_team_sirius_recreation(ctx):
-                execute_team_sirius_recreation(ctx, trip_click_point=get_trip(ctx))
-                return
-            if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False):
-                execute_regular_recreation(ctx, trip_click_point=get_trip(ctx))
                 return
             if should_use_pal_outing_simple(ctx):
                 ctx.ctrl.click_by_point(get_trip(ctx))
