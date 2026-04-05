@@ -246,32 +246,24 @@ def script_info(ctx: UmamusumeContext):
             time.sleep(0.5)
             ctx.ctrl.click_by_point(SCENARIO_SHORTEN_CONFIRM)
         if title_text == TITLE[8]:
-            if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False):
-                ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
+            img = ctx.current_screen
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            from module.umamusume.asset.template import UI_FRIEND_RECREATION, UI_FRIEND_RECREATION_COMPLETE
+
+            result_complete = image_match(img_gray, UI_FRIEND_RECREATION_COMPLETE)
+
+            if result_complete.find_match:
+                ctx.ctrl.click_by_point(CULTIVATE_TRIP_WITH_FRIEND_COMPLETE)
             else:
-                img = ctx.current_screen
-                img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                from module.umamusume.asset.template import UI_FRIEND_RECREATION, UI_FRIEND_RECREATION_COMPLETE
-                
-                result_complete = image_match(img_gray, UI_FRIEND_RECREATION_COMPLETE)
-                log.info(f"Recreation complete match: {result_complete.find_match}")
-                
-                if result_complete.find_match:
-                    log.info("Recreation complete")
-                    ctx.ctrl.click_by_point(CULTIVATE_TRIP_WITH_FRIEND_COMPLETE)
+                result = image_match(img_gray, UI_FRIEND_RECREATION)
+
+                if result.find_match:
+                    ctx.ctrl.click_by_point(CULTIVATE_TRIP_WITH_FRIEND)
                 else:
-                    result = image_match(img_gray, UI_FRIEND_RECREATION)
-                    log.info(f"Friend recreation match: {result.find_match}")
-                    
-                    if result.find_match:
-                        log.info("Friend recreation")
-                        ctx.ctrl.click_by_point(CULTIVATE_TRIP_WITH_FRIEND)
-                    else:
-                        log.info("Regular recreation")
-                        ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
-        if title_text == TITLE[9]: #Confirmation
+                    ctx.ctrl.click_by_point(ESCAPE)
+        if title_text == TITLE[9]:
             ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_CONFIRM_AGAIN)
-        if title_text == TITLE[10]: #Skills Learned
+        if title_text == TITLE[10]:
             ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_DONE_CONFIRM)
             if getattr(ctx.cultivate_detail, 'final_skill_sweep_active', False) and getattr(ctx.cultivate_detail, 'learn_skill_selected', False):
                 try:
@@ -289,13 +281,13 @@ def script_info(ctx: UmamusumeContext):
                     pass
                 time.sleep(1)
                 ctx.ctrl.click_by_point(CULTIVATE_FINISH_LEARN_SKILL)
-        if title_text == TITLE[11]: #Complete Career
+        if title_text == TITLE[11]:
             ctx.ctrl.click_by_point(CULTIVATE_FINISH_CONFIRM_AGAIN)
-        if title_text == TITLE[12]: #Umamusume Details
+        if title_text == TITLE[12]:
             ctx.ctrl.click_by_point(CULTIVATE_RESULT_CONFIRM)
-        if title_text == TITLE[13]: #Fan Count Below Target Race Requirement
+        if title_text == TITLE[13]:
             ctx.ctrl.click_by_point(CULTIVATE_FAN_NOT_ENOUGH_RETURN)
-        if title_text == TITLE[43]:  
+        if title_text == TITLE[43]:
             ctx.ctrl.click_by_point(CULTIVATE_FAN_NOT_ENOUGH_RETURN)
             time.sleep(2)
 
@@ -319,18 +311,16 @@ def script_info(ctx: UmamusumeContext):
             if matching_races:
                 target_race_id = matching_races[0]
             else:
-                target_race_id = 0  
+                target_race_id = 0
 
             from module.umamusume.types import TurnOperation, TurnOperationType
             ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
             ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
             ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-            log.info("racing for unmet requirements")
             ctx.ctrl.click_by_point(get_race_point(ctx))
 
-
             if not matching_races:
-                time.sleep(2) 
+                time.sleep(2)
 
                 img2 = ctx.ctrl.get_screen(to_gray=True)
                 from module.umamusume.asset import REF_SUITABLE_RACE
@@ -342,30 +332,24 @@ def script_info(ctx: UmamusumeContext):
                     ctx.ctrl.click(center_x, center_y, "Click suitable race")
                     log.info(f"Clicked suitable race at position ({center_x}, {center_y})")
                 else:
-                    log.info("Suitable race template not found - returning to main menu for normal logic")
                     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
                     ctx.cultivate_detail.turn_info.turn_operation = None
 
         if title_text == TITLE[14]:
             ctx.ctrl.click_by_point(CULTIVATE_TRIP_WITH_FRIEND)
-        if title_text == TITLE[15]:  # Skip Confirmation
-            # Check if this might be a skill confirmation by looking for the template
+        if title_text == TITLE[15]:
             img = ctx.current_screen
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             from module.umamusume.asset.ui import CONFIRMATION_LEARNSKILL_BUTTON
             result = image_match(img_gray, CONFIRMATION_LEARNSKILL_BUTTON)
-            log.info(f"Skip Confirmation - Template matching result: {result.find_match}")
             if result.find_match:
-                # Use template matching coordinates for skill confirmation
                 center_x = (result.matched_area[0][0] + result.matched_area[1][0]) // 2
                 center_y = (result.matched_area[0][1] + result.matched_area[1][1]) // 2
                 ctx.ctrl.click(center_x, center_y, "Skill confirmation using template matching (Skip Confirmation)")
                 log.info(f"Found skill confirmation button at ({center_x}, {center_y}) via Skip Confirmation")
             else:
-                # Use CULTIVATE_LEARN_SKILL_CONFIRM_AGAIN coordinates for skill confirmations
                 ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_CONFIRM_AGAIN)
-                log.info("Using skill confirmation coordinates for Skip Confirmation - template not found")
-        if title_text == TITLE[16]: #Rest
+        if title_text == TITLE[16]:
             ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
         if title_text == TITLE[17]: #Race Recommendations
             ctx.ctrl.click_by_point(RACE_RECOMMEND_CONFIRM)

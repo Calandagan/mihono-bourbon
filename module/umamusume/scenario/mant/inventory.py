@@ -30,6 +30,23 @@ ENERGY_ITEM_SKIP_FAST_PATH_THRESHOLD = 3
 
 CHARM_ITEM = 'Good-Luck Charm'
 
+INSTANT_USE_ITEMS = [
+    'Grilled Carrots',
+    'Yummy Cat Food',
+    'Energy Drink MAX EX',
+    'Pretty Mirror',
+    "Scholar's Hat",
+    "Reporter's Binoculars",
+    'Master Practice Guide',
+]
+
+ONE_TIME_BUFF_ITEMS = {
+    'Pretty Mirror',
+    "Scholar's Hat",
+    "Reporter's Binoculars",
+    'Master Practice Guide',
+}
+
 MAX_ENERGY_OCR_X1 = 456
 MAX_ENERGY_OCR_Y1 = 219
 MAX_ENERGY_OCR_X2 = 516
