@@ -760,12 +760,31 @@ def open_items_panel(ctx):
 
 
 def close_items_panel(ctx):
-    for _ in range(10):
+    for attempt in range(10):
         frame = ctx.ctrl.get_screen()
         if not is_items_panel_open(frame) and not has_use_training_items_button(frame):
+            # Panel is closed, add small delay to ensure UI settles
+            time.sleep(0.5)
             return
+        
+        # Click close button once
         ctx.ctrl.execute_adb_shell("shell input tap 200 1205", True)
-        time.sleep(0.3)
+        
+        # Wait longer for panel close animation to complete
+        time.sleep(1.0)
+        
+        # Check if panel actually closed before attempting more clicks
+        frame = ctx.ctrl.get_screen()
+        if not is_items_panel_open(frame) and not has_use_training_items_button(frame):
+            # Successfully closed, add small delay to ensure UI settles
+            time.sleep(0.5)
+            return
+        
+        # Panel still open, log and retry
+        if attempt < 9:
+            log.debug(f"Inventory panel still open after close attempt {attempt + 1}, retrying...")
+    
+    log.warning("Failed to close inventory panel after 10 attempts")
 
 
 def use_training_item(ctx, item_name, quantity=1):
