@@ -78,13 +78,13 @@ def log_detected_shop_items(items):
     preserved_rewards = {name: entry for name, entry in detected_shop_items_log.items()
                          if entry.get('race_reward')}
     detected_shop_items_log.clear()
-    for name, turns, purchased in items:
-        if purchased:
+    for name, turns, buyable in items:
+        if not buyable:
             continue
         detected_shop_items_log[name] = {
             "name": name,
             "turns": turns,
-            "purchased": purchased,
+            "purchased": False,
         }
     for name, entry in preserved_rewards.items():
         if name not in detected_shop_items_log:
