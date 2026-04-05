@@ -131,8 +131,6 @@ class TurnInfo:
         self.aoharu_race_index = 0
         self.cached_mood = None
         self.cached_available_races = []
-        self.cached_mood = None
-        self.cached_available_races = []
 
     def log_turn_info(self, scenario_type: ScenarioType):
         log.info("Current turn time " + str(self.date))
