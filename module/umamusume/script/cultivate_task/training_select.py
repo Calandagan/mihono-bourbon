@@ -834,21 +834,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 has_extra_race_next = len([r for r in ctx.cultivate_detail.extra_race_list 
                                            if r in available_races]) > 0
                 
-                if (max_score < wit_race_threshold and 
-                    current_energy > 90 and 
-                    not has_extra_race_next):
-                    
-                    log.info(f"Race search: Max score {max_score:.3f}<{wit_race_threshold}, Energy {current_energy}>90, No races next turn")
-                    
-                    ctx.cultivate_detail.turn_info.race_search_attempted = True
-                    
-                    op = TurnOperation()
-                    op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-                    op.race_id = 0
-                    ctx.cultivate_detail.turn_info.turn_operation = op
-                    
-                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-                    return
+                ctx.cultivate_detail.turn_info.race_search_attempted = True
             
             if date in (35, 36, 59, 60):
                 best_idx_tmp = int(np.argmax(computed_scores))
@@ -889,12 +875,21 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         ctx.cultivate_detail.turn_info.turn_operation = op
         new_is_race = False
     else:
-        if op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING and (op_ai.training_type == TrainingType.TRAINING_TYPE_UNKNOWN):
+        if op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE and getattr(op_ai, 'race_id', 0) == 0:
+            op = TurnOperation()
+            op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRAINING
             if local_training_type is None:
                 local_training_type = TrainingType.TRAINING_TYPE_SPEED
-            op_ai.training_type = local_training_type
-        ctx.cultivate_detail.turn_info.turn_operation = op_ai
-        new_is_race = (op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE)
+            op.training_type = local_training_type
+            ctx.cultivate_detail.turn_info.turn_operation = op
+            new_is_race = False
+        else:
+            if op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING and (op_ai.training_type == TrainingType.TRAINING_TYPE_UNKNOWN):
+                if local_training_type is None:
+                    local_training_type = TrainingType.TRAINING_TYPE_SPEED
+                op_ai.training_type = local_training_type
+            ctx.cultivate_detail.turn_info.turn_operation = op_ai
+            new_is_race = (op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE)
 
     if not new_is_race and getattr(ctx.cultivate_detail, '_prev_op_was_race', False):
         ctx.cultivate_detail.mant_cleat_used = False
