@@ -108,9 +108,9 @@ def build_task(task_execute_mode: TaskExecuteMode, task_type: int,
     td.motivation_threshold_year3 = attachment_data.get('motivation_threshold_year3', 4)
     td.pal_name = attachment_data.get('pal_name', "")
     td.pal_thresholds = attachment_data.get('pal_thresholds', [])
-    if not isinstance(td.pal_thresholds, list) or len(td.pal_thresholds) == 0:
+    if not isinstance(td.pal_thresholds, list) or not td.pal_thresholds:
         td.pal_thresholds = []
-    td.prioritize_recreation = attachment_data.get('prioritize_recreation', False) and len(td.pal_thresholds) > 0
+    td.prioritize_recreation = attachment_data.get('prioritize_recreation', False) and bool(td.pal_thresholds)
 
     td.pal_friendship_score = attachment_data.get('pal_friendship_score', [0.08, 0.057, 0.018])
     td.pal_card_multiplier = attachment_data.get('pal_card_multiplier', 0.1)

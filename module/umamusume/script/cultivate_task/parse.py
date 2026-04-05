@@ -51,10 +51,10 @@ class LRUCache:
     def __contains__(self, key):
         return key in self.cache
 
-_parse_event_cache = LRUCache(maxsize=PARSE_EVENT_CACHE_SIZE)
-_ocr_cache = LRUCache(maxsize=OCR_CACHE_SIZE)
-_gray_image_cache = LRUCache(maxsize=GRAY_IMAGE_CACHE_SIZE)
-_template_match_cache = LRUCache(maxsize=TEMPLATE_MATCH_CACHE_SIZE)
+parse_event_cache = LRUCache(maxsize=PARSE_EVENT_CACHE_SIZE)
+ocr_cache = LRUCache(maxsize=OCR_CACHE_SIZE)
+gray_image_cache = LRUCache(maxsize=GRAY_IMAGE_CACHE_SIZE)
+template_match_cache = LRUCache(maxsize=TEMPLATE_MATCH_CACHE_SIZE)
 
 def _compute_image_hash(img):
     try:
@@ -69,11 +69,11 @@ def _compute_image_hash(img):
         return None
 
 def clear_parse_caches():
-    global _parse_event_cache, _ocr_cache, _gray_image_cache, _template_match_cache
-    _parse_event_cache.clear()
-    _ocr_cache.clear()
-    _gray_image_cache.clear()
-    _template_match_cache.clear()
+    global parse_event_cache, ocr_cache, gray_image_cache, template_match_cache
+    parse_event_cache.clear()
+    ocr_cache.clear()
+    gray_image_cache.clear()
+    template_match_cache.clear()
 
 
 def normalize_skill_name(skill_name: str) -> str:
@@ -212,7 +212,7 @@ def try_alt_cost_regions(skill_info_img):
         try:
             alt_cost_text = ocr_en(alt_region)
             alt_cost = re.sub("\\D", "", alt_cost_text)
-            if alt_cost and alt_cost != '':
+            if alt_cost:
                 return alt_cost, i+1
         except:
             continue
@@ -230,7 +230,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
         
         year_text = ""
         for text in DATE_YEAR:
-            if date_text.__contains__(text):
+            if text in date_text:
                 year_text = text
 
         if year_text == "":
@@ -256,7 +256,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
 
         month_text = ""
         for text in DATE_MONTH:
-            if date_text.__contains__(text):
+            if text in date_text:
                 month_text = text
         if month_text == "":
             month_text = find_similar_text(date_text, DATE_MONTH)
@@ -319,7 +319,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
         
         year_text = ""
         for text in DATE_YEAR:
-            if date_text.__contains__(text):
+            if text in date_text:
                 year_text = text
 
         if year_text == "":
@@ -345,7 +345,7 @@ def parse_date(img, ctx: UmamusumeContext) -> int:
 
         month_text = ""
         for text in DATE_MONTH:
-            if date_text.__contains__(text):
+            if text in date_text:
                 month_text = text
         if month_text == "":
             month_text = find_similar_text(date_text, DATE_MONTH)
@@ -485,8 +485,7 @@ def parse_train_main_menu_operations_availability(ctx: UmamusumeContext, img):
 
 def parse_training_support_card(ctx: UmamusumeContext, img, train_type: TrainingType):
     support_card_info_list = ctx.cultivate_detail.scenario.parse_training_support_card(img)
-    if len(support_card_info_list) == 0:
-        import time
+    if not support_card_info_list:
         ctx.ctrl.reinit_connection()
         time.sleep(0.2)
         fresh_img = ctx.ctrl.get_screen()
@@ -551,8 +550,6 @@ def parse_training_result(ctx: UmamusumeContext, img, train_type: TrainingType):
 
 def parse_failure_rates(ctx: UmamusumeContext, img, train_type: TrainingType | None = None):
     try:
-        import cv2
-        from bot.recog.ocr import ocr_line
         y1, y2 = 916, 981
         x_ranges = [
             (75, 134),
@@ -569,7 +566,6 @@ def parse_failure_rates(ctx: UmamusumeContext, img, train_type: TrainingType | N
             roi = img[y1c:y2c, x1c:x2c]
             roi = cv2.copyMakeBorder(roi, 10, 10, 10, 10, cv2.BORDER_CONSTANT, None, (255, 255, 255))
             text = ocr_line(roi, lang="en")
-            import re
             digits = re.sub("\\D", "", text)
             if digits == "":
                 rates.append(-1)
@@ -628,8 +624,7 @@ def find_support_card(ctx: UmamusumeContext, img):
             s = SequenceMatcher(None, support_card_text, ctx.cultivate_detail.follow_support_card_name)
             if s.ratio() > 0.7:
                 ctx.ctrl.click(match_result.center_point[0], match_result.center_point[1] - 75,
-                               "" + ctx.cultivate_detail.follow_support_card_name + "<" + str(
-                                   support_card_level) + ">")
+                               f"{ctx.cultivate_detail.follow_support_card_name}<{support_card_level}>")
                 return True
         else:
             break
@@ -639,7 +634,7 @@ def find_support_card(ctx: UmamusumeContext, img):
 def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
     img_hash = _compute_image_hash(img)
     if img_hash:
-        cached = _parse_event_cache.get(img_hash)
+        cached = parse_event_cache.get(img_hash)
         if cached is not None:
             return cached
     
@@ -647,30 +642,30 @@ def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
     
     name_hash = _compute_image_hash(event_name_img)
     if name_hash:
-        cached_name = _ocr_cache.get(name_hash)
+        cached_name = ocr_cache.get(name_hash)
         if cached_name is not None:
             event_name = cached_name
         else:
             event_name = ocr_line(event_name_img)
-            _ocr_cache.set(name_hash, event_name)
+            ocr_cache.set(name_hash, event_name)
     else:
         event_name = ocr_line(event_name_img)
     
     if not isinstance(event_name, str) or len(event_name.strip()) <= 1:
         if img_hash:
-            _parse_event_cache.set(img_hash, ("", []))
+            parse_event_cache.set(img_hash, ("", []))
         return "", []
     
     event_selector_list = []
     
     gray_hash = _compute_image_hash(img) if img_hash else None
     if gray_hash:
-        cached_gray = _gray_image_cache.get(gray_hash)
+        cached_gray = gray_image_cache.get(gray_hash)
         if cached_gray is not None:
             img_gray = cached_gray
         else:
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            _gray_image_cache.set(gray_hash, img_gray)
+            gray_image_cache.set(gray_hash, img_gray)
     else:
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
@@ -687,7 +682,7 @@ def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
         else:
             break
     
-    if len(event_selector_list) == 0:
+    if not event_selector_list:
         log.debug(f"REF_SELECTOR template missed for '{event_name}', using dialogue templates")
         
         from module.umamusume.asset.template import Template, UMAMUSUME_REF_TEMPLATE_PATH
@@ -739,13 +734,13 @@ def parse_cultivate_event(ctx: UmamusumeContext, img) -> tuple[str, list[int]]:
                     deduped.append(pt)
             event_selector_list = deduped[:5]
         
-        if len(event_selector_list) == 0:
-            return event_name, []
+    if not event_selector_list:
+        return event_name, []
     
     event_selector_list.sort(key=lambda x: x[1])
     result = (event_name, event_selector_list)
     if img_hash:
-        _parse_event_cache.set(img_hash, result)
+        parse_event_cache.set(img_hash, result)
     return result
 
 
@@ -786,7 +781,7 @@ def find_race(ctx: UmamusumeContext, img, race_id: int = 0) -> bool:
                     if template_match_result.find_match:
                         log.info(f"Race {race_id} matched")
                         ctx.ctrl.click(pos_center[0], pos_center[1],
-                                       "Select race: " + str(RACE_LIST[race_id][1]))
+                                       f"Select race: {RACE_LIST[race_id][1]}")
                         return True
 
         img[pos[0][1]:pos[1][1], pos[0][0]:pos[1][0]] = 0
@@ -882,7 +877,7 @@ def find_skill(ctx: UmamusumeContext, img, skill: list[str], learn_any_skill: bo
                             if pt >= skill_pt_cost:
                                 log.info(f"Buying skill '{detected_text}' - Points: {pt}, Cost: {skill_pt_cost}")
                                 ctx.ctrl.click(match_result.center_point[0] + 128, match_result.center_point[1],
-                                               "Bonus Skills" + detected_text)
+                                               f"Bonus Skills{detected_text}")
                                 target_name = target_match if target_match else detected_text
                                 ctx.cultivate_detail.learned_skill_names.add(target_name)
                                 ctx.cultivate_detail.learned_skill_names.add(detected_text)

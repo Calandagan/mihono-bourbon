@@ -52,6 +52,7 @@ def get_medic(ctx, summer=False):
 
 
 def script_cultivate_main_menu(ctx: UmamusumeContext):
+    _is_mant = is_mant(ctx)
     img = ctx.current_screen
     current_date = parse_date(img, ctx)
     import bot.conn.u2_ctrl as u2c
@@ -73,7 +74,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             if hasattr(ctx.cultivate_detail, 'pal_last_detection_date'):
                 delattr(ctx.cultivate_detail, 'pal_last_detection_date')
 
-        if is_mant(ctx):
+        if _is_mant:
             from module.umamusume.scenario.mant.main_menu import handle_mant_turn_start
             handle_mant_turn_start(ctx, current_date)
 
@@ -94,8 +95,8 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         ctx.cultivate_detail.turn_info.cached_available_races = available_races
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = True
 
-    has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
-                         if race_id in ctx.cultivate_detail.turn_info.cached_available_races]) != 0
+    has_extra_race = any(race_id in ctx.cultivate_detail.turn_info.cached_available_races
+                         for race_id in ctx.cultivate_detail.extra_race_list)
 
     if not has_extra_race:
         ts_enabled = getattr(ctx.cultivate_detail, 'team_sirius_enabled', False)
@@ -139,47 +140,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     time.sleep(0.15)
                     ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
                     return
-                else:
-                    if ctx.cultivate_detail.pal_event_stage > 0:
-                        log.info("pal notification gone, resetting stage")
-                        ctx.cultivate_detail.pal_event_stage = 0
-
-    if has_extra_race and not is_mant(ctx):
-        if ctx.cultivate_detail.turn_info.turn_operation is None or ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type != TurnOperationType.TURN_OPERATION_TYPE_RACE:
-            log.info("extra race this turn, prioritizing")
-            if ctx.cultivate_detail.turn_info.turn_operation is None:
-                ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-            ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-            matching_races = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in ctx.cultivate_detail.turn_info.cached_available_races]
-            if matching_races:
-                target_race_id = matching_races[0]
-                ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-                log.info(f"Set race: {target_race_id}")
-            else:
-                log.info("extra race not in available races")
-            ctx.cultivate_detail.turn_info.parse_train_info_finish = True
-            return
-    if has_extra_race and is_mant(ctx):
-        log.info("MANT: extra race available but scanning training first")
-
-    if is_mant(ctx):
-        from module.umamusume.scenario.mant.main_menu import handle_mant_main_menu
-        if handle_mant_main_menu(ctx, img, current_date):
-            return
-
-    available_races = getattr(ctx.cultivate_detail.turn_info, 'cached_available_races', None)
-    if available_races is None:
-        from module.umamusume.asset.race_data import get_races_for_period
-        available_races = get_races_for_period(ctx.cultivate_detail.turn_info.date)
-        ctx.cultivate_detail.turn_info.cached_available_races = available_races
-    has_extra_race = len([race_id for race_id in ctx.cultivate_detail.extra_race_list 
-                         if race_id in available_races]) != 0
-
-    turn_operation = ctx.cultivate_detail.turn_info.turn_operation
-
-    if (not ctx.cultivate_detail.cultivate_finish and
-        not ctx.cultivate_detail.turn_info.turn_learn_skill_done and
-        ctx.cultivate_detail.learn_skill_done):
+    if not ctx.cultivate_detail.cultivate_finish:
         ctx.cultivate_detail.reset_skill_learn()
 
     skip_auto_skill_learning = (ctx.task.detail.manual_purchase_at_end and ctx.cultivate_detail.cultivate_finish)
@@ -195,11 +156,11 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         ctx.ctrl.click_by_point(CULTIVATE_SKILL_LEARN)
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
         return
-    else:
-        if not ctx.cultivate_detail.cultivate_finish:
-            ctx.cultivate_detail.reset_skill_learn()
+    if not ctx.cultivate_detail.cultivate_finish:
+        ctx.cultivate_detail.reset_skill_learn()
 
 
+    turn_operation = ctx.cultivate_detail.turn_info.turn_operation
     if turn_operation is not None and turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_REST:
         if should_use_team_sirius_recreation(ctx):
             execute_team_sirius_recreation(ctx, trip_click_point=get_trip(ctx))
@@ -238,13 +199,13 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 ctx.ctrl.click_by_point(CULTIVATE_REST)
             return
 
-    if is_mant(ctx):
+    if _is_mant:
         from module.umamusume.scenario.mant.main_menu import handle_mant_rival_race
         handle_mant_rival_race(ctx, img)
 
     if not ctx.cultivate_detail.turn_info.parse_train_info_finish:
         limit = int(getattr(ctx.cultivate_detail, 'rest_threshold', getattr(ctx.cultivate_detail, 'rest_treshold', getattr(ctx.cultivate_detail, 'fast_path_energy_limit', 48))))
-        if has_extra_race and not is_mant(ctx):
+        if has_extra_race and not _is_mant:
             ctx.cultivate_detail.turn_info.parse_train_info_finish = True
             return
         if limit == 0:
@@ -255,7 +216,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             if energy == 0:
                 time.sleep(0.15)
                 energy = read_energy()
-        if is_mant(ctx) and energy <= limit:
+        if _is_mant and energy <= limit:
             ctx.cultivate_detail.turn_info.cached_energy = energy
             if has_extra_race:
                 from module.umamusume.scenario.mant.inventory import has_energy_recovery
@@ -307,7 +268,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             time.sleep(MEDIC_CHECK_DELAY)
             img = ctx.ctrl.get_screen()
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            if is_mant(ctx):
+            if _is_mant:
                 if is_summer:
                     check_point = img_rgb[1118, 100]
                 else:
@@ -362,7 +323,7 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 
                 if ura_race_available:
                     log.info(f"URA {ura_phase} UI detected - proceeding to race")
-                    if is_mant(ctx):
+                    if _is_mant:
                         from module.umamusume.scenario.mant.inventory import handle_energy_drink_max_before_race, handle_glow_sticks_before_race
                         handle_energy_drink_max_before_race(ctx)
                         handle_glow_sticks_before_race(ctx)
@@ -381,18 +342,15 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             else:
                 log.info(f"Proceeding with race operation (race_id: {race_id})")
                 ti = ctx.cultivate_detail.turn_info
-                op = ctx.cultivate_detail.turn_info.turn_operation
                 if not hasattr(ti, 'race_search_started_at') or getattr(ti, 'race_search_id', None) != race_id:
                     ti.race_search_started_at = time.time()
                     ti.race_search_id = race_id
                 elif time.time() - ti.race_search_started_at > RACE_SEARCH_TIMEOUT:
                     ctx.cultivate_detail.turn_info.turn_operation = None
-                    if hasattr(ti, 'race_search_started_at'):
-                        delattr(ti, 'race_search_started_at')
-                    if hasattr(ti, 'race_search_id'):
-                        delattr(ti, 'race_search_id')
+                    delattr(ti, 'race_search_started_at')
+                    delattr(ti, 'race_search_id')
                     return
-                if is_mant(ctx):
+                if _is_mant:
                     from module.umamusume.scenario.mant.inventory import handle_energy_drink_max_before_race, handle_glow_sticks_before_race
                     handle_energy_drink_max_before_race(ctx)
                     handle_glow_sticks_before_race(ctx)

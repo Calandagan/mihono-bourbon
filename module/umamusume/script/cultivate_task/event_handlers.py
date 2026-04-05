@@ -126,7 +126,7 @@ def script_cultivate_event(ctx: UmamusumeContext):
     except Exception:
         pass
 
-    ctx.cultivate_detail.event_cooldown_until = time.time() + 1.6
+    ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
 
     log.info("Event handler called")
     ctx.cultivate_detail.mant_cleat_used = False
@@ -155,14 +155,17 @@ def script_cultivate_event(ctx: UmamusumeContext):
         event_name = ocr_line(event_name_img_upscaled, lang="en")
     if isinstance(event_name, str) and len(event_name.strip()) <= 1:
         return
+    last_clicked = getattr(ctx.cultivate_detail, 'last_clicked_event_name', None)
+    if last_clicked and event_name == last_clicked:
+        return
     try:
         from bot.recog.ocr import find_similar_text
+        if not isinstance(event_name, str) or not event_name.strip():
+            return
         event_blacklist = [
             "", " ",
             "Team Support",
         ]
-        if not isinstance(event_name, str) or not event_name.strip():
-            return
         if find_similar_text(event_name, event_blacklist, 0.9):
             log.info(f"{event_name} blacklisted. Skipping")
             return
@@ -222,12 +225,14 @@ def script_cultivate_event(ctx: UmamusumeContext):
                     if isinstance(confirm_selectors, list) and len(confirm_selectors) >= 1:
                         confirm_pt = confirm_selectors[0]
                         ctx.ctrl.click(int(confirm_pt[0]), int(confirm_pt[1]), "tutorial Yes")
-                ctx.cultivate_detail.event_cooldown_until = time.time() + 1.6
+                ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
+                ctx.cultivate_detail.last_clicked_event_name = event_name
                 return
             elif isinstance(selectors, list) and len(selectors) == 2:
                 target_pt = selectors[1]
                 ctx.ctrl.click(int(target_pt[0]), int(target_pt[1]), "tutorial choice 2")
-                ctx.cultivate_detail.event_cooldown_until = time.time() + 1.6
+                ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
+                ctx.cultivate_detail.last_clicked_event_name = event_name
                 return
     except Exception:
         pass
@@ -275,47 +280,6 @@ def script_cultivate_event(ctx: UmamusumeContext):
         log.info(f"Clicking option {idx}/{len(selectors)} (source={choice_source})")
         ctx.ctrl.click(int(target_pt[0]), int(target_pt[1]), f"Event option-{choice_index}")
         threading.Thread(target=detect_hint_after_event, args=(ctx.ctrl, event_name), daemon=True).start()
-    ctx.cultivate_detail.event_cooldown_until = time.time() + 1.6
-    return
-    try:
-        tpl = Template(f"dialogue{choice_index}", UMAMUSUME_REF_TEMPLATE_PATH)
-    except:
-        tpl = None
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    x1, y1, x2, y2 = 24, 316, 696, 936
-    h, w = img_gray.shape[:2]
-    x1 = max(0, min(w, x1)); x2 = max(x1, min(w, x2)); y1 = max(0, min(h, y1)); y2 = max(y1, min(h, y2))
-    roi_gray = img_gray[y1:y2, x1:x2]
-    clicked = False
-    if tpl is not None:
-        try:
-            for _ in range(2):
-                res = image_match(roi_gray, tpl)
-                if res.find_match:
-                    ctx.ctrl.click(res.center_point[0] + x1, res.center_point[1] + y1, f"Event option-{choice_index}")
-                    threading.Thread(target=detect_hint_after_event, args=(ctx.ctrl, event_name), daemon=True).start()
-                    clicked = True
-                    ctx.cultivate_detail.event_cooldown_until = time.time() + 1.6
-                    return
-                time.sleep(0.56)
-                img = ctx.ctrl.get_screen()
-                img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                h, w = img_gray.shape[:2]
-                x1 = max(0, min(w, x1)); x2 = max(x1, min(w, x2)); y1 = max(0, min(h, y1)); y2 = max(y1, min(h, y2))
-                roi_gray = img_gray[y1:y2, x1:x2]
-        except:
-            pass
-    if not clicked:
-        if is_still_on_event(ctx.ctrl):
-            log.info(f"no selectors found for '{event_name}', retrying parse")
-            time.sleep(0.5)
-            img_retry = ctx.ctrl.get_screen()
-            if img_retry is not None:
-                _, retry_selectors = parse_cultivate_event(ctx, img_retry)
-                if isinstance(retry_selectors, list) and len(retry_selectors) > 0:
-                    fallback_idx = min(int(choice_index), len(retry_selectors)) - 1
-                    if fallback_idx < 0:
-                        fallback_idx = 0
-                    ctx.ctrl.click(int(retry_selectors[fallback_idx][0]), int(retry_selectors[fallback_idx][1]), f"Event fallback option-{fallback_idx + 1}")
-    ctx.cultivate_detail.event_cooldown_until = time.time() + 1.6
+    ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
+    ctx.cultivate_detail.last_clicked_event_name = event_name
     return

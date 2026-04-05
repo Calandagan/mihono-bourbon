@@ -1,5 +1,4 @@
 import time
-from datetime import datetime
 
 import cv2
 
@@ -89,7 +88,7 @@ TITLE = [
     "Battle Confirmation", # TITLE[36]
     "Rewards Collected", # TITLE[37] after career if theres story
     "Event Story Unlocked", # TITLE[38] after career if theres story
-    "Connection Error", #39 
+    "Connection Error", #39
     "Data Update", #40
     "Data Download", #41
     "Date Changed", #42
@@ -109,6 +108,7 @@ TITLE = [
 
 
 def script_info(ctx: UmamusumeContext):
+
     try:
         mode_name = getattr(ctx.task.task_execute_mode, "name", "")
         if mode_name == "TASK_EXECUTE_MODE_TEAM_TRIALS":
@@ -124,13 +124,10 @@ def script_info(ctx: UmamusumeContext):
         title_text = ocr_line(title_img)
         log.debug(title_text)
         
-        # Debug: Log the original OCR text and similarity matching
         original_text = title_text
         title_text = find_similar_text(title_text, TITLE, 0.8)
-        
         if title_text == "":
             log.warning(f"Unknown option box - OCR: '{original_text}'")
-            # Try with lower threshold for better matching
             title_text = find_similar_text(original_text, TITLE, 0.6)
             if title_text == "":
                 log.warning(f"Still no match with lower threshold - OCR: '{original_text}'")
@@ -141,19 +138,16 @@ def script_info(ctx: UmamusumeContext):
                 except Exception as e:
                     log.error(f"Fallback ESCAPE click failed: {e}")
                 return
-            else:
-                log.info(f"Found match with lower threshold: '{original_text}' -> '{title_text}'")
+            log.info(f"Found match with lower threshold: '{original_text}' -> '{title_text}'")
         else:
             log.info(f"Found match: '{original_text}' -> '{title_text}'")
         
-        # Debug: Show which TITLE index this matches to
         try:
             title_index = TITLE.index(title_text)
             log.info(f"DEBUG: title_text='{title_text}' matches TITLE[{title_index}]='{TITLE[title_index]}'")
         except ValueError:
             log.warning(f"DEBUG: title_text='{title_text}' not found in TITLE array")
         
-        # Force correct handler for "Confirm" - bypass TITLE array indexing issues
         if title_text == "Confirm":
             log.info("FORCED: Handling 'Confirm' (TP recovery) screen")
             if not ctx.cultivate_detail.allow_recover_tp:
@@ -161,17 +155,15 @@ def script_info(ctx: UmamusumeContext):
                 return
             else:
                 ctx.ctrl.click_by_point(TO_RECOVER_TP)
-            return  # Exit early to prevent wrong handler execution
+            return
         
-        # Force correct handler for "Recover TP" - bypass TITLE array indexing issues
         if title_text == "Recover TP":
             screen = ctx.ctrl.get_screen(to_gray=True)
             if image_match(screen, REF_RECOVER_TP_1).find_match:
-                if image_match(screen, REF_TP_RECOVER_DRINK).find_match: # tp, 
+                if image_match(screen, REF_TP_RECOVER_DRINK).find_match:
                     ctx.ctrl.click_by_point(USE_TP_DRINK)
                 else:
-                    # TODO: 
-                    if ctx.cultivate_detail.allow_recover_tp == 2: # TP
+                    if ctx.cultivate_detail.allow_recover_tp == 2:
                         ctx.ctrl.click_by_point(USE_CARROT_RECOVER_TP)
                     else: 
                         reset_task(ctx.task.task_id)

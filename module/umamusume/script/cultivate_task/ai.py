@@ -6,7 +6,7 @@ from bot.recog.image_matcher import image_match
 from bot.conn.fetch import fetch_state
 log = logger.get_logger(__name__)
 
-_race_cache = {}
+race_cache = {}
 
 
 DATE_JUNIOR_END = 24
@@ -28,14 +28,7 @@ URA_RACE_WINDOWS = [
 ]
 
 def weights_for_date(date):
-    if date <= DATE_JUNIOR_END:
-        return 0.11, 0.10
-    elif date <= DATE_CLASSIC_END:
-        return 0.11, 0.10
-    elif date <= DATE_SPRING_END:
-        return 0.11, 0.10
-    else:
-        return 0.03, 0.05
+    return (0.11, 0.10) if date <= DATE_SPRING_END else (0.03, 0.05)
 
 def get_ura_race_id_and_template(date):
     for rng, rid, tpl in URA_RACE_WINDOWS:
@@ -43,11 +36,11 @@ def get_ura_race_id_and_template(date):
             return rid, tpl
     return None, None
 
-def _get_races_for_period_cached(period: int) -> list[int]:
-    if period not in _race_cache:
+def get_races_for_period_cached(period: int) -> list[int]:
+    if period not in race_cache:
         from module.umamusume.asset.race_data import get_races_for_period
-        _race_cache[period] = get_races_for_period(period)
-    return _race_cache[period]
+        race_cache[period] = get_races_for_period(period)
+    return race_cache[period]
 
 
 def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
@@ -155,9 +148,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                         skip_race = should_skip_race(ctx)
                 except Exception:
                     pass
-                if not skip_race:
-                    pass
-                else:
+                if skip_race:
                     log.info(f"rest threshold: energy={energy}, threshold={limit} - prioritizing rest")
                     turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
                     return turn_operation
@@ -254,13 +245,13 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                 medic = True
             trip = False
             if not ctx.cultivate_detail.turn_info.medic_room_available and (
-                (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not support_card_max >= MIN_SUPPORT_GOOD_TRAINING_URA)
+                (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not (support_card_max >= MIN_SUPPORT_GOOD_TRAINING_URA))
                 or (40 < ctx.cultivate_detail.turn_info.date <= 60 and mood_val < ctx.cultivate_detail.motivation_threshold_year2 and energy < ENERGY_TRIP_GENERAL)
                 or (64 < ctx.cultivate_detail.turn_info.date <= 99 and mood_val < ctx.cultivate_detail.motivation_threshold_year3 and energy < ENERGY_TRIP_GENERAL)
             ):
                 try:
-                    best_idx = max(range(5), key=lambda i: training_score[i]) if len(training_score) == 5 else 0
-                    best_score = training_score[best_idx] if len(training_score) == 5 else 0.0
+                    best_idx = max(range(len(training_score)), key=lambda i: training_score[i]) if training_score else 0
+                    best_score = training_score[best_idx] if training_score else 0.0
                 except Exception:
                     best_score = 0.0
                 if best_score > 0.3:
@@ -317,7 +308,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                 turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
                 turn_operation.race_id = ura_race_id
                 return turn_operation
-        available_races = _get_races_for_period_cached(ctx.cultivate_detail.turn_info.date)
+        available_races = get_races_for_period_cached(ctx.cultivate_detail.turn_info.date)
         extra_race_this_turn = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in available_races]
         if len(extra_race_this_turn) != 0:
             skip_race = False
@@ -337,12 +328,12 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
         medic = True
 
     trip = False
-    if not ctx.cultivate_detail.turn_info.medic_room_available and (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not support_card_max >= MIN_SUPPORT_GOOD_TRAINING
+    if not ctx.cultivate_detail.turn_info.medic_room_available and (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not (support_card_max >= MIN_SUPPORT_GOOD_TRAINING)
                                                                     or 40 < ctx.cultivate_detail.turn_info.date <= 60 and mood_val < ctx.cultivate_detail.motivation_threshold_year2 and energy < ENERGY_TRIP_GENERAL
                                                                     or 64 < ctx.cultivate_detail.turn_info.date <= 99 and mood_val < ctx.cultivate_detail.motivation_threshold_year3 and energy < ENERGY_TRIP_GENERAL):
         try:
-            best_idx = max(range(5), key=lambda i: training_score[i]) if len(training_score) == 5 else 0
-            best_score = training_score[best_idx] if len(training_score) == 5 else 0.0
+                    best_idx = max(range(len(training_score)), key=lambda i: training_score[i]) if training_score else 0
+                    best_score = training_score[best_idx] if training_score else 0.0
         except Exception:
             best_score = 0.0
         if best_score > 0.3:
@@ -372,7 +363,6 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
         log.info("Checking if outing is better than rest")
 
     rest = False
-    pal_outing_available = False
     if energy <= limit and not mant_skip_fast_path:
         if trip and limit < 90 and energy > 26:
             rest = False
@@ -399,7 +389,6 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
 
                                 if mood_below and energy_below:
                                     log.info("Both conditions met - using pal outing instead of rest")
-                                    pal_outing_available = True
                                     trip = True
                                     rest = False
                                 else:
@@ -429,11 +418,10 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
         expect_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
 
     if expect_operation_type is TurnOperationType.TURN_OPERATION_TYPE_UNKNOWN:
-        date_num = ctx.cultivate_detail.turn_info.date
-        if date_num in SUMMER_CONSERVE_DATES:
+        if ctx.cultivate_detail.turn_info.date in SUMMER_CONSERVE_DATES:
             try:
-                best_idx = max(range(5), key=lambda i: training_score[i]) if len(training_score) == 5 else 0
-                best_score = training_score[best_idx] if len(training_score) == 5 else 0.0
+                best_idx = max(range(len(training_score)), key=lambda i: training_score[i]) if training_score else 0
+                best_score = training_score[best_idx] if training_score else 0.0
             except Exception:
                 best_score = 0.0
             summer_threshold = getattr(ctx.cultivate_detail, 'summer_score_threshold', 0.34)

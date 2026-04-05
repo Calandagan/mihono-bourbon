@@ -64,7 +64,7 @@ class Task(metaclass=ABCMeta):
 
     @abstractmethod
     def end_task(self, status, reason=None) -> None:
-        msg = "Task ended: " + self.task_status.name + "->" + status.name
+        msg = f"Task ended: {self.task_status.name}->{status.name}"
         if reason is not None:
             msg += " (reason: "
             if hasattr(reason, 'value'):

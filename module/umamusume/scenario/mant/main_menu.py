@@ -544,7 +544,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
 CLIMAX_MASTER_RESERVE = 40
 
 
-def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
+def would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
     from module.umamusume.scenario.mant.inventory import MANT_CLIMAX_RACE_TURNS, remaining_climax_races
     from module.umamusume.asset.race_data import is_g1_race
 
@@ -612,7 +612,7 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
             cost = SHOP_ITEM_COSTS.get(candidate, 9999)
             if cost > budget:
                 continue
-            return _execute_cleat_buy(ctx, candidate, cost)
+            return execute_cleat_buy(ctx, candidate, cost)
         return False
 
 
@@ -629,13 +629,13 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
                 continue
             if total_cleats < 2 and budget - cost < 40:
                 continue
-            return _execute_cleat_buy(ctx, candidate, cost)
+            return execute_cleat_buy(ctx, candidate, cost)
         return False
 
     return False
 
 
-def _execute_cleat_buy(ctx, cleat_name, cost):
+def execute_cleat_buy(ctx, cleat_name, cost):
     from module.umamusume.scenario.mant.shop import (
         scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
     )

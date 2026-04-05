@@ -15,7 +15,7 @@ def compute_aoharu_bonuses(ctx, idx, support_card_info_list, date, period_idx, c
             stc = 1 if getattr(sc, 'can_incr_special_training', False) else 0
         if stc > 0:
             special_count += stc
-        if bool(getattr(sc, 'spirit_explosion', False)):
+        if getattr(sc, 'spirit_explosion', False):
             spirit_count += 1
 
     additive = 0.0
@@ -51,7 +51,7 @@ def compute_aoharu_bonuses(ctx, idx, support_card_info_list, date, period_idx, c
         additive += special_bonus
 
     se_config = getattr(ctx.cultivate_detail, 'spirit_explosion', DEFAULT_SPIRIT_EXPLOSION)
-    if isinstance(se_config, list) and len(se_config) > 0 and isinstance(se_config[0], list):
+    if isinstance(se_config, list) and se_config and isinstance(se_config[0], list):
         se_weights = se_config[period_idx]
     else:
         se_weights = se_config

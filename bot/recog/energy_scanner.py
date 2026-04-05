@@ -76,7 +76,7 @@ def extract_row(img, bar_start, bar_end, y=ENERGY_BAR_Y):
 
 def compare_rows(base_row, current_row):
     length = min(len(base_row), len(current_row))
-    if length == 0:
+    if not length:
         return 0
     diff = np.abs(base_row[:length].astype(np.int16) - current_row[:length].astype(np.int16))
     mismatches = np.any(diff > 5, axis=1)

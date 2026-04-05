@@ -39,6 +39,14 @@ from module.umamusume.manifest import UmamusumeManifest
 from uvicorn import run
 
 log = logger.get_logger(__name__)
+
+def _cleanup_orphan_processes():
+    for proc in ("adb.exe",):
+        try:
+            subprocess.run(f"taskkill /F /IM {proc} /T 2>nul", shell=True, capture_output=True)
+        except Exception:
+            pass
+
 _gpu_available = gpu_utils.detect_gpu_capabilities()
 _opencv_gpu = gpu_utils.configure_opencv_gpu()
 
@@ -321,6 +329,8 @@ if __name__ == '__main__':
         acquire_instance_lock()
     except Exception:
         pass
+
+    _cleanup_orphan_processes()
 
     selected_device = None
     if os.environ.get("UAT_AUTORESTART", "0") == "1":

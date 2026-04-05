@@ -21,7 +21,7 @@ class Scheduler:
     _executor_lock = threading.Lock()
 
     def add_task(self, task):
-        log.info("Task added: " + task.task_id)
+        log.info(f"Task added: {task.task_id}")
         with self._executor_lock:
             self.task_list.append(task)
 
@@ -117,7 +117,7 @@ class Scheduler:
                                 if task.task_status == TaskStatus.TASK_STATUS_PENDING:
                                     self.start_executor_for(task, task_executor)
                         else:
-                            log.warning("Unknown task type: " + str(task.task_execute_mode) + ", task_id: " + str(task.task_id))
+                            log.warning(f"Unknown task type: {task.task_execute_mode}, task_id: {task.task_id}")
 
             else:
                 if task_executor.active:
@@ -126,10 +126,10 @@ class Scheduler:
 
     def copy_task(self, task, to_task_execute_mode: TaskExecuteMode):
         new_task = copy.deepcopy(task)
-        new_task.task_id = str(int(round(time.time() * 1000)))
+        new_task.task_id = str(int(time.time() * 1000))
         if (to_task_execute_mode == TaskExecuteMode.TASK_EXECUTE_MODE_ONE_TIME and task.task_execute_mode ==
                 TaskExecuteMode.TASK_EXECUTE_MODE_CRON_JOB):
-            new_task.task_id = "CRONJOB_" + new_task.task_id
+            new_task.task_id = f"CRONJOB_{new_task.task_id}"
             new_task.cron_job_config = None
         new_task.task_execute_mode = to_task_execute_mode
         if new_task.task_execute_mode == TaskExecuteMode.TASK_EXECUTE_MODE_ONE_TIME:

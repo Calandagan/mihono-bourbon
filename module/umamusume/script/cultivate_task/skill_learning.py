@@ -442,7 +442,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
                     thumb_now = find_thumb(curr_rgb)
                     sb_y = (thumb_now[0] + thumb_now[1]) // 2 if thumb_now else None
                     frame_sb_positions.append(sb_y)
-                    futures.append(executor.submit(get_skill_list, curr, learn_skill_list, learn_skill_blacklist, ctx.cultivate_detail.learned_skill_names))
+                    futures.append(executor.submit(get_skill_list, curr, learn_skill_list, learn_skill_blacklist))
                     prev_frame = curr
                 if proc.poll() is not None:
                     break
@@ -460,7 +460,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
                     thumb_now = find_thumb(final_rgb)
                     sb_y = (thumb_now[0] + thumb_now[1]) // 2 if thumb_now else None
                     frame_sb_positions.append(sb_y)
-                    futures.append(executor.submit(get_skill_list, final, learn_skill_list, learn_skill_blacklist, ctx.cultivate_detail.learned_skill_names))
+                    futures.append(executor.submit(get_skill_list, final, learn_skill_list, learn_skill_blacklist))
 
             last_known_sb = start_y
             for i, f in enumerate(futures):
@@ -481,7 +481,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
             return
     else:
-        current_screen_skill_list = get_skill_list(img, learn_skill_list, learn_skill_blacklist, ctx.cultivate_detail.learned_skill_names)
+        current_screen_skill_list = get_skill_list(img, learn_skill_list, learn_skill_blacklist)
         for i in current_screen_skill_list:
             if i not in skill_list:
                 skill_list.append(i)
@@ -576,15 +576,69 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
                 getattr(ctx.cultivate_detail, 'manual_purchase_completed', False))
 
     if _manual_purchase_confirmed():
-        for skill_name in target_skill_list_raw:
-            ctx.cultivate_detail.learned_skill_names.add(skill_name)
         ctx.cultivate_detail.learn_skill_done = True
         ctx.cultivate_detail.turn_info.turn_learn_skill_done = True
         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
         return
 
-    for skill_name in target_skill_list_raw:
-        ctx.cultivate_detail.learned_skill_names.add(skill_name)
+    if not target_skill_list:
+        ctx.cultivate_detail.learn_skill_done = True
+        ctx.cultivate_detail.turn_info.turn_learn_skill_done = True
+        ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
+        return
+
+    remaining = target_skill_list.copy()
+
+    for scroll_pass in range(3):
+        if not remaining or _manual_purchase_confirmed():
+            break
+
+        scroll_to_top(ctx)
+        pass_bought = 0
+
+        for _ in range(60):
+            if not remaining:
+                break
+
+            img = ctx.ctrl.get_screen()
+            if img is None:
+                time.sleep(0.2)
+                continue
+
+            prev_count = len(remaining)
+            if find_skill(ctx, img, remaining, learn_any_skill=False):
+                ctx.cultivate_detail.learn_skill_selected = True
+                pass_bought += prev_count - len(remaining)
+                continue
+
+            img = ctx.ctrl.get_screen()
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            thumb = find_thumb(img_rgb)
+            if thumb is None:
+                time.sleep(0.15)
+                img = ctx.ctrl.get_screen()
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                thumb = find_thumb(img_rgb)
+                if thumb is None:
+                    continue
+            if at_bottom(img_rgb):
+                break
+            cursor = (thumb[0] + thumb[1]) // 2
+            th = thumb[1] - thumb[0]
+            next_y = min(TRACK_BOT, cursor + max(th // 2, 10))
+            if next_y <= cursor:
+                break
+            sb_drag(ctx, cursor, next_y)
+
+        if pass_bought == 0:
+            break
+
+    if _manual_purchase_confirmed():
+        ctx.cultivate_detail.learn_skill_done = True
+        ctx.cultivate_detail.turn_info.turn_learn_skill_done = True
+        ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_FINISH)
+        return
+
     ctx.cultivate_detail.learn_skill_done = True
     ctx.cultivate_detail.turn_info.turn_learn_skill_done = True
     ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_CONFIRM)

@@ -362,7 +362,7 @@ class U2AndroidController(AndroidController):
         duration = int(max(50, min(180, random.gauss(90, 30)))) + hold_duration
         drift_x = x + random.randint(-3, 3)
         drift_y = y + random.randint(-3, 3)
-        _ = self.execute_adb_shell("shell input swipe " + str(x) + " " + str(y) + " " + str(drift_x) + " " + str(drift_y) + " " + str(duration), True)
+        _ = self.execute_adb_shell(f"shell input swipe {x} {y} {drift_x} {drift_y} {duration}", True)
         self.last_click_time = time.time()
         time.sleep(self.config.delay)
         if not IN_CAREER_RUN:
@@ -460,7 +460,7 @@ class U2AndroidController(AndroidController):
         
         duration = int(duration * random.uniform(0.94, 1.06))
         
-        _ = self.execute_adb_shell("shell input swipe " + str(x1) + " " + str(y1) + " " + str(x2) + " " + str(y2) + " " + str(duration), True)
+        _ = self.execute_adb_shell(f"shell input swipe {x1} {y1} {x2} {y2} {duration}", True)
         time.sleep(self.config.delay)
 
     def swipe_and_hold(self, x1, y1, x2, y2, swipe_duration, hold_duration, name=""):

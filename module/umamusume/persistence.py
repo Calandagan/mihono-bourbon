@@ -42,7 +42,7 @@ def save_career_data(ctx):
             score_history = getattr(ctx.cultivate_detail, 'score_history', [])
             if not score_history:
                 return
-            scores = list(score_history[-MAX_DATAPOINTS:])
+            scores = score_history[-MAX_DATAPOINTS:]
             stat_only_history = getattr(ctx.cultivate_detail, 'stat_only_history', [])
             stat_only = list(stat_only_history[-MAX_DATAPOINTS:])
             data = {
@@ -67,8 +67,8 @@ def load_career_data(ctx):
         stat_only_history = data.get('stat_only_history', [])
         if not score_history:
             return False
-        scores = list(score_history[-MAX_DATAPOINTS:])
-        stat_only = list(stat_only_history[-MAX_DATAPOINTS:])
+        scores = score_history[-MAX_DATAPOINTS:]
+        stat_only = stat_only_history[-MAX_DATAPOINTS:]
         ctx.cultivate_detail.score_history = scores
         ctx.cultivate_detail.stat_only_history = stat_only
         ctx.cultivate_detail.percentile_history = rebuild_percentile_history(scores)
@@ -150,8 +150,7 @@ def set_ignore_cat_food(flag=True):
 
 def clear_ignore_cat_food():
     data = load_persist()
-    if 'ignore_cat_food' in data:
-        del data['ignore_cat_food']
+    data.pop('ignore_cat_food', None)
     save_persist(data)
 
 
@@ -168,8 +167,7 @@ def set_ignore_grilled_carrots(flag=True):
 
 def clear_ignore_grilled_carrots():
     data = load_persist()
-    if 'ignore_grilled_carrots' in data:
-        del data['ignore_grilled_carrots']
+    data.pop('ignore_grilled_carrots', None)
     save_persist(data)
 
 

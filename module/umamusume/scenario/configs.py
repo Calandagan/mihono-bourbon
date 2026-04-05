@@ -73,7 +73,7 @@ class ScenarioConfig:
     def removeSkillFromResetList(self, skill: str):
         if skill in self.reset_skill_event_weight_list:
             self.reset_skill_event_weight_list.remove(skill)
-            if len(self.reset_skill_event_weight_list) == 0:
+            if not self.reset_skill_event_weight_list:
                 self.skill_event_weight = [0, 0, 0]
 
     def getSkillEventWeight(self, date: int) -> int:

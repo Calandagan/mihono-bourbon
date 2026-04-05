@@ -1,6 +1,5 @@
 import time
 import cv2
-import numpy as np
 
 from module.umamusume.asset.template import REF_BLUE_LINE
 from bot.recog.ocr import ocr_line

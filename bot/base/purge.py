@@ -83,7 +83,7 @@ def acquire_instance_lock():
         if os.path.exists(p):
             try:
                 with open(p, 'r') as f:
-                    old = int((f.read() or '0').strip() or '0')
+                    old = int(f.read().strip() or '0')
             except Exception:
                 old = None
         if old:
@@ -100,7 +100,7 @@ def acquire_instance_lock():
             try:
                 cur = None
                 with open(p, 'r') as f:
-                    cur = int((f.read() or '0').strip() or '0')
+                    cur = int(f.read().strip() or '0')
             except Exception:
                 cur = None
             try:
@@ -362,16 +362,6 @@ def purge_all(reason: str = ""):
         pass
 
     try:
-        pass
-    except Exception:
-        pass
-
-    try:
-        pass
-    except Exception:
-        pass
-
-    try:
         import cv2
         try:
             cv2.destroyAllWindows()
@@ -381,7 +371,6 @@ def purge_all(reason: str = ""):
         pass
 
     try:
-        gc.collect()
         gc.collect()
     except Exception:
         pass

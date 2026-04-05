@@ -125,7 +125,7 @@ def get_events():
     try:
         db = load_events_database()
         if isinstance(db, dict):
-            names = sorted(list(db.keys()))
+            names = sorted(db.keys())
         else:
             names = []
         return {"events": names}

@@ -35,7 +35,7 @@ class DigitClassifier:
             self.model.load_state_dict(torch.load(model_path, map_location=self.device))
 
     def preprocess(self, img):
-        if len(img.shape) == 3:
+        if img.ndim == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = cv2.resize(img, (24, 32))
         img = img.astype(np.float32) / 255.0

@@ -143,11 +143,11 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
     
     if goal_match:
         log.info("Found Goal Race - clicking to enter detail interface")
-        try_use_cleat(ctx, getattr(turn_op, 'race_id', 0) if turn_op else 0)
+        try_use_cleat(ctx, getattr(turn_op, 'race_id', 0))
         ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
     elif ura_match:
         log.info("Found URA Race - clicking to enter detail interface")
-        try_use_cleat(ctx, getattr(turn_op, 'race_id', 0) if turn_op else 0)
+        try_use_cleat(ctx, getattr(turn_op, 'race_id', 0))
         ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
     else:
         if ctx.cultivate_detail.turn_info.turn_operation is None:
