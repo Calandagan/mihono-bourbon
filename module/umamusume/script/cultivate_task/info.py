@@ -254,13 +254,8 @@ def script_info(ctx: UmamusumeContext):
             time.sleep(0.5)
             ctx.ctrl.click_by_point(SCENARIO_SHORTEN_CONFIRM)
         if title_text == TITLE[8]:
-            ts_dates = getattr(ctx.cultivate_detail, 'team_sirius_available_dates', [])
-            ts_priority = [d for d in ts_dates if d in (7, 5, 1, 4, 3)]
-            if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False) and ts_priority:
+            if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False):
                 ctx.ctrl.click_by_point(CULTIVATE_OPERATION_COMMON_CONFIRM)
-            elif getattr(ctx.cultivate_detail, 'team_sirius_enabled', False):
-                import random
-                ctx.ctrl.click(random.randint(500, 600), random.randint(15, 22))
             else:
                 img = ctx.current_screen
                 img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
