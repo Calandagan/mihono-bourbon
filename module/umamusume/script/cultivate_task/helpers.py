@@ -9,8 +9,11 @@ from module.umamusume.constants.game_constants import is_summer_camp_period
 
 log = logger.get_logger(__name__)
 
-PRIORITY_DATES = {2, 6, 7}
-RECREATION_DATE_ORDER = [7, 5, 1, 4, 3]
+TRAINING_REPLACEMENT_DATES = {7, 5, 1, 4, 3}
+REST_REPLACEMENT_DATES = {2, 6, 7}
+RECREATION_REPLACEMENT_DATES = {3}
+RECREATION_DATE_ORDER = [7, 5, 1, 4, 3, 2, 6]
+PRIORITY_DATES = REST_REPLACEMENT_DATES
 
 ts_cancel_tpl = None
 
@@ -116,7 +119,8 @@ def should_use_team_sirius_recreation(ctx: UmamusumeContext) -> bool:
     available = getattr(ctx.cultivate_detail, 'team_sirius_available_dates', [])
     if not available:
         return False
-    return any(d in PRIORITY_DATES for d in available)
+    all_ts_dates = REST_REPLACEMENT_DATES | TRAINING_REPLACEMENT_DATES | RECREATION_REPLACEMENT_DATES
+    return any(d in all_ts_dates for d in available)
 
 
 def get_team_sirius_recreation_date(ctx: UmamusumeContext) -> int:
