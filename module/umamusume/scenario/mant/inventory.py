@@ -814,6 +814,26 @@ def use_training_item(ctx, item_name, quantity=1):
     return True
 
 
+def use_item_and_update_inventory(ctx, item_name: str) -> bool:
+    """
+    Thin wrapper around use_training_item that keeps mant_owned_items in sync.
+    use_training_item already decrements the inventory on success, so this
+    function simply delegates to it and returns the result.
+    Returns True if the item was used successfully, False otherwise.
+    """
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    if owned_map.get(item_name, 0) <= 0:
+        log.warning(f"use_item_and_update_inventory: '{item_name}' not in inventory, skipping")
+        return False
+    result = use_training_item(ctx, item_name, quantity=1)
+    if result:
+        log.info(f"use_item_and_update_inventory: used '{item_name}' successfully")
+    else:
+        log.warning(f"use_item_and_update_inventory: failed to use '{item_name}'")
+    return result
+
+
 def handle_training_whistle(ctx):
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     if mant_cfg is None:

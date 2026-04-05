@@ -327,6 +327,7 @@ def handle_mant_shop_scan(ctx, current_date):
                     budget -= cost
 
         targets = priority_targets + tier_targets
+        log.info(f"Shop purchase targets: {targets} (budget={budget})")
         if targets:
             bought, held_items = buy_shop_items(ctx, targets, items_list, ratio, drag_ratio, first_item_gy)
             if bought:
@@ -341,6 +342,68 @@ def handle_mant_shop_scan(ctx, current_date):
                 remaining = [(name, turns, False) for name, _, _, turns, purchased in items_list
                              if not purchased and name not in bought_set]
                 log_detected_shop_items(remaining)
+
+                # --- Post-purchase verification (Solution 1) ---
+                # Items that are used instantly after purchase (not tracked in inventory)
+                INSTANT_USE_ITEMS = {
+                    'Speed Scroll', 'Stamina Scroll', 'Power Scroll', 'Guts Scroll', 'Wit Scroll',
+                    'Speed Training Application', 'Stamina Training Application',
+                    'Power Training Application', 'Guts Training Application', 'Wit Training Application',
+                }
+                
+                # Get current inventory
+                owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+                owned_map = {n: q for n, q in owned}
+                
+                # Check which non-instant-use items were planned but aren't in inventory
+                verify_targets = [t for t in targets if t not in INSTANT_USE_ITEMS]
+                missing_items = []
+                for item_name in verify_targets:
+                    if owned_map.get(item_name, 0) <= 0:
+                        missing_items.append(item_name)
+                
+                if missing_items:
+                    log.warning(f"Post-purchase check: missing items {missing_items} - retrying shop purchase")
+                    # Force rescan inventory to get latest state
+                    from module.umamusume.scenario.mant.inventory import open_items_panel, close_items_panel
+                    from module.umamusume.context import log_detected_items
+                    
+                    opened = open_items_panel(ctx)
+                    if opened:
+                        from module.umamusume.scenario.mant.inventory import scan_inventory
+                        owned = scan_inventory(ctx)
+                        ctx.cultivate_detail.mant_owned_items = owned
+                        ctx.cultivate_detail.mant_inventory_scanned = True
+                        log_detected_items(owned)
+                        close_items_panel(ctx)
+                        
+                        # Re-check with fresh inventory
+                        owned_map = {n: q for n, q in owned}
+                        missing_items = [t for t in verify_targets if owned_map.get(t, 0) <= 0]
+                        
+                        if missing_items:
+                            log.info(f"Retry: attempting to purchase {missing_items}")
+                            # Rescan shop and retry purchase
+                            from module.umamusume.scenario.mant.shop import scan_mant_shop
+                            scan_result = scan_mant_shop(ctx)
+                            if scan_result is not None:
+                                retry_items, retry_ratio, retry_drag_ratio, retry_first_gy = scan_result
+                                retry_bought, _ = buy_shop_items(ctx, missing_items, retry_items, retry_ratio, retry_drag_ratio, retry_first_gy)
+                                if retry_bought:
+                                    log.info(f"Retry successful: purchased {missing_items}")
+                                    ctx.cultivate_detail.mant_inventory_rescan_pending = True
+                                    total_spent_retry = sum(SHOP_ITEM_COSTS.get(t, 0) for t in missing_items)
+                                    ctx.cultivate_detail.mant_coins = max(0, ctx.cultivate_detail.mant_coins - total_spent_retry)
+                                else:
+                                    log.warning(f"Retry failed: could not purchase {missing_items} - continuing anyway")
+                            else:
+                                log.warning(f"Retry: shop scan failed - continuing anyway")
+                        else:
+                            log.info(f"Post-purchase check: items found in inventory after all")
+                    else:
+                        log.warning(f"Post-purchase check: could not open inventory - continuing anyway")
+                else:
+                    log.info("Post-purchase check: all planned items found in inventory")
 
     if not bought:
         from module.umamusume.scenario.mant.shop import BACK_BTN_X, BACK_BTN_Y

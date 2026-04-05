@@ -192,20 +192,41 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                     break
                 ctx.ctrl.swipe(x1=20, y1=850, x2=20, y2=1000, duration=200, name="")
                 swiped = True
+            
+            # Capture fresh screen and initialize tracking
             img = ctx.ctrl.get_screen()
             ti = ctx.cultivate_detail.turn_info
             current_race_id = ctx.cultivate_detail.turn_info.turn_operation.race_id
             if not hasattr(ti, 'race_search_started_at') or getattr(ti, 'race_search_id', None) != current_race_id:
                 ti.race_search_started_at = time.time()
                 ti.race_search_id = current_race_id
+                ti.race_search_bottom_count = 0  # Track how many times we hit bottom
+                ti.race_search_total_scans = 0  # Track total scan attempts
+            
+            bottom_reached_this_cycle = False
+            
             while True:
+                # Timeout safety (30 seconds)
                 if time.time() - ti.race_search_started_at > 30:
+                    log.warning(f"Race search timeout after 30s for race {current_race_id} - giving up")
                     ctx.cultivate_detail.turn_info.turn_operation = None
                     if hasattr(ti, 'race_search_started_at'):
                         delattr(ti, 'race_search_started_at')
+                    if hasattr(ti, 'race_search_id'):
+                        delattr(ti, 'race_search_id')
+                    if hasattr(ti, 'race_search_bottom_count'):
+                        delattr(ti, 'race_search_bottom_count')
+                    if hasattr(ti, 'race_search_total_scans'):
+                        delattr(ti, 'race_search_total_scans')
+                    # Race detection failed - return to main menu
+                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
                     return
+                
                 race_id = ctx.cultivate_detail.turn_info.turn_operation.race_id
-                log.info(f"Looking for race ID: {race_id}")
+                log.info(f"Looking for race ID: {race_id} (scan #{getattr(ti, 'race_search_total_scans', 0) + 1})")
+                
+                # CRITICAL: Always get fresh screen before detection
+                img = ctx.ctrl.get_screen()
                 selected = find_race(ctx, img, race_id)
                 if selected:
                     log.info(f"Found race ID: {race_id}")
@@ -215,23 +236,57 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                         delattr(ti, 'race_search_id')
                     if hasattr(ti, 'race_search_retried'):
                         delattr(ti, 'race_search_retried')
+                    if hasattr(ti, 'race_search_bottom_count'):
+                        delattr(ti, 'race_search_bottom_count')
+                    if hasattr(ti, 'race_search_total_scans'):
+                        delattr(ti, 'race_search_total_scans')
                     try_use_cleat(ctx, race_id)
                     time.sleep(0.58)
                     ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
                     time.sleep(0.58)
                     return
+                
+                ti.race_search_total_scans = getattr(ti, 'race_search_total_scans', 0) + 1
+                
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 if not compare_color_equal(img[1006, 701], [211, 209, 219]):
-                    log.info(f"Bottom reached")
+                    log.info(f"Bottom reached (count: {getattr(ti, 'race_search_bottom_count', 0) + 1})")
+                    bottom_reached_this_cycle = True
+                    ti.race_search_bottom_count = getattr(ti, 'race_search_bottom_count', 0) + 1
+                    
+                    # If we've hit bottom 3+ times, the race is probably not detectable
+                    if ti.race_search_bottom_count >= 3:
+                        log.warning(f"Race {race_id} not detected after hitting bottom {ti.race_search_bottom_count} times - template may not match")
+                        ctx.cultivate_detail.turn_info.turn_operation = None
+                        if hasattr(ti, 'race_search_started_at'):
+                            delattr(ti, 'race_search_started_at')
+                        if hasattr(ti, 'race_search_id'):
+                            delattr(ti, 'race_search_id')
+                        if hasattr(ti, 'race_search_bottom_count'):
+                            delattr(ti, 'race_search_bottom_count')
+                        if hasattr(ti, 'race_search_total_scans'):
+                            delattr(ti, 'race_search_total_scans')
+                        ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
+                        return
+                    
+                    # Spam scroll to try to refresh the list and get better positioning
                     spam_deadline = time.time() + 3.7
                     while time.time() < spam_deadline:
                         ctx.ctrl.swipe(x1=20, y1=850, x2=20, y2=1000, duration=1000, name="")
                         time.sleep(0.17)
                     time.sleep(0.3)
                     img = ctx.ctrl.get_screen()
+                    continue  # Go back to searching with fresh screen
+                
+                # If we previously hit bottom but now we're scrolling up, reset the detection
+                if bottom_reached_this_cycle or getattr(ti, 'race_search_bottom_count', 0) > 0:
+                    bottom_reached_this_cycle = False
+                    ti.race_search_bottom_count = 0
+                
+                # Scroll UP slowly to search through the list
                 ctx.ctrl.swipe(x1=20, y1=1000, x2=20, y2=850, duration=1000, name="")
                 time.sleep(0.58)
-                img = ctx.ctrl.get_screen()
+                # Don't update img here - loop will get fresh screen at the top
         else:
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
 

@@ -757,36 +757,93 @@ def find_race(ctx: UmamusumeContext, img, race_id: int = 0) -> bool:
 
     log.info(f"Looking for race {race_id}: {RACE_LIST[race_id][1]}")
 
-    iterations = 0
-    while iterations < 100:
-        iterations += 1
-        match_result = image_match(img, REF_RACE_LIST_DETECT_LABEL)
-        if not match_result.find_match:
-            break
-        pos = match_result.matched_area
-        pos_center = match_result.center_point
-        if 685 < pos_center[1] < 1110:
-            y1 = max(0, pos[0][1] - 135)
-            y2 = min(img_height, pos[1][1] + 75)
-            x1 = max(0, pos[0][0] - 270)
-            x2 = min(img_width, pos[1][0] + 420)
-            race_name_img = img[y1:y2, x1:x2]
+    # Try multiple accuracy thresholds for more robust detection
+    # Start with standard threshold, then try lower if not found
+    accuracy_levels = [0.86, 0.80, 0.75]
+    
+    for attempt_idx, accuracy in enumerate(accuracy_levels):
+        iterations = 0
+        test_img = img.copy()
+        best_score = 0.0
+        best_pos = None
+        
+        while iterations < 100:
+            iterations += 1
+            match_result = image_match(test_img, REF_RACE_LIST_DETECT_LABEL)
+            if not match_result.find_match:
+                break
+            pos = match_result.matched_area
+            pos_center = match_result.center_point
+            if 685 < pos_center[1] < 1110:
+                y1 = max(0, pos[0][1] - 135)
+                y2 = min(img_height, pos[1][1] + 75)
+                x1 = max(0, pos[0][0] - 270)
+                x2 = min(img_width, pos[1][0] + 420)
+                race_name_img = test_img[y1:y2, x1:x2]
 
-            if race_name_img.shape[0] > 0 and race_name_img.shape[1] > 0:
-                template_img = target_race_template.template_image
-                if (template_img is not None and
-                    race_name_img.shape[0] >= template_img.shape[0] and
-                    race_name_img.shape[1] >= template_img.shape[1]):
-                    template_match_result = image_match(race_name_img, target_race_template)
-                    if template_match_result.find_match:
-                        log.info(f"Race {race_id} matched")
-                        ctx.ctrl.click(pos_center[0], pos_center[1],
-                                       f"Select race: {RACE_LIST[race_id][1]}")
-                        return True
+                if race_name_img.shape[0] > 0 and race_name_img.shape[1] > 0:
+                    template_img = target_race_template.template_image
+                    if (template_img is not None and
+                        race_name_img.shape[0] >= template_img.shape[0] and
+                        race_name_img.shape[1] >= template_img.shape[1]):
+                        # Use custom accuracy for this attempt
+                        template_match_result = image_match_with_accuracy(
+                            race_name_img, target_race_template, accuracy)
+                        
+                        # Track best score for debugging
+                        if template_match_result.score > best_score:
+                            best_score = template_match_result.score
+                            best_pos = pos_center
+                        
+                        if template_match_result.find_match:
+                            log.info(f"Race {race_id} matched (accuracy: {accuracy}, score: {template_match_result.score:.3f})")
+                            ctx.ctrl.click(pos_center[0], pos_center[1],
+                                           f"Select race: {RACE_LIST[race_id][1]}")
+                            return True
 
-        img[pos[0][1]:pos[1][1], pos[0][0]:pos[1][0]] = 0
-        img = img.copy()
+            test_img[pos[0][1]:pos[1][1], pos[0][0]:pos[1][0]] = 0
+            test_img = test_img.copy()
+        
+        # Log best score for this attempt
+        if best_score > 0:
+            log.debug(f"Race {race_id} attempt {attempt_idx + 1} (threshold {accuracy}): best score={best_score:.3f} at {best_pos}")
+    
+    log.warning(f"Race {race_id} not detected after trying accuracy levels {accuracy_levels}")
     return False
+
+
+def image_match_with_accuracy(target, template, accuracy: float):
+    """Custom image matching with specified accuracy threshold."""
+    from bot.recog.image_matcher import ImageMatchResult
+    from bot.recog.timeout_tracker import reset_timeout
+    
+    reset_timeout()
+    try:
+        arr = getattr(template, 'template_img', None)
+        if arr is None:
+            arr = getattr(template, 'template_image', None)
+        if arr is not None:
+            try:
+                th, tw = arr.shape[:2]
+            except Exception:
+                return ImageMatchResult()
+            
+            result = cv2.matchTemplate(target, arr, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+            match_result = ImageMatchResult()
+            
+            if max_val > accuracy:
+                match_result.find_match = True
+                match_result.center_point = (int(max_loc[0] + tw / 2), int(max_loc[1] + th / 2))
+                match_result.matched_area = ((max_loc[0], max_loc[1]), (max_loc[0] + tw, max_loc[1] + th))
+                match_result.score = max_val
+            else:
+                match_result.find_match = False
+                match_result.score = max_val
+            return match_result
+    except Exception as e:
+        log.debug(f"image_match_with_accuracy failed: {e}")
+    return ImageMatchResult()
 
 
 

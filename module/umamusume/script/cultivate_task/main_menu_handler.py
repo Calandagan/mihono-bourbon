@@ -177,6 +177,17 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
         if should_use_pal_outing_simple(ctx):
             ctx.ctrl.click_by_point(get_trip(ctx))
             return
+        # No recreation available — commit to rest directly rather than clearing
+        # the operation and looping back through training_select, which causes
+        # the main_menu → training_select → REST → reset infinite loop.
+        rest_loop_count = getattr(ctx.cultivate_detail.turn_info, 'rest_loop_count', 0)
+        ctx.cultivate_detail.turn_info.rest_loop_count = rest_loop_count + 1
+        if rest_loop_count >= 2:
+            log.warning(f"REST loop detected ({rest_loop_count} times) — committing to rest now")
+            ctx.cultivate_detail.turn_info.rest_loop_count = 0
+            ctx.cultivate_detail.turn_info.turn_operation = None
+            ctx.ctrl.click_by_point(CULTIVATE_REST)
+            return
         ctx.cultivate_detail.turn_info.turn_operation = None
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
         ctx.cultivate_detail.turn_info.parse_train_info_finish = False
@@ -271,6 +282,15 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     return
             if should_use_pal_outing_simple(ctx):
                 ctx.ctrl.click_by_point(get_trip(ctx))
+                return
+            # Same loop guard as the early REST handler above
+            rest_loop_count = getattr(ctx.cultivate_detail.turn_info, 'rest_loop_count', 0)
+            ctx.cultivate_detail.turn_info.rest_loop_count = rest_loop_count + 1
+            if rest_loop_count >= 2:
+                log.warning(f"REST loop detected ({rest_loop_count} times) — committing to rest now")
+                ctx.cultivate_detail.turn_info.rest_loop_count = 0
+                ctx.cultivate_detail.turn_info.turn_operation = None
+                ctx.ctrl.click_by_point(CULTIVATE_REST)
                 return
             ctx.cultivate_detail.turn_info.turn_operation = None
             ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
