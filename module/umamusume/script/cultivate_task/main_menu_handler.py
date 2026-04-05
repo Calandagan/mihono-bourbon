@@ -140,6 +140,12 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                     time.sleep(0.15)
                     ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
                     return
+
+    if _is_mant:
+        from module.umamusume.scenario.mant.main_menu import handle_mant_main_menu
+        if handle_mant_main_menu(ctx, img, current_date):
+            return
+
     if not ctx.cultivate_detail.cultivate_finish:
         ctx.cultivate_detail.reset_skill_learn()
 
@@ -178,6 +184,12 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
     
     if turn_operation is not None and turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRIP:
         log.info("Executing trip operation")
+        if getattr(ctx.cultivate_detail, 'team_sirius_enabled', False):
+            if should_use_team_sirius_recreation(ctx):
+                execute_team_sirius_recreation(ctx, trip_click_point=get_trip(ctx))
+                return
+            execute_regular_recreation(ctx, trip_click_point=get_trip(ctx))
+            return
         if is_summer_camp_period(ctx.cultivate_detail.turn_info.date):
             ctx.ctrl.click(68, 991, "Summer Camp")
         else:
