@@ -530,6 +530,24 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
     only_user = ctx.cultivate_detail.learn_skill_only_user_provided is True
     at_finish = ctx.cultivate_detail.cultivate_finish
 
+    # SP Burst Skill: check if threshold is met and buy burst skill first
+    sp_burst_skill_name = getattr(ctx.task.detail, 'sp_burst_skill', '')
+    sp_burst_threshold = int(getattr(ctx.task.detail, 'sp_burst_threshold', 0))
+    sp_burst_purchased = False
+    if sp_burst_skill_name and sp_burst_threshold > 0:
+        # Try to find the burst skill in the scanned list
+        for s in skill_list:
+            if (s.get("skill_name") == sp_burst_skill_name or
+                s.get("skill_name_raw") == sp_burst_skill_name):
+                if s["available"] and total_skill_point >= sp_burst_threshold and total_skill_point >= s["skill_cost"]:
+                    target_skill_list.append(s["skill_name"])
+                    target_skill_list_raw.append(s["skill_name_raw"])
+                    curr_point += s["skill_cost"]
+                    s["available"] = False
+                    sp_burst_purchased = True
+                    log.info(f"SP Burst: '{s['skill_name']}' cost={s['skill_cost']} SP={total_skill_point} >= threshold={sp_burst_threshold}")
+                break
+
     for priority_level in range(len(learn_skill_list) + 1):
         if only_user and not at_finish and priority_level > 0:
             if priority_level >= len(learn_skill_list) or not learn_skill_list[priority_level]:
