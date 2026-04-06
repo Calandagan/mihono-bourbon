@@ -166,8 +166,13 @@ def build_task(task_execute_mode: TaskExecuteMode, task_type: int,
     td.hint_boost_multiplier = int(attachment_data.get('hint_boost_multiplier', 100))
     td.friendship_score_groups = attachment_data.get('friendship_score_groups', [])
 
-    td.sp_burst_skill = attachment_data.get('sp_burst_skill') or ''
-    td.sp_burst_threshold = int(attachment_data.get('sp_burst_threshold', 0))
+    td.sp_burst_skill = attachment_data.get('sp_burst_skill') or (
+        attachment_data.get('mant_config') or {}
+    ).get('sp_burst_skill') or ''
+    td.sp_burst_threshold = attachment_data.get('sp_burst_threshold', 0) or (
+        attachment_data.get('mant_config') or {}
+    ).get('sp_burst_threshold', 0)
+    td.sp_burst_threshold = int(td.sp_burst_threshold)
 
     ut.detail = td
     return ut

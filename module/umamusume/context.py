@@ -195,6 +195,7 @@ class CultivateContextDetail:
         self.team_sirius_percentile = 26
         self.team_sirius_available_dates = []
         self.team_sirius_last_date = -1
+        self.sp_burst_skill_purchased = False
 
     def reset_skill_learn(self):
         self.learn_skill_done = False

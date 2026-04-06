@@ -166,16 +166,33 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
     if not ctx.cultivate_detail.cultivate_finish:
         ctx.cultivate_detail.reset_skill_learn()
 
+    sp_burst_skill_name = getattr(ctx.task.detail, 'sp_burst_skill', '') or ''
+    sp_burst_threshold = int(getattr(ctx.task.detail, 'sp_burst_threshold', 0))
+    sp_burst_available = sp_burst_skill_name and sp_burst_threshold > 0
+    sp_burst_not_done = not getattr(ctx.cultivate_detail, 'sp_burst_skill_purchased', False)
+    current_sp = int(getattr(ctx.cultivate_detail.turn_info.uma_attribute, 'skill_point', 0))
+    sp_burst_trigger = (sp_burst_available and sp_burst_not_done
+                         and current_sp >= sp_burst_threshold
+                         and not ctx.cultivate_detail.cultivate_finish)
+
+    if sp_burst_trigger:
+        log.info(f"SP Burst: skill point {current_sp} >= {sp_burst_threshold}, opening skill shop to buy '{sp_burst_skill_name}'")
+        ctx.cultivate_detail._sp_burst_mode = sp_burst_skill_name
+        ctx.ctrl.click_by_point(CULTIVATE_SKILL_LEARN)
+        ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
+        return
+
     skip_auto_skill_learning = (ctx.task.detail.manual_purchase_at_end and ctx.cultivate_detail.cultivate_finish)
-    
+
     log.debug(f"Skill learning check - Skill points: {ctx.cultivate_detail.turn_info.uma_attribute.skill_point}, Threshold: {ctx.cultivate_detail.learn_skill_threshold}")
     log.debug(f"Manual purchase enabled: {ctx.task.detail.manual_purchase_at_end}, Cultivate finish: {ctx.cultivate_detail.cultivate_finish}")
     log.debug(f"Skip auto skill learning: {skip_auto_skill_learning}")
-    
+
     if (ctx.cultivate_detail.turn_info.uma_attribute.skill_point > ctx.cultivate_detail.learn_skill_threshold
             and not ctx.cultivate_detail.turn_info.turn_learn_skill_done
             and not skip_auto_skill_learning):
         log.info(f"Auto-learning skills - Skill points: {ctx.cultivate_detail.turn_info.uma_attribute.skill_point}")
+        ctx.cultivate_detail._sp_burst_mode = None
         ctx.ctrl.click_by_point(CULTIVATE_SKILL_LEARN)
         ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
         return
