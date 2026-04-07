@@ -146,12 +146,29 @@ def script_info(ctx: UmamusumeContext):
         else:
             log.info(f"Found match: '{original_text}' -> '{title_text}'")
         
-        # Debug: Show which TITLE index this matches to
-        try:
-            title_index = TITLE.index(title_text)
-            log.info(f"DEBUG: title_text='{title_text}' matches TITLE[{title_index}]='{TITLE[title_index]}'")
-        except ValueError:
-            log.warning(f"DEBUG: title_text='{title_text}' not found in TITLE array")
+        if title_text == ctx.cultivate_detail.last_title:
+            ctx.cultivate_detail.same_title_count += 1
+        else:
+            ctx.cultivate_detail.same_title_count = 1
+            ctx.cultivate_detail.last_title = title_text
+
+        if ctx.cultivate_detail.same_title_count >= 3:
+            try:
+                from module.umamusume.asset.template import REF_NEXT, REF_NEXT2
+                img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
+                next_match = image_match(img_full, REF_NEXT)
+                if next_match.find_match:
+                    ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
+                    time.sleep(0.5)
+                next2_match = image_match(img_full, REF_NEXT2)
+                if next2_match.find_match:
+                    ctx.ctrl.click(next2_match.center_point[0], next2_match.center_point[1], "REF_NEXT2")
+                    time.sleep(0.5)
+            except Exception:
+                pass
+            ctx.cultivate_detail.same_title_count = 0
+            return
+        
         
         # Force correct handler for "Confirm" - bypass TITLE array indexing issues
         if title_text == "Confirm":

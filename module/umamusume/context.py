@@ -147,6 +147,8 @@ class CultivateContextDetail:
     friendship_score_groups: list
     score_history: list[float]
     percentile_history: list[float]
+    last_title: str
+    same_title_count: int
 
     def __init__(self):
         self.expect_attribute = None
@@ -193,6 +195,8 @@ class CultivateContextDetail:
         self.team_sirius_percentile = 26
         self.team_sirius_available_dates = []
         self.team_sirius_last_date = -1
+        self.last_title = ""
+        self.same_title_count = 0
 
     def reset_skill_learn(self):
         self.learn_skill_done = False
