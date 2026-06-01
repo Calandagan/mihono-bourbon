@@ -627,7 +627,7 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
     shop_available = {name for name, _, _, _, buyable in shop_items if buyable}
 
     turn_op = getattr(ctx.cultivate_detail.turn_info, 'turn_operation', None)
-    if not turn_op or getattr(turn_op, 'turn_operation_type', None) != TurnOperationType.RACE:
+    if not turn_op or getattr(turn_op, 'turn_operation_type', None) != TurnOperationType.TURN_OPERATION_TYPE_RACE:
         return False
     race_id = int(getattr(turn_op, 'race_id', 0) or 0)
     if race_id <= 0:
