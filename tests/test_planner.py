@@ -102,6 +102,23 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.primary_action, "rest")
         self.assertIn("failure limit", plan.reason)
 
+    def test_plan_training_turn_force_safe_recovery_uses_mant_item_before_rest(self):
+        ctx = _make_ctx()
+        fake_recovery = types.SimpleNamespace(
+            choose_training_failure_recovery_action=lambda _ctx: ("energy_item", "Vita 40"),
+        )
+        with patch.dict(sys.modules, {"module.umamusume.scenario.mant.training_recovery": fake_recovery}):
+            plan = planner.plan_training_turn(
+                ctx,
+                TrainingType.TRAINING_TYPE_SPEED,
+                force_safe_recovery=True,
+            )
+
+        self.assertEqual(plan.primary_action, "training")
+        self.assertEqual(plan.pre_actions, ["energy_item"])
+        self.assertTrue(plan.requires_replan_after_pre_action)
+        self.assertIn("retry with energy_item", plan.reason)
+
     def test_plan_training_turn_preserves_scored_training_choice(self):
         ctx = _make_ctx()
         ai_operation = TurnOperation()

@@ -224,6 +224,23 @@ def plan_training_turn(
     force_safe_recovery: bool = False,
 ) -> TurnPlan:
     if force_safe_recovery:
+        if is_mant(ctx):
+            try:
+                from module.umamusume.scenario.mant.training_recovery import (
+                    choose_training_failure_recovery_action,
+                )
+
+                action, _item_name = choose_training_failure_recovery_action(ctx)
+                if action in ("charm", "energy_item"):
+                    return TurnPlan(
+                        primary_action="training",
+                        training_type=default_training_type,
+                        pre_actions=[action],
+                        requires_replan_after_pre_action=True,
+                        reason=f"all trainings blocked - retry with {action}",
+                    )
+            except Exception:
+                pass
         if should_use_pal_outing_simple(ctx):
             return TurnPlan(primary_action="trip", reason="all trainings blocked by failure limit")
         return TurnPlan(primary_action="rest", reason="all trainings blocked by failure limit")

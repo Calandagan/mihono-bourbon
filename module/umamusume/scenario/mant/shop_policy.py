@@ -280,6 +280,7 @@ def build_emergency_expiring_targets(
 
     cure_names = set(ailment_cure_map.values())
     for tier in range(1, getattr(mant_cfg, "tier_count", 0) + 1):
+        tier_added = 0
         for slug, tier_value in getattr(mant_cfg, "item_tiers", {}).items():
             if tier_value != tier or slug not in shop_slugs:
                 continue
@@ -325,6 +326,9 @@ def build_emergency_expiring_targets(
                     break
                 targets.append(display)
                 budget -= cost
+                tier_added += 1
+        if tier_added > 0:
+            break
 
     return targets, budget
 

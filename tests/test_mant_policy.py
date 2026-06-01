@@ -45,12 +45,9 @@ sys.modules.setdefault(
     "module.umamusume.scenario.mant.actions",
     types.SimpleNamespace(use_item_and_update_inventory=lambda *a, **k: True),
 )
-sys.modules.setdefault(
-    "module.umamusume.asset.race_data",
-    types.SimpleNamespace(
-        is_g1_race=lambda race_id: int(race_id or 0) >= 2000,
-        get_races_for_period=lambda period: [],
-    ),
+sys.modules["module.umamusume.asset.race_data"] = types.SimpleNamespace(
+    is_g1_race=lambda race_id: int(race_id or 0) >= 2000,
+    get_races_for_period=lambda period: [],
 )
 
 _policy_path = Path(__file__).resolve().parents[1] / "module" / "umamusume" / "scenario" / "mant" / "policy.py"
@@ -206,6 +203,37 @@ class MantPolicyTests(unittest.TestCase):
             ailment_cure_all="Miracle Cure",
         )
         self.assertEqual(targets, ["Grilled Carrots"])
+
+    def test_build_emergency_expiring_targets_stops_after_first_valid_tier(self):
+        cfg = types.SimpleNamespace(
+            tier_count=4,
+            item_tiers={"motivating_megaphone": 1, "grilled_carrots": 2},
+            tier_thresholds={1: 0, 2: 0},
+        )
+        targets, _budget = shop_policy.build_emergency_expiring_targets(
+            current_date=40,
+            budget=200,
+            shop_items=[
+                ("Motivating Megaphone", 1.0, 10, 1, True),
+                ("Grilled Carrots", 1.0, 20, 1, True),
+            ],
+            mant_cfg=cfg,
+            owned_map={},
+            deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
+            used_buffs=set(),
+            one_time_buff_items=set(),
+            ignore_grilled_carrots=False,
+            shop_item_costs={"Motivating Megaphone": 55, "Grilled Carrots": 40},
+            slug_to_display={"motivating_megaphone": "Motivating Megaphone", "grilled_carrots": "Grilled Carrots"},
+            display_to_slug=lambda name: {
+                "Motivating Megaphone": "motivating_megaphone",
+                "Grilled Carrots": "grilled_carrots",
+            }[name],
+            detected_portraits_log={"a": {"is_npc": False, "favor": 1}},
+            ailment_cure_map={},
+            ailment_cure_all="Miracle Cure",
+        )
+        self.assertEqual(targets, ["Motivating Megaphone"])
 
     def test_choose_cleat_for_race_prefers_spare_artisan_on_normal_race(self):
         selected = race_prep.choose_cleat_for_race(

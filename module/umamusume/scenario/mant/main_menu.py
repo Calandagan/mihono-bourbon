@@ -330,6 +330,7 @@ def handle_mant_shop_scan(ctx, current_date):
                 option_meta[name]["max_stock"] = max_stock
 
         for tier in range(1, mant_cfg.tier_count + 1):
+            tier_added = 0
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
                 if t != tier or slug not in shop_slugs:
@@ -383,6 +384,10 @@ def handle_mant_shop_scan(ctx, current_date):
                     target_sources.setdefault(display, "tier_policy")
                     target_ui_tiers.setdefault(display, tier)
                     budget -= cost
+                    tier_added += 1
+
+            if tier_added > 0:
+                break
 
         targets = priority_targets + tier_targets
         log.info(f"[SHOP] targets to buy={targets}")

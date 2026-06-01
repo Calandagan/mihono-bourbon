@@ -123,6 +123,12 @@ def should_use_pal_outing_simple(ctx: UmamusumeContext):
     current_mood_raw = state.get("mood")
     current_mood = current_mood_raw if current_mood_raw is not None else 4
 
+    if current_mood >= 5:
+        ti.pal_outing_cached = False
+        ti.pal_outing_cached_date = ti.date
+        log.info("Mood already maxed - skipping pal outing")
+        return False
+
     mood_below = current_mood <= mood_threshold
     energy_below = current_energy <= energy_threshold
 
@@ -191,6 +197,11 @@ def should_use_pal_outing(ctx: UmamusumeContext, score_below: bool = False):
     current_energy = state.get("energy", 0)
     current_mood_raw = state.get("mood")
     current_mood = current_mood_raw if current_mood_raw is not None else 4
+
+    if current_mood >= 5:
+        ti.pal_outing_cached = False
+        ti.pal_outing_cached_date = ti.date
+        return False
 
     mood_below = current_mood <= mood_threshold
     energy_below = current_energy <= energy_threshold
