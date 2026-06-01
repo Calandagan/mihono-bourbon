@@ -457,6 +457,10 @@ def parse_train_main_menu_operations_availability(ctx: UmamusumeContext, img):
     trip_available = btn_trip_check_point[0] > 200
     race_available = btn_race_check_point[0] > 200
 
+    ctx.cultivate_detail.turn_info.rest_available = rest_available
+    ctx.cultivate_detail.turn_info.train_available = train_available
+    ctx.cultivate_detail.turn_info.skill_available = skill_available
+    ctx.cultivate_detail.turn_info.trip_available = trip_available
     ctx.cultivate_detail.turn_info.race_available = race_available
     ctx.cultivate_detail.turn_info.medic_room_available = medic_room_available
 
@@ -530,13 +534,63 @@ def parse_failure_rates(ctx: UmamusumeContext, img, train_type: TrainingType | N
     try:
         import cv2
         from bot.recog.ocr import ocr_line
-        y1, y2 = 916, 981
+        import re
+
+        def parse_failure_digits(text: str):
+            if not text:
+                return -1
+            direct = re.findall(r"\d{1,3}", text)
+            for token in direct:
+                try:
+                    value = int(token)
+                except Exception:
+                    continue
+                if 0 <= value <= 100:
+                    return value
+
+            digits = re.sub(r"\D", "", text)
+            if not digits:
+                return -1
+            if "100" in digits:
+                return 100
+            if "99" in digits:
+                return 99
+            if len(digits) >= 2:
+                for token in (digits[:2], digits[-2:]):
+                    try:
+                        value = int(token)
+                    except Exception:
+                        continue
+                    if 0 <= value <= 99:
+                        return value
+            return -1
+
+        def read_failure_rate(roi):
+            candidates = []
+            try:
+                gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            except Exception:
+                gray = roi
+            scaled = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+            bordered = cv2.copyMakeBorder(scaled, 16, 16, 16, 16, cv2.BORDER_CONSTANT, None, 255)
+            _, binary = cv2.threshold(bordered, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            inverted = cv2.bitwise_not(binary)
+            candidates.extend([bordered, binary, inverted])
+
+            for candidate in candidates:
+                text = ocr_line(candidate, lang="en")
+                value = parse_failure_digits(text)
+                if value != -1:
+                    return value
+            return -1
+
+        y1, y2 = 908, 989
         x_ranges = [
-            (75, 134),
-            (202, 261),
-            (330, 389),
-            (457, 516),
-            (584, 643),
+            (64, 150),
+            (191, 277),
+            (319, 405),
+            (446, 532),
+            (573, 659),
         ]
         rates = []
         for (x1, x2) in x_ranges:
@@ -544,17 +598,7 @@ def parse_failure_rates(ctx: UmamusumeContext, img, train_type: TrainingType | N
             y1c = max(0, min(h, y1)); y2c = max(y1c, min(h, y2))
             x1c = max(0, min(w, x1)); x2c = max(x1c, min(w, x2))
             roi = img[y1c:y2c, x1c:x2c]
-            roi = cv2.copyMakeBorder(roi, 10, 10, 10, 10, cv2.BORDER_CONSTANT, None, (255, 255, 255))
-            text = ocr_line(roi, lang="en")
-            import re
-            digits = re.sub("\\D", "", text)
-            if digits == "":
-                rates.append(-1)
-            else:
-                try:
-                    rates.append(int(digits))
-                except Exception:
-                    rates.append(-1)
+            rates.append(read_failure_rate(roi))
         if train_type is not None and isinstance(train_type, TrainingType) and 1 <= train_type.value <= 5:
             idx = train_type.value - 1
             try:

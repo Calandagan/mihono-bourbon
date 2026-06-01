@@ -11,11 +11,16 @@ import cv2
 from bot.base.resource import UI, NOT_FOUND_UI
 from bot.base.task import TaskStatus, Task, EndTaskReason
 from bot.conn.os import push_system_notification
-from bot.conn.adb_controller import AdbController
+from bot.conn.ctrl import AndroidController
+from bot.conn.runtime import (
+    build_controller_from_runtime_config,
+    clear_active_controller,
+    set_active_controller,
+)
 from bot.recog.image_matcher import template_match, image_match
 from bot.recog.ocr import reset_ocr
 from bot.recog.timeout_tracker import check_and_reset_timeout
-from bot.base.purge import save_task_data, save_scheduler_tasks, save_scheduler_state, soft_process_restart
+from bot.base.purge import save_task_data, save_scheduler_tasks, save_scheduler_state
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bot.base.manifest import APP_MANIFEST_LIST
 from config import CONFIG
@@ -23,21 +28,28 @@ from config import CONFIG
 log = logger.get_logger(__name__)
 debug = True
 
-def get_controller() -> AdbController:
-    from config import CONFIG
-    return AdbController(CONFIG.bot.auto.adb.device_name)
+def get_controller() -> AndroidController:
+    return build_controller_from_runtime_config()
 
 
 class Executor:
     app_alive_check_counter = 5
     app_alive_check_interval = 5
 
-    def __init__(self):
+    def __init__(self, controller_factory=None):
         self.active = True
         psutil.Process().cpu_affinity(list(range(CONFIG.bot.auto.cpu_alloc)))
         self.detect_ui_results_write_lock = threading.Lock()
         self.detect_ui_results = []
         self.executor = ThreadPoolExecutor(max_workers=CONFIG.bot.auto.cpu_alloc)
+        self.controller_factory = controller_factory or get_controller
+        self.watchdog_thread = None
+        self.watchdog_stop_event = None
+        self.watchdog_run_id = 0
+        self.watchdog_lock = threading.Lock()
+
+    def build_controller(self) -> AndroidController:
+        return self.controller_factory()
 
     def ensure_pool(self):
         if self.executor is None or getattr(self.executor, "_shutdown", False):
@@ -76,11 +88,65 @@ class Executor:
 
     def stop(self):
         self.active = False
+        self._stop_watchdog("executor_stop")
         self.close_pool()
         try:
             purge_all("executor.stop")
         except Exception:
             pass
+
+    def _prepare_watchdog_session(self):
+        with self.watchdog_lock:
+            old_thread = self.watchdog_thread
+            old_stop_event = self.watchdog_stop_event
+            old_run_id = self.watchdog_run_id
+            if old_stop_event is not None:
+                old_stop_event.set()
+            self.watchdog_run_id += 1
+            run_id = self.watchdog_run_id
+            stop_event = threading.Event()
+            self.watchdog_stop_event = stop_event
+            self.watchdog_thread = None
+        if old_thread is not None and old_thread.is_alive():
+            try:
+                old_thread.join(timeout=0.1)
+            except Exception:
+                pass
+            log.info("watchdog stopped run_id=%s reason=replaced", old_run_id)
+        return run_id, stop_event
+
+    def _register_watchdog_thread(self, run_id, watchdog_thread, stop_event):
+        with self.watchdog_lock:
+            if run_id != self.watchdog_run_id or stop_event is not self.watchdog_stop_event:
+                stop_event.set()
+                return False
+            self.watchdog_thread = watchdog_thread
+            return True
+
+    def _stop_watchdog(self, reason):
+        with self.watchdog_lock:
+            old_thread = self.watchdog_thread
+            old_stop_event = self.watchdog_stop_event
+            old_run_id = self.watchdog_run_id
+            if old_stop_event is not None:
+                old_stop_event.set()
+            self.watchdog_thread = None
+            self.watchdog_stop_event = None
+        if old_thread is not None and old_thread.is_alive():
+            try:
+                old_thread.join(timeout=0.1)
+            except Exception:
+                pass
+            log.info("watchdog stopped run_id=%s reason=%s", old_run_id, reason)
+
+    def _is_watchdog_session_valid(self, run_id, stop_event, task):
+        return (
+            self.active
+            and task.task_status == TaskStatus.TASK_STATUS_RUNNING
+            and run_id == self.watchdog_run_id
+            and stop_event is self.watchdog_stop_event
+            and not stop_event.is_set()
+        )
 
     def detect_ui(self, ui_list: list[UI], target, prev_ui=None) -> UI:
         if len(target.shape) == 3:
@@ -149,9 +215,11 @@ class Executor:
         ui_list = manifest.ui_list
         before_hook = manifest.before_hook
         after_hook = manifest.after_hook
-        controller = get_controller()
+        controller = self.build_controller()
+        watchdog_run_id, watchdog_stop_event = self._prepare_watchdog_session()
         try:
             controller.init_env()
+            set_active_controller(controller)
             ctx = manifest.build_context(task, controller)
             ctx.ctrl = controller
 
@@ -164,7 +232,7 @@ class Executor:
             ctx.ctrl.click(355, 1200, "task start")
             
             
-            def screen_watchdog():
+            def screen_watchdog(run_id, stop_event):
                 last_img = None
                 unchanged = 0
                 last_restart_time = 0
@@ -176,8 +244,12 @@ class Executor:
                     except Exception:
                         return im
 
-                while self.active and task.task_status == TaskStatus.TASK_STATUS_RUNNING:
-                    time.sleep(30)
+                log.info("watchdog started run_id=%s", run_id)
+                while self._is_watchdog_session_valid(run_id, stop_event, task):
+                    if stop_event.wait(30):
+                        break
+                    if not self._is_watchdog_session_valid(run_id, stop_event, task):
+                        break
                     if last_restart_time > 0 and (time.time() - last_restart_time) < 60:
                         continue
                     try:
@@ -203,7 +275,6 @@ class Executor:
                                     update_watchdog(unchanged)
                             except Exception:
                                 pass
-                            print(f"{unchanged}/{watchdog_threshold}", flush=True)
                             try:
                                 log.info(f"watchdog {unchanged}/{watchdog_threshold}")
                             except Exception:
@@ -219,7 +290,6 @@ class Executor:
                                         update_watchdog(unchanged)
                                 except Exception:
                                     pass
-                                print(f"0/{watchdog_threshold}", flush=True)
                                 try:
                                     log.info(f"watchdog 0/{watchdog_threshold}")
                                 except Exception:
@@ -242,7 +312,6 @@ class Executor:
                                         update_watchdog(unchanged)
                                 except Exception:
                                     pass
-                                print(f"{unchanged}/{watchdog_threshold}", flush=True)
                                 try:
                                     log.info(f"watchdog {unchanged}/{watchdog_threshold}")
                                 except Exception:
@@ -255,7 +324,6 @@ class Executor:
                                         update_watchdog(unchanged)
                                 except Exception:
                                     pass
-                                print(f"0/{watchdog_threshold}", flush=True)
                                 try:
                                     log.info(f"watchdog 0/{watchdog_threshold}")
                                 except Exception:
@@ -263,17 +331,20 @@ class Executor:
                             last_img = cur
 
                         if unchanged >= watchdog_threshold:
-                            print(f"{watchdog_threshold}/{watchdog_threshold} restarting app", flush=True)      
                             try:
-                                log.info(f"watchdog {watchdog_threshold}/{watchdog_threshold} restarting app")  
+                                log.info(
+                                    "watchdog recovery run_id=%s unchanged=%s threshold=%s",
+                                    run_id,
+                                    unchanged,
+                                    watchdog_threshold,
+                                )
                             except Exception:
                                 pass
 
                             recovery_success = False
                             try:
-                                from bot.base.runtime_state import get_state
-                                state = get_state()
-                                state["input_blocked"] = True
+                                from bot.base.runtime_state import set_state
+                                set_state("input_blocked", True)
 
                                 for attempt in range(3):
                                     try:
@@ -299,7 +370,8 @@ class Executor:
                                 pass
                             finally:
                                 try:
-                                    state["input_blocked"] = False
+                                    from bot.base.runtime_state import set_state
+                                    set_state("input_blocked", False)
                                 except Exception:
                                     pass
                             
@@ -311,7 +383,6 @@ class Executor:
                                     update_watchdog(unchanged)
                             except Exception:
                                 pass
-                            print(f"0/{watchdog_threshold}", flush=True)
                             try:
                                 log.info(f"watchdog 0/{watchdog_threshold}")
                             except Exception:
@@ -320,9 +391,15 @@ class Executor:
                     except Exception:
                         unchanged = 0
                         last_img = None
+                log.info("watchdog stopped run_id=%s reason=loop_exit", run_id)
 
-            watchdog_thread = threading.Thread(target=screen_watchdog, args=(), daemon=True)
-            watchdog_thread.start()
+            watchdog_thread = threading.Thread(
+                target=screen_watchdog,
+                args=(watchdog_run_id, watchdog_stop_event),
+                daemon=True,
+            )
+            if self._register_watchdog_thread(watchdog_run_id, watchdog_thread, watchdog_stop_event):
+                watchdog_thread.start()
 
             last_frame_hash = None
             dedup_skip_count = 0
@@ -394,22 +471,31 @@ class Executor:
         else:
             self.active = False
         task.end_task_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        self._stop_watchdog("task_end")
+        stop_scheduler_after_end = bool(getattr(task, 'stop_scheduler_after_end', False))
+        skip_scheduler_persist = bool(getattr(task, 'skip_scheduler_persist', False))
+        skip_process_restart = bool(getattr(task, 'skip_process_restart', False))
+        if stop_scheduler_after_end:
+            try:
+                from bot.engine.scheduler import scheduler
+                scheduler.stop()
+                log.info("Scheduler stopped after fatal task termination")
+            except Exception:
+                pass
         push_system_notification("任务结束", str(getattr(getattr(task, 'end_task_reason', None), 'value', '')), 10)
+        clear_active_controller(controller)
         controller.destroy()
         self.close_pool()
         try:
             save_task_data(task)
         except Exception:
             pass
-        try:
-            save_scheduler_tasks()
-        except Exception:
-            pass
-        try:
-            save_scheduler_state()
-        except Exception:
-            pass
-        try:
-            soft_process_restart()
-        except Exception:
-            pass
+        if not skip_scheduler_persist:
+            try:
+                save_scheduler_tasks()
+            except Exception:
+                pass
+            try:
+                save_scheduler_state()
+            except Exception:
+                pass

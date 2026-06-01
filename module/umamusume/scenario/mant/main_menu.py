@@ -1,10 +1,12 @@
 import cv2
 import re
+from collections import Counter
 
 from bot.recog.image_matcher import image_match
 from bot.recog.ocr import ocr_line
 from module.umamusume.asset.template import REF_MANT_ON_SALE
 from module.umamusume.define import TurnOperationType
+from module.umamusume.scenario.mant.item_targets import item_option, selected_item
 import bot.base.log as logger
 
 log = logger.get_logger(__name__)
@@ -16,6 +18,92 @@ COIN_ROI_CLIMAX = (1125, 1148, 565, 654)
 RIVAL_COLOR_1 = (0x4E, 0xFF, 0xFF)
 RIVAL_COLOR_2 = (0x30, 0xAD, 0xEB)
 RIVAL_TOLERANCE = 5
+
+
+def _set_item_trace(ctx, *, options=None, selected=None, result=None):
+    turn_info = getattr(ctx.cultivate_detail, "turn_info", None)
+    if turn_info is None:
+        return
+    if hasattr(turn_info, "set_item_trace"):
+        turn_info.set_item_trace(options=options, selected=selected, result=result)
+    if hasattr(turn_info, "append_trace"):
+        turn_info.append_trace(
+            "mant_item_action",
+            options_count=len(options or turn_info.item_use_options or []),
+            selected=list(selected if selected is not None else turn_info.item_use_selected or []),
+            result=dict(result if result is not None else turn_info.item_use_result or {}),
+        )
+
+
+def _ensure_item_fail_state(ctx):
+    current_date = int(getattr(ctx.cultivate_detail.turn_info, "date", 0) or 0)
+    if getattr(ctx.cultivate_detail, "mant_failed_use_turn", None) != current_date:
+        ctx.cultivate_detail.mant_failed_use_turn = current_date
+        ctx.cultivate_detail.mant_failed_use_items = set()
+        ctx.cultivate_detail.mant_item_use_error_pending = False
+
+
+def _item_failed(ctx, item_name):
+    _ensure_item_fail_state(ctx)
+    return item_name in getattr(ctx.cultivate_detail, "mant_failed_use_items", set())
+
+
+def _mark_item_failed(ctx, item_name):
+    _ensure_item_fail_state(ctx)
+    ctx.cultivate_detail.mant_failed_use_items.add(item_name)
+    ctx.cultivate_detail.mant_item_use_error_pending = True
+
+
+def _clear_item_failed(ctx, item_name):
+    _ensure_item_fail_state(ctx)
+    failed = getattr(ctx.cultivate_detail, "mant_failed_use_items", set())
+    if item_name in failed:
+        failed.discard(item_name)
+    if not failed:
+        ctx.cultivate_detail.mant_item_use_error_pending = False
+
+
+def _build_shop_trace_options(
+    items_list,
+    targets,
+    *,
+    failed_snapshot=None,
+    skip_overrides=None,
+    option_meta=None,
+    selected_meta=None,
+    default_skip_reason="not_selected_by_policy",
+):
+    selected_counter = Counter(targets or [])
+    failed_snapshot = set(failed_snapshot or set())
+    skip_overrides = dict(skip_overrides or {})
+    option_meta = dict(option_meta or {})
+    selected_meta = dict(selected_meta or {})
+    options = []
+    selected_rows = []
+    for name, _conf, _gy, turns, buyable in items_list:
+        selected = False
+        skip_reason = None
+        if not buyable:
+            skip_reason = "not_buyable"
+        elif name in failed_snapshot:
+            skip_reason = "failed_snapshot"
+        elif selected_counter.get(name, 0) > 0:
+            selected = True
+            selected_counter[name] -= 1
+            row = {"name": name}
+            row.update(selected_meta.get(name, {}))
+            selected_rows.append(row)
+        else:
+            skip_reason = skip_overrides.get(name, default_skip_reason)
+        option = {
+            "name": name,
+            "turns": turns,
+            "selected": selected,
+            "skip_reason": skip_reason,
+        }
+        option.update(option_meta.get(name, {}))
+        options.append(option)
+    return options, selected_rows
 
 
 def read_shop_coins(img, is_summer, is_climax):
@@ -39,7 +127,7 @@ def handle_mant_inventory_scan(ctx, current_date):
     if current_date < 13:
         return False
 
-    from module.umamusume.scenario.mant.inventory import scan_inventory, open_items_panel, close_items_panel
+    from module.umamusume.scenario.mant.scan import scan_inventory, open_items_panel, close_items_panel
     from module.umamusume.context import log_detected_items
 
     opened = open_items_panel(ctx)
@@ -64,7 +152,7 @@ def handle_mant_inventory_rescan_if_pending(ctx, current_date):
     if not pending:
         return False
 
-    from module.umamusume.scenario.mant.inventory import scan_inventory, open_items_panel, close_items_panel
+    from module.umamusume.scenario.mant.scan import scan_inventory, open_items_panel, close_items_panel
     from module.umamusume.context import log_detected_items
 
     opened = open_items_panel(ctx)
@@ -116,6 +204,19 @@ def handle_mant_shop_scan(ctx, current_date):
         current_shop_chunk
     )
     from module.umamusume.scenario.mant.constants import AILMENT_CURE_MAP, AILMENT_CURE_ALL
+    from module.umamusume.scenario.mant.policy import (
+        get_mant_coin_cap,
+        get_mant_coin_reserve,
+        get_mant_shop_buy_floor,
+    )
+    from module.umamusume.scenario.mant.shop_policy import (
+        collect_shop_copy_counts,
+        collect_shop_turns,
+        collect_priority_cure_targets,
+        get_deck_type_counts,
+        get_shop_stock_state,
+        should_skip_shop_item,
+    )
     if not is_shop_scan_turn(current_date):
         return False
     chunk = current_shop_chunk(current_date)
@@ -123,8 +224,10 @@ def handle_mant_shop_scan(ctx, current_date):
     if chunk == last_chunk:
         return False
 
+    log.info(f"[SHOP] Starting scan — date={current_date} chunk={chunk} coins={ctx.cultivate_detail.mant_coins}")
     scan_result = scan_mant_shop(ctx)
     if scan_result is None:
+        log.warning("[SHOP] scan_mant_shop returned None — shop did not open or REF_SHOP_MANT_CHECK not found")
         ctx.ctrl.trigger_decision_reset = True
         return True
 
@@ -138,24 +241,30 @@ def handle_mant_shop_scan(ctx, current_date):
 
     from module.umamusume.context import log_detected_shop_items
     log_detected_shop_items([(name, turns, buyable) for name, _, _, turns, buyable in items_list])
+    buyable_items = [(name, turns) for name, _, _, turns, buyable in items_list if buyable]
+    non_buyable = [name for name, _, _, _, buyable in items_list if not buyable]
+    log.info(f"[SHOP] Scan complete — buyable={buyable_items} | not_buyable={non_buyable}")
 
     bought = False
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     if mant_cfg and mant_cfg.item_tiers:
         budget = ctx.cultivate_detail.mant_coins
+        start_budget = budget
+        coin_cap = get_mant_coin_cap(current_date, mant_cfg)
+        coin_reserve = get_mant_coin_reserve(current_date, start_budget, mant_cfg)
         shop_available = {name for name, _, _, _, buyable in items_list if buyable}
         shop_slugs = {display_to_slug(n) for n in shop_available}
-        shop_copy_counts = {}
-        for name, _, _, _, buyable in items_list:
-            if buyable:
-                shop_copy_counts[name] = shop_copy_counts.get(name, 0) + 1
+        log.info(
+            f"[SHOP] Budget={budget} reserve={coin_reserve} cap={coin_cap} | shop_slugs={shop_slugs}"
+        )
+        shop_copy_counts = collect_shop_copy_counts(items_list)
 
         img = ctx.ctrl.get_screen()
         any_sale = handle_mant_on_sale(img) if img is not None else False
         sale_modifier = 0.9 if any_sale else 1.0
 
         from module.umamusume.persistence import get_used_buffs, get_ignore_cat_food, get_ignore_grilled_carrots
-        from module.umamusume.scenario.mant.inventory import ONE_TIME_BUFF_ITEMS
+        from module.umamusume.scenario.mant.actions import ONE_TIME_BUFF_ITEMS
         used_buffs = get_used_buffs()
         ignore_cat = get_ignore_cat_food()
         ignore_carrots = get_ignore_grilled_carrots()
@@ -165,54 +274,15 @@ def handle_mant_shop_scan(ctx, current_date):
         owned_map = {n: q for n, q in owned}
         has_miracle_cure = owned_map.get(AILMENT_CURE_ALL, 0) > 0
 
-        from module.umamusume.context import detected_portraits_log
-        non_rainbow_count = 0
-        for info in detected_portraits_log.values():
-            if not info.get('is_npc', False):
-                if info.get('favor', 0) < 4:
-                    non_rainbow_count += 1
-        bbq_threshold = mant_cfg.bbq_unmaxxed_cards
-        bbq_base_tier = mant_cfg.item_tiers.get("grilled_carrots")
-        bbq_shift = non_rainbow_count - bbq_threshold if detected_portraits_log else 0
-        bbq_effective_tier = None
-        if bbq_base_tier is not None:
-            bbq_effective_tier = bbq_base_tier - bbq_shift
-
-        charm_owned = owned_map.get("Good-Luck Charm", 0)
-        charm_base_tier = mant_cfg.item_tiers.get("good-luck_charm")
-        charm_shift = charm_owned
-        charm_effective_tier = 0
-        if charm_base_tier is not None:
-            charm_effective_tier = charm_base_tier - charm_shift
-
-        from module.umamusume.constants.game_constants import CLASSIC_YEAR_END
-        is_senior_or_later_for_charm = current_date > CLASSIC_YEAR_END
-        charm_stop_qty = 2 if is_senior_or_later_for_charm else 3
-        charm_stop = charm_owned >= charm_stop_qty
-
-        bought_cures = set()
-        priority_targets = []
-        if active_ailments and not has_miracle_cure:
-            needed_cures = set()
-            for ailment, cure in AILMENT_CURE_MAP.items():
-                for active in active_ailments:
-                    if ailment.lower() in active.lower():
-                        needed_cures.add(cure)
-            for cure in needed_cures:
-                if cure in bought_cures:
-                    continue
-                if owned_map.get(cure, 0) <= 0 and cure in shop_available:
-                    cost = SHOP_ITEM_COSTS.get(cure, 9999)
-                    if cost <= budget:
-                        priority_targets.append(cure)
-                        bought_cures.add(cure)
-                        budget -= cost
-            if not bought_cures.intersection(needed_cures) and AILMENT_CURE_ALL in shop_available and owned_map.get(AILMENT_CURE_ALL, 0) <= 0:
-                cost = SHOP_ITEM_COSTS.get(AILMENT_CURE_ALL, 9999)
-                if cost <= budget:
-                    priority_targets.append(AILMENT_CURE_ALL)
-                    bought_cures.add(AILMENT_CURE_ALL)
-                    budget -= cost
+        priority_targets, bought_cures, budget = collect_priority_cure_targets(
+            active_ailments,
+            owned_map,
+            shop_available,
+            budget,
+            AILMENT_CURE_MAP,
+            AILMENT_CURE_ALL,
+            SHOP_ITEM_COSTS,
+        )
         if bought_cures:
             ctx.cultivate_detail._mant_bought_cures_this_cycle = bought_cures
 
@@ -220,150 +290,74 @@ def handle_mant_shop_scan(ctx, current_date):
 
         all_cures = set(AILMENT_CURE_MAP.values())
 
-        deck_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-        try:
-            pcs = getattr(ctx.task.detail, 'pal_card_store', {})
-            if isinstance(pcs, dict):
-                for card_info in pcs.values():
-                    if not isinstance(card_info, dict): continue
-                    c_type = card_info.get('type')
-                    if c_type is None: continue
-                    if hasattr(c_type, 'value'): c_type = c_type.value
-                    if isinstance(c_type, str):
-                        c_type_lower = c_type.lower()
-                        if 'speed' in c_type_lower: c_type = 1
-                        elif 'stamina' in c_type_lower: c_type = 2
-                        elif 'power' in c_type_lower: c_type = 3
-                        elif 'guts' in c_type_lower or 'will' in c_type_lower: c_type = 4
-                        elif 'wit' in c_type_lower or 'intelligence' in c_type_lower: c_type = 5
-                        else: continue
-                    if isinstance(c_type, int) and 1 <= c_type <= 5:
-                        deck_counts[c_type] += 1
-        except Exception:
-            pass
+        deck_counts = get_deck_type_counts(getattr(ctx.task.detail, 'pal_card_store', {}))
 
         def should_skip(display_name):
-            if display_name in priority_set:
-                return True
-            if display_name in ONE_TIME_BUFF_ITEMS and display_name in used_buffs:
-                return True
-            if ignore_cat and display_name == "Yummy Cat Food":
-                return True
-            if ignore_carrots:
-                bbq_slug = display_to_slug(display_name)
-                if bbq_slug == "grilled_carrots":
-                    return True
-            if display_name in all_cures:
-                if has_miracle_cure:
-                    return True
-                if owned_map.get(display_name, 0) > 0:
-                    return True
-            if display_name == AILMENT_CURE_ALL and has_miracle_cure:
-                return True
-            if display_name == "Energy Drink MAX" and owned_map.get("Energy Drink MAX", 0) > 0:
-                return True
-            if "Training Application" in display_name or "Ankle Weights" in display_name:
-                if "Speed" in display_name and deck_counts.get(1, 0) == 0: return True
-                if "Stamina" in display_name and deck_counts.get(2, 0) == 0: return True
-                if "Power" in display_name and deck_counts.get(3, 0) == 0: return True
-                if "Guts" in display_name and deck_counts.get(4, 0) == 0: return True
-                if "Wit" in display_name and deck_counts.get(5, 0) == 0: return True
-            return False
-
-        from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SENIOR_YEAR_END, SUMMER_CAMP_2_END
-
-        cupcake_names = {'Plain Cupcake', 'Berry Sweet Cupcake'}
-        skip_cupcakes = False
-        total_cupcakes = sum(owned_map.get(n, 0) for n in cupcake_names)
-        is_senior_or_later = current_date > CLASSIC_YEAR_END
-
-        from module.umamusume.scenario.mant.constants import get_incoming_mood
-        cached_mood = getattr(ctx.cultivate_detail.turn_info, 'cached_mood', None)
-        if cached_mood is not None:
-            current_mood = cached_mood
-        else:
-            from bot.conn.fetch import read_mood
-            current_mood = read_mood(ctx.current_screen)
-
-        if total_cupcakes >= 2:
-            skip_cupcakes = True
-        elif is_senior_or_later and (total_cupcakes >= 1 or current_mood is None or current_mood >= 5):
-            skip_cupcakes = True
-        elif current_mood is None or current_mood >= 5:
-            skip_cupcakes = True
-        else:
-            incoming = get_incoming_mood(current_date, 3)
-            if current_mood + 1 + incoming >= 5:
-                skip_cupcakes = True
-        post_senior_summer = current_date > SUMMER_CAMP_2_END
-        
-        cupcake_shift = total_cupcakes - 1 if skip_cupcakes else 0
-
-        plain_cupcake_base_tier = mant_cfg.item_tiers.get("plain_cupcake")
-        plain_cupcake_effective_tier = plain_cupcake_base_tier - cupcake_shift if plain_cupcake_base_tier is not None else None
-
-        berry_cupcake_base_tier = mant_cfg.item_tiers.get("berry_sweet_cupcake")
-        berry_cupcake_effective_tier = berry_cupcake_base_tier - cupcake_shift if berry_cupcake_base_tier is not None else None
-        
-        cleat_reserve = 0
-        if CLASSIC_YEAR_END < current_date <= SENIOR_YEAR_END:
-            owned_total = owned_map.get('Master Cleat Hammer', 0) + owned_map.get('Artisan Cleat Hammer', 0)
-            if owned_total < 3:
-                cleat_reserve = 40
+            return should_skip_shop_item(
+                display_name,
+                priority_set=priority_set,
+                one_time_buff_items=ONE_TIME_BUFF_ITEMS,
+                used_buffs=used_buffs,
+                ignore_cat=ignore_cat,
+                ignore_carrots=ignore_carrots,
+                display_to_slug=display_to_slug,
+                all_cures=all_cures,
+                has_miracle_cure=has_miracle_cure,
+                owned_map=owned_map,
+                ailment_cure_all=AILMENT_CURE_ALL,
+                deck_counts=deck_counts,
+            )
 
         tier_targets = []
+        target_sources = {name: "urgent_cure_override" for name in priority_targets}
+        target_ui_tiers = {}
+        skip_overrides = {}
+        option_meta = {}
+        selected_meta = {}
+        shop_turns = collect_shop_turns(items_list)
 
-        if bbq_effective_tier is not None and bbq_effective_tier <= 0:
-            bbq_display = "Grilled Carrots"
-            bbq_slug = "grilled_carrots"
-            if bbq_slug in shop_slugs and not should_skip(bbq_display):
-                cost = SHOP_ITEM_COSTS.get(bbq_display, 9999)
-                copies = shop_copy_counts.get(bbq_display, 0)
-                for _ in range(copies):
-                    if budget - cost < 0:
-                        break
-                    tier_targets.append(bbq_display)
-                    budget -= cost
-        
-        shop_turns = {}
-        for name, _, _, turns, buyable in items_list:
-            if buyable:
-                if name not in shop_turns or turns < shop_turns[name]:
-                    shop_turns[name] = turns  # keep the lowest turns if multiple copies
-        
+        for name, _conf, _gy, _turns, buyable in items_list:
+            if not buyable:
+                continue
+            slug = display_to_slug(name)
+            current_num, max_stock = get_shop_stock_state(name, owned_map)
+            option_meta[name] = {
+                "source": "tier_policy",
+                "ui_tier": mant_cfg.item_tiers.get(slug),
+                "current_stock": current_num,
+            }
+            if max_stock is not None:
+                option_meta[name]["max_stock"] = max_stock
+
         for tier in range(1, mant_cfg.tier_count + 1):
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
-                if slug == "grilled_carrots" and bbq_effective_tier is not None:
-                    if bbq_effective_tier <= 0 or bbq_effective_tier > mant_cfg.tier_count:
-                        continue
-                    effective_tier = bbq_effective_tier
-                elif slug == "good-luck_charm" and charm_effective_tier is not None:
-                    if charm_stop or charm_effective_tier <= 0 or charm_effective_tier > mant_cfg.tier_count:
-                        continue
-                    effective_tier = charm_effective_tier
-                elif slug == "plain_cupcake" and plain_cupcake_effective_tier is not None:
-                    if plain_cupcake_effective_tier <= 0 or plain_cupcake_effective_tier > mant_cfg.tier_count:
-                        continue
-                    effective_tier = plain_cupcake_effective_tier
-                elif slug == "berry_sweet_cupcake" and berry_cupcake_effective_tier is not None:
-                    if berry_cupcake_effective_tier <= 0 or berry_cupcake_effective_tier > mant_cfg.tier_count:
-                        continue
-                    effective_tier = berry_cupcake_effective_tier
-                else:
-                    effective_tier = t
-                if effective_tier != tier or slug not in shop_slugs:
+                if t != tier or slug not in shop_slugs:
                     continue
-                    
                 tier_items.append(slug)
-                
+
             tier_items.sort(key=lambda s: shop_turns.get(SLUG_TO_DISPLAY.get(s), 99))
-            
+
             for slug in tier_items:
                 display = SLUG_TO_DISPLAY.get(slug)
                 if not display:
                     continue
                 if should_skip(display):
+                    current_num, max_stock = get_shop_stock_state(display, owned_map)
+                    if current_num and max_stock is not None and current_num >= max_stock:
+                        skip_overrides[display] = "stock_cap_reached"
+                    elif display in priority_set:
+                        skip_overrides[display] = "already_selected_by_urgent_cure_policy"
+                    elif display in ONE_TIME_BUFF_ITEMS and display in used_buffs:
+                        skip_overrides[display] = "one_time_buff_already_used"
+                    elif ignore_cat and display == "Yummy Cat Food":
+                        skip_overrides[display] = "ignored_by_user_flag"
+                    elif ignore_carrots and display_to_slug(display) == "grilled_carrots":
+                        skip_overrides[display] = "ignored_by_user_flag"
+                    elif display == "Energy Drink MAX" and current_num > 0:
+                        skip_overrides[display] = "already_in_stock"
+                    else:
+                        skip_overrides[display] = "not_useful_for_current_deck"
                     continue
 
                 cost = SHOP_ITEM_COSTS.get(display, 9999)
@@ -372,20 +366,59 @@ def handle_mant_shop_scan(ctx, current_date):
                     continue
 
                 actual_copies = 1 if display in all_cures or display == AILMENT_CURE_ALL else copies
-                for i in range(actual_copies):
+                for _i in range(actual_copies):
                     remaining_after = budget - cost
                     if remaining_after < 0:
+                        skip_overrides.setdefault(display, "budget_exhausted")
                         break
                     threshold = 0
-                    if tier > 1 and not post_senior_summer:
+                    if tier > 2:
                         raw_threshold = mant_cfg.tier_thresholds.get(tier, (tier - 1) * 50)
-                        threshold = raw_threshold * sale_modifier
-                    if threshold > 0 and remaining_after < threshold:
+                        threshold = int(raw_threshold * sale_modifier)
+                    floor = get_mant_shop_buy_floor(display, tier, current_date, start_budget, threshold, mant_cfg)
+                    if remaining_after < floor:
+                        skip_overrides.setdefault(display, "budget_floor")
                         break
                     tier_targets.append(display)
+                    target_sources.setdefault(display, "tier_policy")
+                    target_ui_tiers.setdefault(display, tier)
                     budget -= cost
 
         targets = priority_targets + tier_targets
+        log.info(f"[SHOP] targets to buy={targets}")
+        failed_snapshot = set(getattr(ctx.cultivate_detail, 'mant_failed_shop_names_snapshot', set()))
+        for target_name in targets:
+            selected_meta[target_name] = {
+                "source": target_sources.get(target_name, "tier_policy"),
+                "ui_tier": target_ui_tiers.get(target_name, option_meta.get(target_name, {}).get("ui_tier")),
+                "reason": "selected_by_shop_policy",
+                "current_stock": option_meta.get(target_name, {}).get("current_stock", 0),
+            }
+            max_stock = option_meta.get(target_name, {}).get("max_stock")
+            if max_stock is not None:
+                selected_meta[target_name]["max_stock"] = max_stock
+
+        shop_options, selected_rows = _build_shop_trace_options(
+            items_list,
+            targets,
+            failed_snapshot=failed_snapshot,
+            skip_overrides=skip_overrides,
+            option_meta=option_meta,
+            selected_meta=selected_meta,
+        )
+        ctx.cultivate_detail.turn_info.set_shop_trace(
+            options=shop_options,
+            selected=selected_rows,
+            result={
+                "phase": "shop_scan",
+                "source": "urgent_cure_override" if priority_targets else "tier_policy",
+                "result": "planned",
+                "targets": list(targets),
+                "start_budget": int(start_budget),
+                "reserve": int(coin_reserve),
+                "cap": int(coin_cap),
+            },
+        )
         if targets:
             bought, held_items = buy_shop_items(ctx, targets, items_list, ratio, drag_ratio, first_item_gy)
             if bought:
@@ -401,6 +434,18 @@ def handle_mant_shop_scan(ctx, current_date):
                 remaining = [(name, turns, buyable) for name, _, _, turns, buyable in items_list
                              if buyable and name not in bought_set]
                 log_detected_shop_items(remaining)
+            else:
+                ctx.cultivate_detail.turn_info.append_trace(
+                    "mant_shop_buy_failed",
+                    targets=list(targets),
+                    result=dict(held_items or {}),
+                )
+        else:
+            ctx.cultivate_detail.turn_info.set_shop_trace(
+                options=shop_options,
+                selected=[],
+                result={"phase": "shop_scan", "source": "tier_policy", "result": "skip", "reason": "no_targets"},
+            )
 
     if not bought:
         from module.umamusume.scenario.mant.shop import BACK_BTN_X, BACK_BTN_Y
@@ -422,6 +467,11 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
         BACK_BTN_X, BACK_BTN_Y,
     )
     from module.umamusume.scenario.mant.constants import AILMENT_CURE_MAP, AILMENT_CURE_ALL
+    from module.umamusume.scenario.mant.shop_policy import (
+        build_emergency_expiring_targets,
+        collect_emergency_cure_targets,
+        get_deck_type_counts,
+    )
     import time as _t
 
     if not is_shop_scan_turn(current_date):
@@ -433,160 +483,49 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
 
     budget = ctx.cultivate_detail.mant_coins
     emergency_targets = []
+    owned_map = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
 
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     if mant_cfg and mant_cfg.item_tiers:
-        expiring = {name for name, _, _, turns, buyable in shop_items
-                    if turns == 1 and buyable}
-        if expiring:
-            shop_slugs = {display_to_slug(n) for n, _, _, _, buyable in shop_items
-                          if buyable}
-            expiring_counts = {}
-            for name, _, _, turns, buyable in shop_items:
-                if name in expiring and buyable:
-                    expiring_counts[name] = expiring_counts.get(name, 0) + 1
-            from module.umamusume.constants.game_constants import SUMMER_CAMP_2_END
-            post_senior_summer = current_date > SUMMER_CAMP_2_END
+        from module.umamusume.context import detected_portraits_log
+        from module.umamusume.persistence import get_ignore_grilled_carrots, get_used_buffs
+        from module.umamusume.scenario.mant.actions import ONE_TIME_BUFF_ITEMS
 
-            deck_counts_em = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-            try:
-                pcs_em = getattr(ctx.task.detail, 'pal_card_store', {})
-                if isinstance(pcs_em, dict):
-                    for card_info in pcs_em.values():
-                        if not isinstance(card_info, dict): continue
-                        c_type = card_info.get('type')
-                        if c_type is None: continue
-                        if hasattr(c_type, 'value'): c_type = c_type.value
-                        if isinstance(c_type, str):
-                            c_type_lower = c_type.lower()
-                            if 'speed' in c_type_lower: c_type = 1
-                            elif 'stamina' in c_type_lower: c_type = 2
-                            elif 'power' in c_type_lower: c_type = 3
-                            elif 'guts' in c_type_lower or 'will' in c_type_lower: c_type = 4
-                            elif 'wit' in c_type_lower or 'intelligence' in c_type_lower: c_type = 5
-                            else: continue
-                        if isinstance(c_type, int) and 1 <= c_type <= 5:
-                            deck_counts_em[c_type] += 1
-            except Exception:
-                pass
-
-            tmp_budget = budget
-            from module.umamusume.persistence import get_ignore_grilled_carrots as _get_ig_grilled
-            ignore_grilled_carrots_em = _get_ig_grilled()
-            bbq_base_tier_em = mant_cfg.item_tiers.get("grilled_carrots")
-            from module.umamusume.context import detected_portraits_log
-            non_rainbow_count_em = 0
-            for info_em in detected_portraits_log.values():
-                if not info_em.get('is_npc', False):
-                    if info_em.get('favor', 0) < 4:
-                        non_rainbow_count_em += 1
-            bbq_threshold_em = mant_cfg.bbq_unmaxxed_cards
-            bbq_shift_em = non_rainbow_count_em - bbq_threshold_em if detected_portraits_log else 0
-            bbq_eff_em = None
-            if bbq_base_tier_em is not None:
-                bbq_eff_em = bbq_base_tier_em - bbq_shift_em
-
-        
-            if bbq_eff_em is not None and bbq_eff_em <= 0 and not ignore_grilled_carrots_em:
-                bbq_display_em = SLUG_TO_DISPLAY.get("grilled_carrots")
-                if bbq_display_em and bbq_display_em in expiring and bbq_display_em in shop_slugs:
-                    cost_em = SHOP_ITEM_COSTS.get(bbq_display_em, 9999)
-                    copies_em = expiring_counts.get(bbq_display_em, 0)
-                    for _ in range(copies_em):
-                        if tmp_budget - cost_em < 0:
-                            break
-                        emergency_targets.append(bbq_display_em)
-                        tmp_budget -= cost_em
-                        budget = tmp_budget
-
-            for tier in range(1, mant_cfg.tier_count + 1):
-                for slug, t in mant_cfg.item_tiers.items():
-                    if slug == "grilled_carrots" and bbq_eff_em is not None and ignore_grilled_carrots_em:
-                        continue
-                    if slug == "grilled_carrots" and bbq_eff_em is not None:
-                        if bbq_eff_em <= 0 or bbq_eff_em > mant_cfg.tier_count:
-                            continue
-                        effective_tier_em = bbq_eff_em
-                    else:
-                        effective_tier_em = t
-                    if effective_tier_em != tier or slug not in shop_slugs:
-                        continue
-                    display = SLUG_TO_DISPLAY.get(slug)
-                    if not display or display not in expiring:
-                        continue
-                    if display in set(AILMENT_CURE_MAP.values()) or display == AILMENT_CURE_ALL:
-                        continue
-                    from module.umamusume.persistence import get_used_buffs
-                    from module.umamusume.scenario.mant.inventory import ONE_TIME_BUFF_ITEMS
-                    if display in ONE_TIME_BUFF_ITEMS and display in get_used_buffs():
-                        continue
-                    if display == "Energy Drink MAX":
-                        owned_em = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
-                        if owned_em.get("Energy Drink MAX", 0) > 0:
-                            continue
-
-                    if "Training Application" in display or "Ankle Weights" in display:
-                        if "Speed" in display and deck_counts_em.get(1, 0) == 0: continue
-                        if "Stamina" in display and deck_counts_em.get(2, 0) == 0: continue
-                        if "Power" in display and deck_counts_em.get(3, 0) == 0: continue
-                        if "Guts" in display and deck_counts_em.get(4, 0) == 0: continue
-                        if "Wit" in display and deck_counts_em.get(5, 0) == 0: continue
-
-                    cost = SHOP_ITEM_COSTS.get(display, 9999)
-                    copies = expiring_counts.get(display, 0)
-                    if copies <= 0:
-                        continue
-
-                    threshold = 0
-                    if tier > 1 and not post_senior_summer:
-                        threshold = mant_cfg.tier_thresholds.get(tier, (tier - 1) * 50)
-
-                    for _ in range(copies):
-                        remaining_after = tmp_budget - cost
-                        if remaining_after < 0:
-                            break
-                        if threshold > 0 and remaining_after < threshold:
-                            break
-                        emergency_targets.append(display)
-                        tmp_budget -= cost
-                        budget = tmp_budget
+        deck_counts_em = get_deck_type_counts(getattr(ctx.task.detail, 'pal_card_store', {}))
+        emergency_targets, budget = build_emergency_expiring_targets(
+            current_date=current_date,
+            budget=budget,
+            shop_items=shop_items,
+            mant_cfg=mant_cfg,
+            owned_map=owned_map,
+            deck_counts=deck_counts_em,
+            used_buffs=get_used_buffs(),
+            one_time_buff_items=ONE_TIME_BUFF_ITEMS,
+            ignore_grilled_carrots=get_ignore_grilled_carrots(),
+            shop_item_costs=SHOP_ITEM_COSTS,
+            slug_to_display=SLUG_TO_DISPLAY,
+            display_to_slug=display_to_slug,
+            detected_portraits_log=detected_portraits_log,
+            ailment_cure_map=AILMENT_CURE_MAP,
+            ailment_cure_all=AILMENT_CURE_ALL,
+        )
 
     active_ailments = getattr(ctx.cultivate_detail, 'mant_afflictions', [])
     if active_ailments:
-        owned_map = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
         shop_available = {name for name, _, _, _, buyable in shop_items if buyable}
         bought_this_cycle = getattr(ctx.cultivate_detail, '_mant_bought_cures_this_cycle', set())
-
-        if not owned_map.get(AILMENT_CURE_ALL, 0):
-            any_uncovered = False
-            for ailment in active_ailments:
-                covered = False
-                for ailment_name, cure_name in AILMENT_CURE_MAP.items():
-                    if ailment_name.lower() not in ailment.lower():
-                        continue
-                    if owned_map.get(cure_name, 0) > 0 or cure_name in emergency_targets or cure_name in bought_this_cycle:
-                        covered = True
-                        break
-                    if cure_name in shop_available:
-                        cost = SHOP_ITEM_COSTS.get(cure_name, 9999)
-                        if cost <= budget:
-                            emergency_targets.append(cure_name)
-                            bought_this_cycle.add(cure_name)
-                            budget -= cost
-                            covered = True
-                    break
-                if not covered:
-                    any_uncovered = True
-
-            if (any_uncovered
-                    and AILMENT_CURE_ALL in shop_available
-                    and AILMENT_CURE_ALL not in emergency_targets
-                    and AILMENT_CURE_ALL not in bought_this_cycle
-                    and owned_map.get(AILMENT_CURE_ALL, 0) <= 0):
-                cost = SHOP_ITEM_COSTS.get(AILMENT_CURE_ALL, 9999)
-                if cost <= budget:
-                    emergency_targets.append(AILMENT_CURE_ALL)
-                    budget -= cost
+        emergency_targets, bought_this_cycle, budget = collect_emergency_cure_targets(
+            active_ailments,
+            owned_map,
+            shop_available,
+            budget,
+            AILMENT_CURE_MAP,
+            AILMENT_CURE_ALL,
+            SHOP_ITEM_COSTS,
+            existing_targets=emergency_targets,
+            bought_this_cycle=bought_this_cycle,
+        )
+        ctx.cultivate_detail._mant_bought_cures_this_cycle = bought_this_cycle
 
     if not emergency_targets:
         return False
@@ -602,6 +541,30 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
 
     fresh_available = {name for name, _, _, _, buyable in items_list if buyable}
     final_targets = [tgt for tgt in emergency_targets if tgt in fresh_available]
+    cure_names = set(AILMENT_CURE_MAP.values()) | {AILMENT_CURE_ALL}
+    selected_meta = {
+        tgt: {
+            "source": "urgent_cure_override" if tgt in cure_names else "expiring_override",
+            "reason": "selected_by_emergency_policy",
+        }
+        for tgt in final_targets
+    }
+    shop_options, selected_rows = _build_shop_trace_options(
+        items_list,
+        final_targets,
+        selected_meta=selected_meta,
+        default_skip_reason="not_selected_by_emergency_policy",
+    )
+    ctx.cultivate_detail.turn_info.set_shop_trace(
+        options=shop_options,
+        selected=selected_rows,
+        result={
+            "phase": "emergency_shop",
+            "source": "urgent_cure_override" if any(tgt in cure_names for tgt in final_targets) else "expiring_override",
+            "result": "planned",
+            "targets": list(final_targets),
+        },
+    )
 
     if not final_targets:
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
@@ -636,41 +599,17 @@ CLIMAX_MASTER_RESERVE = 40
 
 
 def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
-    from module.umamusume.scenario.mant.inventory import MANT_CLIMAX_RACE_TURNS, remaining_climax_races
-    from module.umamusume.asset.race_data import is_g1_race
+    from module.umamusume.scenario.mant.race_prep import would_cleat_be_useful_before_race
 
-    sim = dict(owned_map)
-    sim[cleat_name] = sim.get(cleat_name, 0) + 1
-
-    master_qty = sim.get('Master Cleat Hammer', 0)
-    artisan_qty = sim.get('Artisan Cleat Hammer', 0)
-    is_climax_race = current_date in MANT_CLIMAX_RACE_TURNS
-
-    if is_climax_race:
-        if cleat_name == 'Master Cleat Hammer':
-            return master_qty > 0
-        return artisan_qty > 0 and master_qty == 0
-
-    races_left = remaining_climax_races(current_date)
-    master_reserve = min(races_left, master_qty)
-    artisan_reserve = max(0, races_left - master_reserve)
-    master_spare = master_qty - master_reserve
-    artisan_spare = artisan_qty - artisan_reserve
-
-    if master_qty + artisan_qty <= 2:
-        return False
-
-    if is_g1_race(race_id):
-        return master_spare > 0 or artisan_spare > 0
-    else:
-        return artisan_spare > 0
+    return would_cleat_be_useful_before_race(cleat_name, race_id, current_date, owned_map)
 
 
 def handle_mant_cleat_shop_buy(ctx, current_date):
-    from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SENIOR_YEAR_END
     from module.umamusume.scenario.mant.shop import (
         SHOP_ITEM_COSTS, scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
     )
+    from module.umamusume.define import TurnOperationType
+    from module.umamusume.scenario.mant.race_prep import get_cleat_state
     import time as _t
 
     if getattr(ctx.cultivate_detail.turn_info, 'mant_cleat_shop_done', False):
@@ -687,46 +626,46 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
         return False
     shop_available = {name for name, _, _, _, buyable in shop_items if buyable}
 
-    is_senior = CLASSIC_YEAR_END < current_date <= SENIOR_YEAR_END
-    is_climax = current_date > SENIOR_YEAR_END
-
-    if not (is_senior or is_climax):
+    turn_op = getattr(ctx.cultivate_detail.turn_info, 'turn_operation', None)
+    if not turn_op or getattr(turn_op, 'turn_operation_type', None) != TurnOperationType.RACE:
+        return False
+    race_id = int(getattr(turn_op, 'race_id', 0) or 0)
+    if race_id <= 0:
         return False
 
+    state = get_cleat_state(owned)
+    reserve_total = state["reserve_total"]
+    spare_total = state["spare_master"] + state["spare_artisan"]
+    reserve_budget = CLIMAX_MASTER_RESERVE if reserve_total < 2 else 0
 
-    if is_senior:
-        if total_cleats >= 2:
-            return False
-        for candidate in ('Master Cleat Hammer', 'Artisan Cleat Hammer'):
-            if candidate not in shop_available:
-                continue
-            cost = SHOP_ITEM_COSTS.get(candidate, 9999)
-            if cost > budget:
-                continue
-            return _execute_cleat_buy(ctx, candidate, cost)
-        return False
-
-
-    if is_climax:
-        if total_cleats >= 3:
-            return False
-        if total_cleats < 2 and budget < 40:
-            return False
-        for candidate in ('Master Cleat Hammer', 'Artisan Cleat Hammer'):
-            if candidate not in shop_available:
-                continue
-            cost = SHOP_ITEM_COSTS.get(candidate, 9999)
-            if cost > budget:
-                continue
-            if total_cleats < 2 and budget - cost < 40:
-                continue
-            return _execute_cleat_buy(ctx, candidate, cost)
-        return False
+    for candidate in ('Artisan Cleat Hammer', 'Master Cleat Hammer'):
+        if candidate not in shop_available:
+            continue
+        cost = SHOP_ITEM_COSTS.get(candidate, 9999)
+        if cost > budget:
+            continue
+        if budget - cost < reserve_budget:
+            continue
+        useful = _would_cleat_be_used(candidate, race_id, current_date, owned)
+        if not useful and reserve_total >= 2:
+            continue
+        return _execute_cleat_buy(
+            ctx,
+            candidate,
+            cost,
+            source="cleat_override",
+            debug={
+                "race_id": race_id,
+                "climax_reserve": reserve_total,
+                "spare_cleats": spare_total,
+                "race_usefulness": bool(useful),
+            },
+        )
 
     return False
 
 
-def _execute_cleat_buy(ctx, cleat_name, cost):
+def _execute_cleat_buy(ctx, cleat_name, cost, *, source="cleat_override", debug=None):
     from module.umamusume.scenario.mant.shop import (
         scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
     )
@@ -740,9 +679,24 @@ def _execute_cleat_buy(ctx, cleat_name, cost):
     ctx.cultivate_detail.turn_info.mant_cleat_shop_done = True
     items_list, ratio, drag_ratio, first_item_gy = scan_result
     ctx.cultivate_detail.mant_shop_items = items_list
+    shop_options, selected_rows = _build_shop_trace_options(
+        items_list,
+        [cleat_name],
+        selected_meta={cleat_name: {"source": source, "reason": "selected_by_cleat_policy"}},
+        default_skip_reason="not_selected_by_cleat_policy",
+    )
+    ctx.cultivate_detail.turn_info.set_shop_trace(
+        options=shop_options,
+        selected=selected_rows,
+        result={"phase": "cleat_shop", "source": source, "result": "planned", "targets": [cleat_name], **(debug or {})},
+    )
 
     fresh_available = {n for n, _, _, _, buyable in items_list if buyable}
     if cleat_name not in fresh_available:
+        ctx.cultivate_detail.turn_info.set_shop_trace(
+            selected=[],
+            result={"phase": "cleat_shop", "source": source, "result": "skip", "reason": "target_not_available", "target": cleat_name, **(debug or {})},
+        )
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         _t.sleep(1)
         return True
@@ -765,10 +719,62 @@ def _execute_cleat_buy(ctx, cleat_name, cost):
             [(n, t, buyable) for n, _, _, t, buyable in items_list if buyable and n != cleat_name]
         )
     else:
+        ctx.cultivate_detail.turn_info.append_trace(
+            "mant_shop_buy_failed",
+            targets=[cleat_name],
+            result={"phase": "cleat_shop", "source": source, "result": "failed", "target": cleat_name, **(debug or {})},
+        )
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         _t.sleep(1)
 
     return True
+
+
+def handle_mant_coin_triggered_buy(ctx, current_date):
+    """Buy shop items when coins exceed threshold, bypassing the regular chunk schedule.
+
+    Before Summer Camp 2 (date <= 64): triggers when coins >= 250, max once per 3-turn window.
+    After Summer Camp 2 (date > 64):   triggers when coins >= 150, max once per 2-turn window.
+    This ensures leftover coins are spent aggressively in the final stretch of the run.
+    """
+    if getattr(ctx.cultivate_detail.turn_info, 'mant_coin_buy_done', False):
+        return False
+    if ctx.cultivate_detail.mant_shop_scanned_this_turn:
+        return False
+
+    from module.umamusume.constants.game_constants import SUMMER_CAMP_2_END
+    post_summer = current_date > SUMMER_CAMP_2_END
+
+    # Differentiated threshold and window based on game phase
+    coin_threshold = 150 if post_summer else 250
+    chunk_size = 2 if post_summer else 3
+
+    if ctx.cultivate_detail.mant_coins < coin_threshold:
+        return False
+
+    from module.umamusume.scenario.mant.shop import is_shop_scan_turn
+    if not is_shop_scan_turn(current_date):
+        return False
+
+    coin_chunk = (current_date - 13) // chunk_size
+    last_coin_chunk = getattr(ctx.cultivate_detail, 'mant_coin_buy_last_chunk', -1)
+    if coin_chunk == last_coin_chunk:
+        return False
+
+    ctx.cultivate_detail.turn_info.mant_coin_buy_done = True
+    log.info(
+        f"[COIN-BUY] coins={ctx.cultivate_detail.mant_coins} >= {coin_threshold} "
+        f"(post_summer={post_summer}) — triggering extra shop scan (coin_chunk={coin_chunk})"
+    )
+
+    saved_last_chunk = getattr(ctx.cultivate_detail, 'mant_shop_last_chunk', -1)
+    ctx.cultivate_detail.mant_shop_last_chunk = -1
+    result = handle_mant_shop_scan(ctx, current_date)
+    if result:
+        ctx.cultivate_detail.mant_coin_buy_last_chunk = coin_chunk
+    else:
+        ctx.cultivate_detail.mant_shop_last_chunk = saved_last_chunk
+    return result
 
 
 def handle_mant_main_menu(ctx, img, current_date):
@@ -780,7 +786,7 @@ def handle_mant_main_menu(ctx, img, current_date):
     if handle_mant_inventory_scan(ctx, current_date):
         return True
 
-    from module.umamusume.scenario.mant.inventory import (
+    from module.umamusume.scenario.mant.actions import (
         has_instant_use_items, handle_instant_use_items, handle_cupcake_use
     )
     if has_instant_use_items(ctx):
@@ -797,15 +803,17 @@ def handle_mant_main_menu(ctx, img, current_date):
         is_summer = is_summer_camp_period(current_date)
         is_climax = current_date > 72 or current_date < -72
         coins = read_shop_coins(img, is_summer, is_climax)
-        if coins == -1:
-            coins = 0
         ctx.cultivate_detail.turn_info.mant_main_menu_coins_read = True
-        ctx.cultivate_detail.mant_coins = coins
+        if coins >= 0:
+            ctx.cultivate_detail.mant_coins = coins
 
     if handle_mant_shop_scan(ctx, current_date):
         return True
 
     if handle_mant_emergency_shop_buys(ctx, current_date):
+        return True
+
+    if handle_mant_coin_triggered_buy(ctx, current_date):
         return True
 
     handle_mant_on_sale(img)
@@ -830,44 +838,116 @@ def handle_mant_on_sale(img):
 
 def try_use_cure_items(ctx):
     from module.umamusume.scenario.mant.constants import AILMENT_CURE_MAP, AILMENT_CURE_ALL
-    from module.umamusume.scenario.mant.inventory import use_item_and_update_inventory, get_chain_position
+    from module.umamusume.scenario.mant.actions import use_item_and_update_inventory
+    from module.umamusume.scenario.mant.policy import get_chain_position
 
     _, total = get_chain_position(ctx)
     if total > 1:
         log.info(f"Race chain of {total} - skipping cure items")
+        _set_item_trace(
+            ctx,
+            options=[],
+            selected=[],
+            result={"phase": "ailment_cure", "result": "skip", "reason": "race_chain_active"},
+        )
         return False
     
     afflictions = getattr(ctx.cultivate_detail, 'mant_afflictions', [])
     if not afflictions:
+        _set_item_trace(
+            ctx,
+            options=[],
+            selected=[],
+            result={"phase": "ailment_cure", "result": "skip", "reason": "no_afflictions"},
+        )
         return False
 
+    _ensure_item_fail_state(ctx)
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
+    options = []
 
-    if owned_map.get(AILMENT_CURE_ALL, 0) > 0:
+    miracle_failed = _item_failed(ctx, AILMENT_CURE_ALL)
+    miracle_selected = owned_map.get(AILMENT_CURE_ALL, 0) > 0 and not miracle_failed
+    options.append(
+        item_option(
+            AILMENT_CURE_ALL,
+            "ailment_cure",
+            selected=miracle_selected,
+            priority=1,
+            skip_reason=None if miracle_selected else ("failed_this_turn" if miracle_failed else "no_owned"),
+            current_num=owned_map.get(AILMENT_CURE_ALL, 0),
+            planned_use="ailment_cure",
+        )
+    )
+    if miracle_selected:
         log.info(f"using {AILMENT_CURE_ALL} for {afflictions}")
         if use_item_and_update_inventory(ctx, AILMENT_CURE_ALL):
             ctx.cultivate_detail.mant_afflictions = []
             from module.umamusume.persistence import save_afflictions
             save_afflictions(ctx.cultivate_detail.mant_afflictions)
+            _clear_item_failed(ctx, AILMENT_CURE_ALL)
+            _set_item_trace(
+                ctx,
+                options=options,
+                selected=[selected_item(AILMENT_CURE_ALL)],
+                result={"phase": "ailment_cure", "result": "ok", "item": AILMENT_CURE_ALL, "cured": list(afflictions)},
+            )
             return True
+        _mark_item_failed(ctx, AILMENT_CURE_ALL)
 
     used_any = False
+    used_items = []
+    remaining_afflictions = list(afflictions)
     for ailment in list(afflictions):
         for ailment_name, cure_name in AILMENT_CURE_MAP.items():
             if ailment_name.lower() not in ailment.lower():
                 continue
+            cure_failed = _item_failed(ctx, cure_name)
+            options.append(
+                item_option(
+                    cure_name,
+                    "ailment_cure",
+                    selected=owned_map.get(cure_name, 0) > 0 and not cure_failed,
+                    priority=2,
+                    skip_reason=None if owned_map.get(cure_name, 0) > 0 and not cure_failed else ("failed_this_turn" if cure_failed else "no_owned"),
+                    current_num=owned_map.get(cure_name, 0),
+                    planned_use="ailment_cure",
+                    payload={"affliction": ailment},
+                    affliction=ailment,
+                )
+            )
             if owned_map.get(cure_name, 0) > 0:
+                if cure_failed:
+                    break
                 log.info(f"using {cure_name} for {ailment}")
                 if use_item_and_update_inventory(ctx, cure_name):
                     owned_map[cure_name] = max(0, owned_map.get(cure_name, 0) - 1)
                     afflictions.remove(ailment)
                     used_any = True
+                    used_items.append(cure_name)
+                    _clear_item_failed(ctx, cure_name)
+                else:
+                    _mark_item_failed(ctx, cure_name)
             break
 
     ctx.cultivate_detail.mant_afflictions = afflictions
     from module.umamusume.persistence import save_afflictions
     save_afflictions(ctx.cultivate_detail.mant_afflictions)
+    if used_any:
+        _set_item_trace(
+            ctx,
+            options=options,
+            selected=[selected_item(name) for name in used_items],
+            result={"phase": "ailment_cure", "result": "ok", "items": list(used_items), "remaining_afflictions": list(afflictions)},
+        )
+    else:
+        _set_item_trace(
+            ctx,
+            options=options,
+            selected=[],
+            result={"phase": "ailment_cure", "result": "skip", "reason": "no_valid_cure_item", "remaining_afflictions": remaining_afflictions},
+        )
     return used_any
 
 
@@ -916,6 +996,9 @@ def handle_mant_rival_race(ctx, img):
     px = img_rgb[1089, rival_x]
     if color_match(px, RIVAL_COLOR_1, RIVAL_TOLERANCE) or color_match(px, RIVAL_COLOR_2, RIVAL_TOLERANCE):
         log.info("rival race detected")
+        ctx.cultivate_detail.turn_info.mant_rival_race_available = True
         ctx.cultivate_detail.turn_info.turn_operation = None
         ctx.cultivate_detail.turn_info.parse_train_info_finish = False
+    else:
+        ctx.cultivate_detail.turn_info.mant_rival_race_available = False
     ctx.cultivate_detail.turn_info.mant_rival_checked = True

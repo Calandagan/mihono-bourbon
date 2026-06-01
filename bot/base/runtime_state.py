@@ -2,7 +2,8 @@ import json
 import os
 import threading
 import time
-from typing import Optional, Dict, Any
+from types import MappingProxyType
+from typing import Optional, Dict, Any, Mapping
 
 _lock = threading.Lock()
 
@@ -15,13 +16,39 @@ _state: Dict[str, Any] = {
     "repetitive_threshold": _DEFAULT_REPETITIVE_THRESHOLD,
     "watchdog_unchanged": 0,
     "watchdog_threshold": _DEFAULT_WATCHDOG_THRESHOLD,
+    "input_blocked": False,
+    "in_career_run": False,
+    "trigger_decision_reset": False,
     "last_update_ts": time.time()
 }
 
 
-def get_state() -> Dict[str, Any]:
+def read_state() -> Mapping[str, Any]:
     with _lock:
-        return dict(_state)
+        return MappingProxyType(dict(_state))
+
+
+def get_state() -> Mapping[str, Any]:
+    return read_state()
+
+
+def set_state(key: str, value: Any) -> None:
+    with _lock:
+        _state[key] = value
+        _state["last_update_ts"] = time.time()
+
+
+def patch_state(mapping: Optional[Mapping[str, Any]] = None, **kwargs) -> None:
+    updates: Dict[str, Any] = {}
+    if mapping:
+        updates.update(dict(mapping))
+    if kwargs:
+        updates.update(kwargs)
+    if not updates:
+        return
+    with _lock:
+        _state.update(updates)
+        _state["last_update_ts"] = time.time()
 
 
 def set_thresholds(repetitive_threshold: Optional[int] = None,

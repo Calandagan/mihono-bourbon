@@ -26,7 +26,7 @@ class AdbController(AndroidController):
         self.max_age = 0.120
         self.last_click = 0.0
         self.trigger_decision_reset = False
-        
+
         self.recent_click_buckets = []
         self.fallback_block_until = 0.0
         self.repetitive_click_name = None
@@ -36,11 +36,80 @@ class AdbController(AndroidController):
         self.last_recovery_time = 0
         self.recovery_grace_until = 0.0
 
+        self.touch_device: Optional[str] = None
+        self._tid_counter = 1
+
+    def _detect_touch_device(self) -> str:
+        raw = self.client.shell("getevent -p 2>/dev/null", sync=True)
+        if raw:
+            output = raw.decode("utf-8", errors="replace")
+            current = None
+            for line in output.splitlines():
+                line = line.strip()
+                if line.startswith("add device"):
+                    current = line.split(":", 1)[-1].strip()
+                elif current and "0035" in line:
+                    return current
+        return "/dev/input/event1"
+
+    def _next_tid(self) -> int:
+        self._tid_counter = (self._tid_counter % 65535) + 1
+        return self._tid_counter
+
+    def _se(self, events: list) -> str:
+        dev = self.touch_device
+        return "; ".join(f"sendevent {dev} {t} {c} {v}" for t, c, v in events)
+
+    def _sendevent_tap(self, x: int, y: int, hold_ms: int = 80) -> None:
+        tid = self._next_tid()
+        pressure = random.randint(40, 65)
+        major = random.randint(4, 9)
+        press = self._se([
+            (3, 47, 0), (3, 57, tid),
+            (3, 53, x), (3, 54, y),
+            (3, 58, pressure), (3, 48, major),
+            (1, 330, 1), (0, 0, 0),
+        ])
+        release = self._se([
+            (3, 47, 0), (3, 57, 4294967295),
+            (1, 330, 0), (0, 0, 0),
+        ])
+        self.client.shell(press, sync=True)
+        time.sleep(max(0.05, hold_ms / 1000.0))
+        self.client.shell(release, sync=True)
+
+    def _sendevent_swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int) -> None:
+        tid = self._next_tid()
+        pressure = random.randint(40, 65)
+        major = random.randint(4, 9)
+        # Extreme optimization: 1 step every 150ms to minimize shell overhead
+        steps = max(1, duration_ms // 150)
+
+        # Start touch
+        events = [
+            (3, 47, 0), (3, 57, tid),
+            (3, 53, x1), (3, 54, y1),
+            (3, 58, pressure), (3, 48, major),
+            (1, 330, 1), (0, 0, 0),
+        ]
+        
+        for i in range(1, steps + 1):
+            t = i / steps
+            jx, jy = random.randint(-1, 1), random.randint(-1, 1)
+            # Re-adding (3, 47, 0) - some kernels require slot info on every sync
+            events += [(3, 47, 0), (3, 53, int(x1 + (x2 - x1) * t) + jx),
+                       (3, 54, int(y1 + (y2 - y1) * t) + jy), (0, 0, 0)]
+        
+        # Release
+        events += [(3, 57, 4294967295), (1, 330, 0), (0, 0, 0)]
+        self.client.shell(self._se(events), sync=True)
+
     def init_env(self) -> None:
         for attempt in range(3):
             try:
                 res = self.client.run_cmd(["shell", "echo", "ok"])
                 if res.returncode != 0: raise Exception(f"ADB failed: {res.stderr}")
+                self.touch_device = self._detect_touch_device()
                 return
             except Exception:
                 if attempt < 2:
@@ -211,12 +280,12 @@ class AdbController(AndroidController):
             self.wait_click_interval()
 
             if hold_duration == 0:
-                self.execute_adb_shell(f"input tap {x} {y}", True)
+                self._sendevent_tap(x, y)
             else:
                 duration = int(max(50, min(180, random.gauss(90, 30)))) + hold_duration
                 dx, dy = x + random.randint(-3, 3), y + random.randint(-3, 3)
                 if y < 120: dy = y
-                self.execute_adb_shell(f"input swipe {x} {y} {dx} {dy} {duration}", True)
+                self._sendevent_swipe(x, y, dx, dy, duration)
 
             self.last_click_time = time.time()
             time.sleep(CONFIG.bot.auto.adb.delay)
@@ -236,9 +305,9 @@ class AdbController(AndroidController):
                 return
 
             x1, y1 = max(1, min(719, x1)), max(1, min(1279, y1))
-            x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))            
+            x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))
             d = int(duration * 1000 * random.uniform(0.94, 1.06))
-            self.execute_adb_shell(f"input swipe {x1} {y1} {x2} {y2} {d}", True)
+            self._sendevent_swipe(x1, y1, x2, y2, d)
             time.sleep(CONFIG.bot.auto.adb.delay)
 
     def start_app(self, package, activity=None):
@@ -303,10 +372,10 @@ class AdbController(AndroidController):
             ho_d = int(hold_duration * random.uniform(0.94, 1.06))
             rev_y = y2 - 28 if y2 > y1 else y2 + 28
             rev_y = max(1, min(1279, rev_y))
-            
-            self.execute_adb_shell(f"input swipe {x1} {y1} {x2} {y2} {sw_d}", True)
+
+            self._sendevent_swipe(x1, y1, x2, y2, sw_d)
             time.sleep(0.05)
-            self.execute_adb_shell(f"input swipe {x2} {y2} {x2} {rev_y} {ho_d}", True)
+            self._sendevent_swipe(x2, y2, x2, rev_y, ho_d)
             time.sleep(CONFIG.bot.auto.adb.delay)
 
     def swipe_async(self, x1, y1, x2, y2, duration_ms, name=""):
@@ -314,7 +383,7 @@ class AdbController(AndroidController):
         x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))
         def _run():
             with self.input_lock:
-                self.execute_adb_shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}", True)
+                self._sendevent_swipe(x1, y1, x2, y2, duration_ms)
         t = threading.Thread(target=_run, daemon=True)
         t.start()
         return t

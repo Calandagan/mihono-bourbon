@@ -9,6 +9,12 @@ from concurrent.futures import ThreadPoolExecutor
 import bot.base.log as logger
 from bot.recog.ocr import ocr, ocr_line
 from rapidfuzz import process, fuzz
+from module.umamusume.scenario.mant.constants import (
+    MANT_ITEM_COSTS as SHOP_ITEM_COSTS,
+    MANT_ITEM_NAMES as SHOP_ITEM_NAMES,
+    MANT_SLUG_TO_DISPLAY as SLUG_TO_DISPLAY,
+    display_to_slug,
+)
 
 log = logger.get_logger(__name__)
 
@@ -41,59 +47,6 @@ OCR_NAME_X2 = 690
 OCR_FUZZY_THRESHOLD = 65
 OCR_ROI_SCALE = 2.0
 
-SHOP_ITEM_NAMES = [
-    "Speed Notepad", "Stamina Notepad", "Power Notepad", "Guts Notepad", "Wit Notepad",
-    "Speed Manual", "Stamina Manual", "Power Manual", "Guts Manual", "Wit Manual",
-    "Speed Scroll", "Stamina Scroll", "Power Scroll", "Guts Scroll", "Wit Scroll",
-    "Vita 20", "Vita 40", "Vita 65",
-    "Royal Kale Juice",
-    "Energy Drink MAX", "Energy Drink MAX EX",
-    "Plain Cupcake", "Berry Sweet Cupcake",
-    "Yummy Cat Food", "Grilled Carrots",
-    "Pretty Mirror", "Reporter's Binoculars", "Master Practice Guide", "Scholar's Hat",
-    "Fluffy Pillow", "Pocket Planner", "Rich Hand Cream", "Smart Scale",
-    "Aroma Diffuser", "Practice Drills DVD", "Miracle Cure",
-    "Speed Training Application", "Stamina Training Application",
-    "Power Training Application", "Guts Training Application", "Wit Training Application",
-    "Reset Whistle",
-    "Coaching Megaphone", "Motivating Megaphone", "Empowering Megaphone",
-    "Speed Ankle Weights", "Stamina Ankle Weights", "Power Ankle Weights", "Guts Ankle Weights",
-    "Good-Luck Charm",
-    "Artisan Cleat Hammer", "Master Cleat Hammer",
-    "Glow Sticks",
-]
-
-SHOP_ITEM_COSTS = {
-    "Speed Notepad": 10, "Stamina Notepad": 10, "Power Notepad": 10, "Guts Notepad": 10, "Wit Notepad": 10,
-    "Speed Manual": 15, "Stamina Manual": 15, "Power Manual": 15, "Guts Manual": 15, "Wit Manual": 15,
-    "Speed Scroll": 30, "Stamina Scroll": 30, "Power Scroll": 30, "Guts Scroll": 30, "Wit Scroll": 30,
-    "Vita 20": 35, "Vita 40": 55, "Vita 65": 75,
-    "Royal Kale Juice": 70,
-    "Energy Drink MAX": 30, "Energy Drink MAX EX": 50,
-    "Plain Cupcake": 30, "Berry Sweet Cupcake": 55,
-    "Yummy Cat Food": 10, "Grilled Carrots": 40,
-    "Pretty Mirror": 150, "Reporter's Binoculars": 150, "Master Practice Guide": 150, "Scholar's Hat": 280,
-    "Fluffy Pillow": 15, "Pocket Planner": 15, "Rich Hand Cream": 15, "Smart Scale": 15,
-    "Aroma Diffuser": 15, "Practice Drills DVD": 15, "Miracle Cure": 40,
-    "Speed Training Application": 150, "Stamina Training Application": 150,
-    "Power Training Application": 150, "Guts Training Application": 150, "Wit Training Application": 150,
-    "Reset Whistle": 20,
-    "Coaching Megaphone": 40, "Motivating Megaphone": 55, "Empowering Megaphone": 70,
-    "Speed Ankle Weights": 50, "Stamina Ankle Weights": 50, "Power Ankle Weights": 50, "Guts Ankle Weights": 50,
-    "Good-Luck Charm": 40,
-    "Artisan Cleat Hammer": 25, "Master Cleat Hammer": 40,
-    "Glow Sticks": 15,
-}
-
-SLUG_TO_DISPLAY = {}
-for _n in SHOP_ITEM_NAMES:
-    SLUG_TO_DISPLAY[_n.lower().replace("'", '').replace(' ', '_')] = _n
-
-
-def display_to_slug(display_name):
-    return display_name.lower().replace("'", '').replace(' ', '_')
-
-
 EFFECT_PREFIXES = (
     'race ', 'energy +', 'speed +', 'stamina +', 'power +', 'guts +',
     'wisdom +', 'motivation', 'maximum', 'training', 'heal ', 'get ',
@@ -121,12 +74,17 @@ def is_track(r, g, b):
 
 def find_thumb(img_rgb):
     top = bot = None
-    for y in range(TRACK_TOP, TRACK_BOT + 1):
-        r, g, b = int(img_rgb[y, SB_X, 0]), int(img_rgb[y, SB_X, 1]), int(img_rgb[y, SB_X, 2])
-        if is_thumb(r, g, b):
-            if top is None:
-                top = y
-            bot = y
+    # Search in a small range around SB_X to be more robust
+    for x in range(SB_X - 2, SB_X + 3):
+        for y in range(TRACK_TOP, TRACK_BOT + 1):
+            r, g, b = int(img_rgb[y, x, 0]), int(img_rgb[y, x, 1]), int(img_rgb[y, x, 2])
+            if is_thumb(r, g, b):
+                if top is None or y < top:
+                    top = y
+                if bot is None or y > bot:
+                    bot = y
+        if top is not None:
+            break
     return (top, bot) if top is not None else None
 
 
@@ -181,11 +139,9 @@ def content_same(before, after):
 
 def sb_drag(ctx, from_y, to_y):
     sx = random.randint(SB_X_MIN, SB_X_MAX)
-    ex = random.randint(SB_X_MIN, SB_X_MAX)
-    dur = random.randint(166, 211)
-    from_y, to_y = max(110, from_y), max(110, to_y)
-    ctx.ctrl.execute_adb_shell(
-        f"shell input swipe {sx} {from_y} {ex} {to_y} {dur}", True)
+    from_y, to_y = max(120, from_y), max(120, to_y)
+    dur = random.randint(166, 211) / 1000
+    ctx.ctrl.swipe(sx, from_y, sx, to_y, duration=dur)
     time.sleep(0.15)
 
 
@@ -199,6 +155,7 @@ def scroll_to_top(ctx):
         thumb = find_thumb(img_rgb)
         if thumb is None:
             continue
+        # Drag thumb to the very top track limit
         sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_TOP)
     
     ctx.ctrl.click_by_point(ESCAPE)
@@ -232,7 +189,7 @@ def find_shop_checkmarks(frame):
     tmpl_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
     th, tw = tmpl_gray.shape[:2]
     result = cv2.matchTemplate(gray, tmpl_gray, cv2.TM_CCOEFF_NORMED)
-    threshold = 0.8
+    threshold = 0.68
     loc = np.where(result >= threshold)
     marks = []
     for pt in zip(*loc[::-1]):
@@ -413,17 +370,15 @@ def dedup_detections(all_detections, captured_frames):
         name_counts = Counter()
         name_best_conf = {}
         turn_counts = Counter()
-        buyable_votes = Counter()
         for k, c, fi, gy, turns, buyable in cluster:
             name_counts[k] += 1
             if k not in name_best_conf or c > name_best_conf[k]:
                 name_best_conf[k] = c
             if turns != 99:
                 turn_counts[turns] += 1
-            buyable_votes[buyable] += 1
         winner = max(name_counts.keys(), key=lambda n: (name_counts[n], name_best_conf[n]))
         winner_turns = turn_counts.most_common(1)[0][0] if turn_counts else 99
-        winner_buyable = buyable_votes.most_common(1)[0][0]
+        winner_buyable = any(buyable for k, _, _fi, _gy, _t, buyable in cluster if k == winner)
         avg_gy = sum(d[3] for d in cluster) / len(cluster)
         items_list.append((winner, name_best_conf[winner], avg_gy, winner_turns, winner_buyable))
 
@@ -474,29 +429,8 @@ def scan_mant_shop(ctx):
         thumb = find_thumb(img_rgb)
         thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2
 
-    before_cal = img
-    cal_px = 30
-    sb_drag(ctx, thumb_center, thumb_center + cal_px)
-    after_cal = ctx.ctrl.get_screen()
-    shift_cal, conf_cal = find_content_shift(before_cal, after_cal)
-    ratio = shift_cal / cal_px if (shift_cal > 0 and conf_cal > 0.85) else 14.0
-
-    img_dr = ctx.ctrl.get_screen()
-    img_dr_rgb = cv2.cvtColor(img_dr, cv2.COLOR_BGR2RGB)
-    thumb_cal = find_thumb(img_dr_rgb)
+    ratio = 14.0
     drag_ratio = 1.1
-    if thumb_cal:
-        cal_from = (thumb_cal[0] + thumb_cal[1]) // 2
-        cal_dist = 30
-        sb_drag(ctx, cal_from, cal_from + cal_dist)
-        img_dr2 = ctx.ctrl.get_screen()
-        img_dr2_rgb = cv2.cvtColor(img_dr2, cv2.COLOR_BGR2RGB)
-        thumb_cal2 = find_thumb(img_dr2_rgb)
-        if thumb_cal2:
-            cal_to = (thumb_cal2[0] + thumb_cal2[1]) // 2
-            actual_move = cal_to - cal_from
-            if actual_move > 3:
-                drag_ratio = cal_dist / actual_move
 
     scroll_to_top(ctx)
     img = ctx.ctrl.get_screen()
@@ -510,7 +444,7 @@ def scan_mant_shop(ctx):
     desired_overlap = 160
     desired_shift = content_h - desired_overlap
     est_frames = total_content / desired_shift
-    swipe_dur = max(5000, min(25000, int(est_frames * 600)))
+    swipe_dur = max(3500, min(12000, int(est_frames * 350)))
 
     first_results, _ = classify_items_in_frame(img)
     all_detections = []
@@ -752,7 +686,7 @@ def classify_exchange_items(frame):
 
 
 def scan_exchange_complete(ctx):
-    from module.umamusume.scenario.mant.inventory import (
+    from module.umamusume.scenario.mant.scan import (
         inv_find_thumb, inv_at_bottom, sb_drag, INV_TRACK_TOP, INV_TRACK_BOT
     )
     detected_items = {}
@@ -805,19 +739,39 @@ def scan_exchange_complete(ctx):
 
 
 def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_gy):
-    remaining = Counter(target_names)
+    snapshot_key = tuple((name, int(turns or 0), int(bool(buyable))) for name, _, _, turns, buyable in items_list)
+    if getattr(ctx.cultivate_detail, 'mant_shop_snapshot_key', None) != snapshot_key:
+        ctx.cultivate_detail.mant_shop_snapshot_key = snapshot_key
+        ctx.cultivate_detail.mant_failed_shop_names_snapshot = set()
+    failed_snapshot = set(getattr(ctx.cultivate_detail, 'mant_failed_shop_names_snapshot', set()))
+
+    original_targets = list(target_names)
+    remaining = Counter(name for name in target_names if name not in failed_snapshot)
     if not remaining:
+        result = {
+            "result": "skip",
+            "reason": "no_targets_after_snapshot_failures",
+            "original_targets": original_targets,
+            "failed_snapshot": sorted(failed_snapshot),
+            "selected": [],
+            "unresolved": [],
+        }
+        try:
+            ctx.cultivate_detail.turn_info.set_shop_trace(
+                selected=[],
+                result=result,
+            )
+        except Exception:
+            pass
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         time.sleep(1)
-        return False, {}
+        return False, result
 
     selected = 0
+    selected_names = []
 
     scroll_to_top(ctx)
-
-    img = ctx.ctrl.get_screen()
-    if img is None or img.size == 0:
-        return False, {}
+    log.info(f"[BUY] Starting — targets={dict(remaining)}")
 
     for _ in range(60):
         if not any(v > 0 for v in remaining.values()):
@@ -829,7 +783,11 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
 
         results, _ = classify_items_in_frame(frame)
         name_candidates = defaultdict(list)
-        for item_name, conf, abs_y, turns, buyable in results:
+        for item_name, _, abs_y, turns, buyable in results:
+            # buyable: checkmark template present (item available, not purchased/selected)
+            # not is_unbuyable: checkbox area is bright (not already selected or sold out)
+            # CHECKBOX_FILL_THRESHOLD=232 intentionally catches already-selected items
+            # (their checked checkbox drops below 232) preventing double-clicks.
             if buyable and not is_unbuyable(frame, abs_y) and remaining.get(item_name, 0) > 0:
                 name_candidates[item_name].append((turns, abs_y))
         for lst in name_candidates.values():
@@ -843,8 +801,10 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
                 click_y = int(abs_y) + 20
                 ctx.ctrl.click(CHECKBOX_X, click_y)
                 time.sleep(0.3)
+                log.info(f"[BUY] Clicked {item_name} at y={click_y} — remaining after={remaining[item_name] - 1}")
                 selected += 1
                 remaining[item_name] -= 1
+                selected_names.append(item_name)
                 clicked_any = True
 
         if clicked_any:
@@ -852,6 +812,7 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
 
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         if at_bottom(img_rgb):
+            log.info("[BUY] Reached bottom of shop list")
             break
 
         thumb = find_thumb(img_rgb)
@@ -865,9 +826,24 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         sb_drag(ctx, cursor, next_y)
 
     if selected == 0:
+        unresolved = [name for name, count in remaining.items() for _ in range(max(0, count))]
+        failed_snapshot.update(unresolved)
+        ctx.cultivate_detail.mant_failed_shop_names_snapshot = failed_snapshot
+        result = {
+            "result": "failed",
+            "reason": "nothing_selected",
+            "original_targets": original_targets,
+            "selected": [],
+            "unresolved": unresolved,
+            "failed_snapshot": sorted(failed_snapshot),
+        }
+        try:
+            ctx.cultivate_detail.turn_info.set_shop_trace(selected=[], result=result)
+        except Exception:
+            pass
         ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
         time.sleep(1)
-        return False, {}
+        return False, result
 
     ctx.ctrl.click(CONFIRM_BTN_X, CONFIRM_BTN_Y)
 
@@ -897,5 +873,34 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
 
     ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
     time.sleep(1)
+    unresolved = [name for name, count in remaining.items() for _ in range(max(0, count))]
+    if not exchange_ready:
+        failed_snapshot.update(selected_names or unresolved)
+        ctx.cultivate_detail.mant_failed_shop_names_snapshot = failed_snapshot
+        result = {
+            "result": "failed",
+            "reason": "exchange_not_confirmed",
+            "original_targets": original_targets,
+            "selected": list(selected_names),
+            "unresolved": unresolved,
+            "failed_snapshot": sorted(failed_snapshot),
+        }
+        try:
+            ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in selected_names], result=result)
+        except Exception:
+            pass
+        return False, result
 
-    return True, {}
+    ctx.cultivate_detail.mant_failed_shop_names_snapshot = set()
+    result = {
+        "result": "ok",
+        "original_targets": original_targets,
+        "selected": list(selected_names),
+        "unresolved": unresolved,
+        "failed_snapshot": [],
+    }
+    try:
+        ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in selected_names], result=result)
+    except Exception:
+        pass
+    return True, result

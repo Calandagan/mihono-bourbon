@@ -223,6 +223,8 @@ def save_scheduler_tasks():
                 mode_enum = getattr(t, 'task_execute_mode', None)
                 mode = getattr(mode_enum, 'value', None)
                 status = getattr(t, 'task_status', None)
+                if getattr(t, 'skip_scheduler_persist', False) or getattr(t, 'disable_auto_restart', False):
+                    continue
                 
                 if mode_enum in (TEM.TASK_EXECUTE_MODE_ONE_TIME, TEM.TASK_EXECUTE_MODE_TEAM_TRIALS):
                     if status in (TS.TASK_STATUS_SUCCESS, TS.TASK_STATUS_FAILED):

@@ -17,16 +17,22 @@ from module.umamusume.constants.game_constants import (
 )
 from module.umamusume.constants.scoring_constants import (
     DEFAULT_BASE_SCORES, DEFAULT_SCORE_VALUE,
-    DEFAULT_REST_THRESHOLD,
+    DEFAULT_MAX_FAILURE_RATE, DEFAULT_REST_THRESHOLD,
     DEFAULT_STAT_VALUE_MULTIPLIER, DEFAULT_NPC_SCORE_VALUE
 )
 from module.umamusume.constants.timing_constants import (
-    TRAINING_CLICK_DELAY, TRAINING_WAIT_DELAY, TRAINING_RETRY_DELAY,
-    TRAINING_DETECTION_DELAY, ENERGY_READ_RETRY_DELAY,
-    MAX_TRAINING_RETRY, MAX_DETECTION_ATTEMPTS
+    TRAINING_CLICK_DELAY, TRAINING_WAIT_DELAY,
+    MAX_TRAINING_RETRY, TRAINING_RETRY_DELAY,
+    MAX_DETECTION_ATTEMPTS, TRAINING_DETECTION_DELAY,
+    ENERGY_READ_RETRY_DELAY
 )
 from module.umamusume.constants.game_constants import get_date_period_index
 from module.umamusume.script.cultivate_task.parse import parse_train_type, parse_failure_rates
+from module.umamusume.script.cultivate_task.planner import (
+    execute_mant_pre_action,
+    plan_training_turn,
+    set_turn_plan,
+)
 from module.umamusume.script.cultivate_task.helpers import should_use_pal_outing_simple
 from bot.recog.training_stat_scanner import scan_facility_stats
 from bot.recog.energy_scanner import scan_training_energy_change
@@ -66,11 +72,23 @@ TYPE_MAP = [
 ]
 
 
+def get_max_failure_rate(ctx: UmamusumeContext) -> int:
+    try:
+        limit = int(getattr(ctx.cultivate_detail, 'max_failure_rate', DEFAULT_MAX_FAILURE_RATE))
+    except Exception:
+        limit = DEFAULT_MAX_FAILURE_RATE
+    return max(0, min(100, limit))
+
+
 def script_cultivate_training_select(ctx: UmamusumeContext):
     if ctx.cultivate_detail.turn_info is None:
         log.warning("Turn information not initialized")
         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
         return
+
+    ctx.cultivate_detail.turn_info.pending_training_scan = False
+    ctx.cultivate_detail.turn_info.training_select_request_count = 0
+    ctx.cultivate_detail.turn_info.force_safe_recovery = False
 
     turn_op = ctx.cultivate_detail.turn_info.turn_operation
 
@@ -92,25 +110,31 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
     if turn_op is not None:
         if turn_op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING:
             training_type = turn_op.training_type
-            idx = training_type.value - 1
-            if 0 <= idx < 5:
-                if not getattr(ctx.cultivate_detail.turn_info, 'facility_click_logged', False):
-                    facility_keys = ["speed", "stamina", "power", "guts", "wits"]
-                    key = facility_keys[idx]
-                    if not hasattr(ctx.cultivate_detail, "facility_clicks"):
-                        ctx.cultivate_detail.facility_clicks = {"speed": 0, "stamina": 0, "power": 0, "guts": 0, "wits": 0}
-                    ctx.cultivate_detail.facility_clicks[key] += 1
-                    ctx.cultivate_detail.turn_info.facility_click_logged = True
-                    try:
-                        from module.umamusume.persistence import save_career_data
-                        save_career_data(ctx)
-                    except Exception:
-                        pass
-            ctx.ctrl.click_by_point(TRAINING_POINT_LIST[training_type.value - 1])
-            time.sleep(TRAINING_CLICK_DELAY)
-            ctx.ctrl.click_by_point(TRAINING_POINT_LIST[training_type.value - 1])
-            time.sleep(TRAINING_WAIT_DELAY)
-            return
+            if training_type == TrainingType.TRAINING_TYPE_UNKNOWN:
+                log.info("Training operation missing training type; recomputing from training scan")
+                ctx.cultivate_detail.turn_info.turn_operation = None
+                ctx.cultivate_detail.turn_info.parse_train_info_finish = False
+                turn_op = None
+            else:
+                idx = training_type.value - 1
+                if 0 <= idx < 5:
+                    if not getattr(ctx.cultivate_detail.turn_info, 'facility_click_logged', False):
+                        facility_keys = ["speed", "stamina", "power", "guts", "wits"]
+                        key = facility_keys[idx]
+                        if not hasattr(ctx.cultivate_detail, "facility_clicks"):
+                            ctx.cultivate_detail.facility_clicks = {"speed": 0, "stamina": 0, "power": 0, "guts": 0, "wits": 0}
+                        ctx.cultivate_detail.facility_clicks[key] += 1
+                        ctx.cultivate_detail.turn_info.facility_click_logged = True
+                        try:
+                            from module.umamusume.persistence import save_career_data
+                            save_career_data(ctx)
+                        except Exception:
+                            pass
+                ctx.ctrl.click_by_point(TRAINING_POINT_LIST[training_type.value - 1])
+                time.sleep(TRAINING_CLICK_DELAY)
+                ctx.ctrl.click_by_point(TRAINING_POINT_LIST[training_type.value - 1])
+                time.sleep(TRAINING_WAIT_DELAY)
+                return
 
         else:
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
@@ -124,7 +148,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
     mant_skip = False
     if is_mant:
-        from module.umamusume.scenario.mant.inventory import should_skip_fast_path
+        from module.umamusume.scenario.mant.policy import should_skip_fast_path
         mant_skip = should_skip_fast_path(ctx)
 
         if not mant_skip:
@@ -132,8 +156,8 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 mant_skip = True
             else:
                 try:
-                    from module.umamusume.scenario.mant.inventory import has_energy_recovery
-                    if has_energy_recovery(ctx):
+                    from module.umamusume.scenario.mant.policy import has_energy_recovery, has_cupcakes
+                    if has_energy_recovery(ctx) or has_cupcakes(ctx):
                         mant_skip = True
                     else:
                         from module.umamusume.asset.race_data import get_races_for_period
@@ -147,6 +171,27 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                             mant_skip = True
                 except Exception:
                     pass
+
+        if getattr(ctx.cultivate_detail.turn_info, 'skip_training_review_for_race', False):
+            ctx.cultivate_detail.turn_info.skip_training_review_for_race = False
+            try:
+                from module.umamusume.scenario.mant.scan import close_items_panel
+                from module.umamusume.scenario.mant.training_recovery import handle_energy_recovery
+                from module.umamusume.scenario.mant.policy import has_scheduled_race_this_turn
+                if has_scheduled_race_this_turn(ctx) and getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False):
+                    handle_energy_recovery(ctx)
+                ctx.cultivate_detail.turn_info.energy_recovery_deferred = False
+                ctx.cultivate_detail.turn_info.post_item_rescan_needed = False
+                ctx.cultivate_detail.turn_info.energy_item_used = False
+                ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
+                ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+                ctx.cultivate_detail.turn_info.parse_train_info_finish = True
+                ctx.cultivate_detail.last_decision_stats = None
+                close_items_panel(ctx)
+            except Exception:
+                pass
+            ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
+            return
 
     if not getattr(ctx.cultivate_detail, 'career_data_loaded', False):
         try:
@@ -167,7 +212,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             energy = read_energy()
     ctx.cultivate_detail.turn_info.cached_energy = energy
 
-    if energy <= limit and not mant_skip:
+    if energy <= limit and not mant_skip and not is_mant:
         turn_info = ctx.cultivate_detail.turn_info
         date = turn_info.date
         from module.umamusume.asset.race_data import get_races_for_period
@@ -177,7 +222,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             skip_race = False
             try:
                 if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                    from module.umamusume.scenario.mant.inventory import should_skip_race
+                    from module.umamusume.scenario.mant.policy import should_skip_race
                     skip_race = should_skip_race(ctx)
             except Exception:
                 pass
@@ -328,15 +373,31 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             til.relevant_count = relevant_count
 
         def parse_training_with_retry(ctx, img, train_type, energy_change=None):
+            # First attempt
+            result1 = detect_training_once(ctx, img, train_type, energy_change)
+            
+            # Fast path: if we have good data, don't wait for retry
+            if result1.failure_rate != -1 and len(result1.support_card_info_list) > 0:
+                apply_detection_result(ctx, train_type, result1)
+                return
+
             for attempt in range(MAX_DETECTION_ATTEMPTS):
-                result1 = detect_training_once(ctx, img, train_type, energy_change)
                 time.sleep(TRAINING_DETECTION_DELAY)
                 result2 = detect_training_once(ctx, img, train_type, energy_change)
                 if compare_detection_results(result1, result2):
                     apply_detection_result(ctx, train_type, result1)
                     return
-                time.sleep(TRAINING_DETECTION_DELAY)
-            apply_detection_result(ctx, train_type, result2)
+                result1 = result2
+            apply_detection_result(ctx, train_type, result1)
+
+        def parse_training_full(ctx, img, train_type, ctrl, facility_name, energy_changes, idx):
+            """Runs OCR + energy scan in a single thread to eliminate sequential blocking."""
+            try:
+                energy_change, _ = scan_training_energy_change(ctrl, facility_name, initial_img=img)
+            except Exception:
+                energy_change = 0.0
+            energy_changes.append((idx, energy_change))
+            parse_training_with_retry(ctx, img, train_type, energy_change)
 
         def clear_training(ctx: UmamusumeContext, train_type: 'TrainingType'):
             til = ctx.cultivate_detail.turn_info.training_info_list[train_type.value - 1]
@@ -380,11 +441,13 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         if extra_weight[viewed - 1] > -1:
             facility_name = FACILITY_NAME_MAP.get(train_type)
             immediate_img = ctx.ctrl.get_screen()
-            thread = threading.Thread(target=parse_training_with_retry, args=(ctx, immediate_img, train_type, None))
+            # Use full parallel thread: OCR + energy scan together
+            thread = threading.Thread(
+                target=parse_training_full,
+                args=(ctx, immediate_img, train_type, ctx.ctrl, facility_name, energy_changes, viewed - 1)
+            )
             threads.append(thread)
             thread.start()
-            energy_change, _ = scan_training_energy_change(ctx.ctrl, facility_name, initial_img=immediate_img)
-            energy_changes.append((viewed - 1, energy_change))
         else:
             clear_training(ctx, train_type)
 
@@ -409,11 +472,13 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
                     train_type_i = TrainingType(i + 1)
                     facility_name = FACILITY_NAME_MAP.get(train_type_i)
-                    thread = threading.Thread(target=parse_training_with_retry, args=(ctx, img, train_type_i, None))
+                    # Use full parallel thread: OCR + energy scan together
+                    thread = threading.Thread(
+                        target=parse_training_full,
+                        args=(ctx, img, train_type_i, ctx.ctrl, facility_name, energy_changes, i)
+                    )
                     threads.append(thread)
                     thread.start()
-                    energy_change, _ = scan_training_energy_change(ctx.ctrl, facility_name, initial_img=img)
-                    energy_changes.append((i, energy_change))
                 else:
                     clear_training(ctx, TrainingType(i + 1))
 
@@ -830,7 +895,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
         if is_mant:
             try:
-                from module.umamusume.scenario.mant.inventory import save_megaphone_scan_state_and_tick
+                from module.umamusume.scenario.mant.training_recovery import save_megaphone_scan_state_and_tick
                 save_megaphone_scan_state_and_tick(ctx)
             except Exception:
                 pass
@@ -914,15 +979,84 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             except Exception:
                 pass
 
+        raw_max_score = max(computed_scores) if len(computed_scores) == 5 else 0.0
+        eps = 1e-9
+        history = []
+        percentile = 100.0
+        
+        blocked_count = sum(blocked_trainings)
+        available_trainings = [i for i, blocked in enumerate(blocked_trainings) if not blocked]
+        risk_blocked_trainings = [False] * 5
+        failure_limit = get_max_failure_rate(ctx)
+        detected_failure_rates = []
+        for idx in range(5):
+            try:
+                fr_val = int(getattr(ctx.cultivate_detail.turn_info.training_info_list[idx], 'failure_rate', -1))
+            except Exception:
+                fr_val = -1
+            detected_failure_rates.append(fr_val)
+        failure_summary = ", ".join(
+            f"{names[idx]}={'?' if val < 0 else str(val) + '%'}"
+            for idx, val in enumerate(detected_failure_rates)
+        )
+        log.info(f"Failure rates detected: {failure_summary}")
+
+        if not getattr(ctx.cultivate_detail.turn_info, 'charm_used_this_turn', False):
+            for idx in available_trainings:
+                fr_val = detected_failure_rates[idx]
+                if fr_val < 0:
+                    risk_blocked_trainings[idx] = True
+                    computed_scores[idx] = -float('inf')
+                    log.info(f"{names[idx]} blocked by failure limit: unreadable failure rate")
+                elif fr_val >= failure_limit:
+                    risk_blocked_trainings[idx] = True
+                    computed_scores[idx] = -float('inf')
+                    log.info(f"{names[idx]} blocked by failure limit: {fr_val}% >= {failure_limit}%")
+
+        safe_available_trainings = [i for i in available_trainings if not risk_blocked_trainings[i]]
+        if available_trainings and not safe_available_trainings:
+            readable_risk_blocked = any(
+                detected_failure_rates[idx] >= failure_limit
+                for idx in available_trainings
+                if detected_failure_rates[idx] >= 0
+            )
+            if is_mant and readable_risk_blocked:
+                try:
+                    from module.umamusume.scenario.mant.training_recovery import (
+                        choose_training_failure_recovery_action,
+                        handle_charm,
+                        handle_energy_recovery,
+                        rescan_training,
+                    )
+                    action, item_name = choose_training_failure_recovery_action(ctx)
+                    if action == "charm" and handle_charm(ctx, force=True):
+                        log.info(
+                            f"All available trainings exceed failure limit ({failure_limit}%) - "
+                            f"used {item_name} and will re-evaluate"
+                        )
+                        rescan_training(ctx)
+                        return
+                    if action == "energy_item" and handle_energy_recovery(ctx):
+                        log.info(
+                            f"All available trainings exceed failure limit ({failure_limit}%) - "
+                            f"used {item_name} and will re-evaluate"
+                        )
+                        rescan_training(ctx)
+                        return
+                except Exception:
+                    pass
+            ctx.cultivate_detail.turn_info.force_safe_recovery = True
+            log.info(f"All available trainings exceed failure limit ({failure_limit}%) - preferring recovery")
+
         ctx.cultivate_detail.turn_info.cached_computed_scores = list(computed_scores)
         ctx.cultivate_detail.turn_info.cached_facility_mults = list(facility_mults)
 
         max_score = max(computed_scores) if len(computed_scores) == 5 else 0.0
-        
         if not hasattr(ctx.cultivate_detail, 'score_history'):
             ctx.cultivate_detail.score_history = []
         stat_boost_amt = best_stat_score - unboosted_stat_score
-        unboosted_total_score = max_score - stat_boost_amt
+        history_score = raw_max_score if raw_max_score != -float('inf') else max_score
+        unboosted_total_score = history_score - stat_boost_amt
         ctx.cultivate_detail.score_history.append(unboosted_total_score)
 
         if len(ctx.cultivate_detail.score_history) >= 2:
@@ -932,17 +1066,17 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             below_count = sum(1 for s in prev if s < best_score)
             percentile = below_count / len(prev) * 100
             ctx.cultivate_detail.percentile_history.append(percentile)
+        else:
+            history = ctx.cultivate_detail.score_history
 
         if len(ctx.cultivate_detail.score_history) > MAX_DATAPOINTS:
             ctx.cultivate_detail.score_history = ctx.cultivate_detail.score_history[-MAX_DATAPOINTS:]
-
-        eps = 1e-9
+            history = ctx.cultivate_detail.score_history
         
-        blocked_count = sum(blocked_trainings)
-        available_trainings = [i for i, blocked in enumerate(blocked_trainings) if not blocked]
-        
-        if blocked_count == 4 and len(available_trainings) == 1:
-            chosen_idx = available_trainings[0]
+        if len(safe_available_trainings) == 1:
+            chosen_idx = safe_available_trainings[0]
+        elif available_trainings and not safe_available_trainings:
+            chosen_idx = 4 if 4 in available_trainings else available_trainings[0]
         else:
         
             if not hasattr(ctx.cultivate_detail.turn_info, 'race_search_attempted') and date <= 72:
@@ -999,19 +1133,25 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             pass
        
 
-    from module.umamusume.script.cultivate_task.ai import get_operation
-    op_ai = get_operation(ctx)
-    if op_ai is None:
-        op = TurnOperation()
-        op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRAINING
-        op.training_type = local_training_type
-        ctx.cultivate_detail.turn_info.turn_operation = op
-        new_is_race = False
+    force_safe_recovery = getattr(ctx.cultivate_detail.turn_info, 'force_safe_recovery', False)
+    ctx.cultivate_detail.turn_info.force_safe_recovery = False
+    planner_turn = plan_training_turn(ctx, local_training_type, force_safe_recovery=force_safe_recovery)
+    set_turn_plan(ctx, planner_turn)
+    if planner_turn.primary_action == "training":
+        log.info(
+            "Training decision: scored_best=%s final=%s reason=%s",
+            local_training_type.name,
+            planner_turn.training_type.name,
+            planner_turn.reason or "-",
+        )
     else:
-        if op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING and (op_ai.training_type == TrainingType.TRAINING_TYPE_UNKNOWN):
-            op_ai.training_type = local_training_type
-        ctx.cultivate_detail.turn_info.turn_operation = op_ai
-        new_is_race = (op_ai.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE)
+        log.info(
+            "Training decision redirected: scored_best=%s final_action=%s reason=%s",
+            local_training_type.name,
+            planner_turn.primary_action,
+            planner_turn.reason or "-",
+        )
+    new_is_race = (planner_turn.primary_action == "race")
 
     if not new_is_race:
         ctx.cultivate_detail.mant_cleat_used = False
@@ -1028,7 +1168,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 has_race_this_turn = any(r in ctx.cultivate_detail.extra_race_list for r in available_races)
                 has_scheduled = False
                 try:
-                    from module.umamusume.scenario.mant.inventory import has_scheduled_race_this_turn as check_fn
+                    from module.umamusume.scenario.mant.policy import has_scheduled_race_this_turn as check_fn
                     has_scheduled = check_fn(ctx)
                 except Exception:
                     pass
@@ -1037,7 +1177,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     matching = [d for d in TRAINING_REPLACEMENT_DATES if d in gc_dates]
                     if matching:
                         ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-                        ctx.cultivate_detail.turn_info.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
+                        ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
                         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
                         return
 
@@ -1101,24 +1241,33 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
     if op is not None and op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING:
         try:
             if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                if getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False):
-                    from module.umamusume.scenario.mant.inventory import handle_energy_recovery
-                    if not getattr(ctx.cultivate_detail.turn_info, 'charm_used_this_turn', False):
-                        handle_energy_recovery(ctx)
-                    ctx.cultivate_detail.turn_info.energy_recovery_deferred = False
-                    ctx.cultivate_detail.turn_info.charm_used_this_turn = False
+                pre_actions = list(getattr(planner_turn, 'pre_actions', []) or [])
+                for action in pre_actions:
+                    if action in ("energy_item", "charm"):
+                        if execute_mant_pre_action(ctx, action, getattr(planner_turn, 'race_id', 0)):
+                            if getattr(planner_turn, 'requires_replan_after_pre_action', False):
+                                from module.umamusume.scenario.mant.training_recovery import rescan_training
+                                rescan_training(ctx)
+                                return
 
                 ctx.cultivate_detail.turn_info.pre_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
                 ctx.cultivate_detail.turn_info.pre_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
 
-                from module.umamusume.scenario.mant.inventory import item_loop
+                from module.umamusume.scenario.mant.training_recovery import item_loop
                 item_loop(ctx)
 
                 try:
-                    from module.umamusume.scenario.mant.inventory import megaphone_reevaluate
+                    from module.umamusume.scenario.mant.training_recovery import megaphone_reevaluate
                     megaphone_reevaluate(ctx, op)
                 except Exception:
                     pass
+
+                if getattr(ctx.cultivate_detail.turn_info, 'post_item_rescan_needed', False):
+                    from module.umamusume.scenario.mant.training_recovery import rescan_training
+                    ctx.cultivate_detail.turn_info.post_item_rescan_needed = False
+                    ctx.cultivate_detail.turn_info.energy_item_used = False
+                    rescan_training(ctx)
+                    return
         except Exception:
             pass
 
@@ -1146,18 +1295,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         time.sleep(0.5)
         return
 
-    if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-        if getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False):
-            try:
-                from module.umamusume.scenario.mant.inventory import item_loop, handle_energy_recovery, rescan_training
-                item_loop(ctx)
-                if not getattr(ctx.cultivate_detail.turn_info, 'charm_used_this_turn', False):
-                    handle_energy_recovery(ctx)
-                ctx.cultivate_detail.turn_info.energy_recovery_deferred = False
-                ctx.cultivate_detail.turn_info.charm_used_this_turn = False
-                rescan_training(ctx)
-                return
-            except Exception:
-                pass
+    if (
+        ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT
+        and getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False)
+    ):
+        log.warning("Clearing stale MANT deferred recovery flag after training evaluation")
+        ctx.cultivate_detail.turn_info.energy_recovery_deferred = False
+        ctx.cultivate_detail.turn_info.post_item_rescan_needed = False
     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
     return

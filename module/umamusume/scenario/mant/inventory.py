@@ -156,13 +156,26 @@ def inv_find_content_shift(before, after):
 
 
 def sb_drag(ctx, from_y, to_y):
+    # Add a bit more randomization and a slight curve/jitter to the start/end X
     sx = random.randint(SB_X_MIN, SB_X_MAX)
     ex = random.randint(SB_X_MIN, SB_X_MAX)
-    dur = random.randint(166, 211)
+    
+    # Calculate duration based on distance to feel more natural, with jitter
+    dist = abs(to_y - from_y)
+    # A typical human drag is around 150-500ms depending on distance
+    base_dur = max(160, min(600, int(dist * 0.75)))
+    dur = random.randint(base_dur, base_dur + 60)
+    
     from_y, to_y = max(110, from_y), max(110, to_y)
-    ctx.ctrl.execute_adb_shell(
-        "shell input swipe " + str(sx) + " " + str(from_y) + " " + str(ex) + " " + str(to_y) + " " + str(dur), True)
-    time.sleep(0.15)
+    
+    # Occasionally add a tiny "hesitation" before swiping (15% chance)
+    if random.random() < 0.15:
+        time.sleep(random.uniform(0.04, 0.1))
+        
+    ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
+    
+    # Post-swipe pause variation (simulating letting go of the screen)
+    time.sleep(random.uniform(0.14, 0.28))
 
 
 def scroll_to_top(ctx):
@@ -451,116 +464,87 @@ def scan_inventory(ctx, stop_when_found=None):
                 drag_ratio = cal_dist / actual_move
 
     scroll_to_top(ctx)
-    img = ctx.ctrl.get_screen()
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    thumb = inv_find_thumb(img_rgb)
-    start_y = (thumb[0] + thumb[1]) // 2 if thumb else INV_TRACK_TOP + thumb_h // 2 + 5
-
-    content_h = INV_CONTENT_BOT - INV_CONTENT_TOP
-    track_len = INV_TRACK_BOT - INV_TRACK_TOP
-    total_content = track_len * ratio + content_h
-    desired_overlap = 160
-    desired_shift = content_h - desired_overlap
-    est_frames = total_content / desired_shift
-    swipe_dur = max(5000, min(25000, int(est_frames * 600)))
-
-    scan_x_end = _gauss_scan_x()
-    proc = ctx.ctrl.swipe_async(SB_X, start_y, scan_x_end, INV_TRACK_BOT, swipe_dur)
-
+    time.sleep(random.uniform(0.2, 0.4))
+    
     item_qtys = {}
-    scan_deadline = time.time() + 40
-    last_new_item_time = time.time()
-    idle_timeout = 1.16
-    idle_terminated = False
+    
+    # Initial scan of the top view
+    frame = ctx.ctrl.get_screen()
+    if frame is not None:
+        for name, score, y, qty in classify_with_qty(frame):
+            if 130 < y < 1030:
+                item_qtys[name] = max(qty, item_qtys.get(name, 0))
 
-    results = classify_with_qty(img)
-    for name, score, y, qty in results:
-        if 130 < y < 1030 and (name not in item_qtys or qty > item_qtys[name]):
-            item_qtys[name] = qty
-            last_new_item_time = time.time()
-    if stop_when_found and any(n == stop_when_found for n, _, _, _ in results):
-        owned = [(name, qty) for name, qty in item_qtys.items()]
-        owned.sort(key=lambda x: x[0])
-        scroll_to_top(ctx)
-        return owned
-
-    while ctx.task.running() and time.time() < scan_deadline:
-        time.sleep(0.068)
-        frame = ctx.ctrl.get_screen()
-        if frame is None:
-            if not proc.is_alive():
-                break
-            continue
-
-        found_new = False
-        results = classify_with_qty(frame)
-        for name, score, y, qty in results:
-            if 130 < y < 1030 and (name not in item_qtys or qty > item_qtys[name]):
-                item_qtys[name] = qty
-                found_new = True
-
-        if found_new:
-            last_new_item_time = time.time()
-
-        if stop_when_found and any(n == stop_when_found for n, _, _, _ in results):
-            break
-
-        if time.time() - last_new_item_time > idle_timeout:
-            idle_terminated = True
-            break
-
-        if not proc.is_alive():
-            break
-
-    pass
-
-    prev_frame = ctx.ctrl.get_screen()
-    for _ in range(15):
-        time.sleep(0.15)
-        cur_frame = ctx.ctrl.get_screen()
-        if cur_frame is None or prev_frame is None:
-            break
-        if inv_content_same(prev_frame, cur_frame):
-            break
-        prev_frame = cur_frame
-
-    prev_cursor = -1
-    stall_count = 0
-    for _ in range(20 if not idle_terminated else 0):
+    # Segmented scroll loop
+    max_segments = random.randint(3, 5)
+    for segment in range(max_segments):
         if not ctx.task.running():
             break
-        time.sleep(0.18)
-        frame = ctx.ctrl.get_screen()
-        if frame is None:
-            continue
-
-        results = classify_with_qty(frame)
-        for name, score, y, qty in results:
-            if 130 < y < 1030 and (name not in item_qtys or qty > item_qtys[name]):
-                item_qtys[name] = qty
-
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+        img = ctx.ctrl.get_screen()
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if inv_at_bottom(img_rgb):
             break
-
+            
         thumb = inv_find_thumb(img_rgb)
         if thumb is None:
             break
-
+            
         cursor = (thumb[0] + thumb[1]) // 2
-        if prev_cursor >= 0 and abs(cursor - prev_cursor) < 5:
-            stall_count += 1
-            if stall_count >= 3:
-                sb_drag(ctx, cursor, INV_TRACK_BOT)
-        else:
-            stall_count = 0
-        prev_cursor = cursor
-
-        step = max(thumb[1] - thumb[0], 30)
-        target = min(INV_TRACK_BOT, cursor + step)
-        if target <= cursor + 3:
+        # Determine a random step size for this segment (200 to 450 pixels of thumb movement)
+        # We want to overlap, so we don't jump too far.
+        step = random.randint(180, 320)
+        target_y = min(INV_TRACK_BOT, cursor + step)
+        
+        if target_y <= cursor + 10:
             break
+            
+        # Use a faster duration to avoid sendevent lag (was 600-1200)
+        seg_dur = random.randint(250, 450)
+        scan_x_end = _gauss_scan_x()
+        
+        # Start an async swipe for this segment to capture frames while moving
+        proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
+        
+        # Scan during this segment's motion
+        segment_end_time = time.time() + (seg_dur / 1000.0) + 0.2
+        while proc.is_alive() and time.time() < segment_end_time:
+            time.sleep(0.1)
+            frame = ctx.ctrl.get_screen()
+            if frame is not None:
+                for name, score, y, qty in classify_with_qty(frame):
+                    if 130 < y < 1030:
+                        item_qtys[name] = max(qty, item_qtys.get(name, 0))
+            
+            if stop_when_found and stop_when_found in item_qtys:
+                break
+        
+        if stop_when_found and stop_when_found in item_qtys:
+            break
+            
+        # Pause briefly between segments as if the user is looking at the screen
+        time.sleep(random.uniform(0.3, 0.7))
+
+    # Final cleanup swipe if not at bottom
+    for _ in range(5):
+        frame = ctx.ctrl.get_screen()
+        if frame is None: break
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        if inv_at_bottom(img_rgb): break
+        
+        thumb = inv_find_thumb(img_rgb)
+        if thumb is None: break
+        cursor = (thumb[0] + thumb[1]) // 2
+        step = max(thumb[1] - thumb[0], 40)
+        target = min(INV_TRACK_BOT, cursor + step)
         sb_drag(ctx, cursor, target)
+        
+        # Scan after correction swipe
+        frame = ctx.ctrl.get_screen()
+        if frame is not None:
+            for name, score, y, qty in classify_with_qty(frame):
+                if 130 < y < 1030:
+                    item_qtys[name] = max(qty, item_qtys.get(name, 0))
 
     owned = [(name, qty) for name, qty in item_qtys.items()]
 
@@ -573,7 +557,7 @@ def scan_inventory(ctx, stop_when_found=None):
     }
     owned_names = {name for name, qty in owned}
     if any(item in stat_items for item in owned_names):
-        for _ in range(10):
+        for _ in range(3):
             log.info("TURN AUTO USE PROSHOP ITEMS ON IN GAME SETTINGS")
 
     from module.umamusume.persistence import get_ignore_cat_food, get_ignore_grilled_carrots
@@ -630,7 +614,7 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
                 log.warning(f"No + buttons found on screen")
                 plus_x = 648
                 plus_y = int(round(target_y + 48))
-                ctx.ctrl.execute_adb_shell(f"shell input tap {plus_x} {plus_y}", True)
+                ctx.ctrl.click(plus_x, plus_y, name="item plus button fallback")
                 time.sleep(0.25)
                 return True
             best_button = None
@@ -642,14 +626,14 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
                     best_button = (bx, by)
             if best_button and best_dy < 80:
                 log.info(f"Clicking + for '{item_name}' at ({best_button[0]}, {best_button[1]}), dy={best_dy:.1f}")
-                ctx.ctrl.execute_adb_shell(f"shell input tap {best_button[0]} {best_button[1]}", True)
+                ctx.ctrl.click(best_button[0], best_button[1], name="exchange item button")
                 time.sleep(0.25)
                 return True
             else:
                 log.warning(f"No + button found near '{item_name}' (y={target_y:.1f}), best dy={best_dy:.1f}")
                 plus_x = 648
                 plus_y = int(round(target_y + 48))
-                ctx.ctrl.execute_adb_shell(f"shell input tap {plus_x} {plus_y}", True)
+                ctx.ctrl.click(plus_x, plus_y, name="item plus button fallback")
                 time.sleep(0.25)
                 return True
 
@@ -745,7 +729,7 @@ def close_items_panel(ctx):
         frame = ctx.ctrl.get_screen()
         if not is_items_panel_open(frame) and not has_use_training_items_button(frame):
             return
-        ctx.ctrl.execute_adb_shell("shell input tap 200 1205", True)
+        ctx.ctrl.click(200, 1205, name="cancel exchange")
         time.sleep(0.3)
 
 
@@ -766,7 +750,7 @@ def use_training_item(ctx, item_name, quantity=1):
             return False
         time.sleep(0.15)
 
-    ctx.ctrl.execute_adb_shell("shell input tap 530 1205", True)
+    ctx.ctrl.click(530, 1205, name="confirm exchange")
     time.sleep(0.3)
 
     clicked_use = False
@@ -774,7 +758,7 @@ def use_training_item(ctx, item_name, quantity=1):
         time.sleep(0.17)
         frame = ctx.ctrl.get_screen()
         if has_use_training_items_button(frame):
-            ctx.ctrl.execute_adb_shell("shell input tap 530 1205", True)
+            ctx.ctrl.click(530, 1205, name="confirm exchange")
             clicked_use = True
             time.sleep(0.5)
             continue
@@ -782,7 +766,7 @@ def use_training_item(ctx, item_name, quantity=1):
             if is_items_panel_open(frame) or not has_use_training_items_button(frame):
                 return True
         if not clicked_use and is_items_panel_open(frame):
-            ctx.ctrl.execute_adb_shell("shell input tap 530 1205", True)
+            ctx.ctrl.click(530, 1205, name="confirm exchange")
 
     return True
 
@@ -836,48 +820,8 @@ LOW_ENERGY_THRESHOLD = 5
 
 
 def pick_best_energy_item(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0)
-    if current_energy is None:
-        return None
-    current_energy = int(current_energy)
-    max_energy = getattr(ctx.cultivate_detail, 'mant_max_energy', 100)
-    energy_use_max = max_energy * 0.55
-    energy_result_min = max_energy * 0.3
-    energy_score_threshold = max_energy * 0.1
-    if current_energy >= energy_use_max:
-        return None
-
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    from module.umamusume.constants.game_constants import get_date_period_index
-    period_idx = get_date_period_index(date)
-
-    race_count = 0
-    from module.umamusume.asset.race_data import get_races_for_period
-    for offset in range(1, 5):
-        future_date = date + offset
-        available = get_races_for_period(future_date)
-        if any(r in ctx.cultivate_detail.extra_race_list for r in available):
-            race_count += 1
-
-    # Removed restrictive projected check that discouraged item use before races
-
-    best_item = None
-    best_effective = 0
-    for item_name, raw_energy in ENERGY_ITEMS.items():
-        if owned_map.get(item_name, 0) <= 0:
-            continue
-        result_energy = current_energy + raw_energy
-        if result_energy < energy_result_min:
-            continue
-        effective = calc_effective_energy(item_name, raw_energy, current_energy, period_idx, max_energy)
-        if effective > best_effective:
-            best_effective = effective
-            best_item = item_name
-    if best_effective < energy_score_threshold:
-        return None
-    return best_item
+    from module.umamusume.scenario.mant.policy import pick_best_energy_item as impl
+    return impl(ctx)
 
 
 def plan_low_energy_recovery(current_energy, owned_map, max_energy=100):
@@ -918,365 +862,72 @@ def plan_low_energy_recovery(current_energy, owned_map, max_energy=100):
 
 
 def use_item_and_update_inventory(ctx, item_name):
-    ok = use_training_item(ctx, item_name, 1)
-    if not ok:
-        return False
-    update_max_energy_from_ocr(ctx)
-    close_items_panel(ctx)
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    owned_map[item_name] = max(0, owned_map.get(item_name, 0) - 1)
-    updated = [(n, q) for n, q in owned_map.items() if q > 0]
-    ctx.cultivate_detail.mant_owned_items = updated
-    from module.umamusume.persistence import save_inventory
-    save_inventory(ctx.cultivate_detail.mant_owned_items)
-    from module.umamusume.context import log_detected_items
-    log_detected_items(updated)
-    log.info(f"used {item_name}")
-    return True
+    from module.umamusume.scenario.mant.actions import use_item_and_update_inventory as impl
+    return impl(ctx, item_name)
 
 
 def handle_training_whistle(ctx):
-    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-    if mant_cfg is None:
-        return False
-
-    threshold = getattr(mant_cfg, 'whistle_threshold', None)
-    if threshold is None:
-        return False
-
-    score_history = getattr(ctx.cultivate_detail, 'score_history', [])
-    if len(score_history) < 16:
-        return False
-
-    scores = getattr(ctx.cultivate_detail.turn_info, 'cached_original_scores', None)
-    if not scores or len(scores) != 5:
-        return False
-
-    best_score = max(scores)
-    prev = score_history[:-1]
-    below_count = sum(1 for s in prev if s < best_score)
-    percentile = below_count / len(prev) * 100
-
-    effective_threshold = float(threshold)
-    if mant_cfg.whistle_focus_summer:
-        date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-        from module.umamusume.constants.game_constants import is_summer_camp_period
-        if is_summer_camp_period(date):
-            from module.umamusume.constants.game_constants import CLASSIC_YEAR_END
-            if date <= CLASSIC_YEAR_END:
-                effective_threshold += mant_cfg.focus_summer_classic
-            else:
-                effective_threshold += mant_cfg.focus_summer_senior
-
-    if percentile >= effective_threshold:
-        return False
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    if owned_map.get('Reset Whistle', 0) <= 0:
-        return False
-
-    return use_item_and_update_inventory(ctx, 'Reset Whistle')
+    from module.umamusume.scenario.mant.training_recovery import handle_training_whistle as impl
+    return impl(ctx)
 
 
 def handle_energy_item(ctx):
-    item_name = pick_best_energy_item(ctx)
-    if item_name is None:
-        return False
-    ctx.cultivate_detail.turn_info.energy_item_used = True
-    return use_item_and_update_inventory(ctx, item_name)
+    from module.umamusume.scenario.mant.training_recovery import handle_energy_item as impl
+    return impl(ctx)
 
 
 def handle_energy_recovery(ctx):
-    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
-    if current_energy is None:
-        return False
-    current_energy = int(current_energy)
-
-    max_energy = getattr(ctx.cultivate_detail, 'mant_max_energy', 100)
-
-    rest_threshold = getattr(ctx.cultivate_detail, 'rest_threshold',
-                    getattr(ctx.cultivate_detail, 'rest_treshold', 48))
-    limit = max_energy * (rest_threshold / 100.0)
-
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    training_remaining = remaining_training_turns_real(ctx, date)
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    available = []
-    for item_name, raw_energy in sorted(ENERGY_ITEMS.items(), key=lambda x: x[1], reverse=True):
-        qty = owned_map.get(item_name, 0)
-        if qty > 0:
-            available.append((item_name, raw_energy, qty))
-
-    if not available:
-        return False
-
-    energy = current_energy
-    used_any = False
-    for item_name, raw_energy, qty in available:
-        while qty > 0 and energy <= limit:
-            if raw_energy >= 100:
-                if energy > (limit / 2) and energy > 20:
-                    break
-            elif energy + raw_energy > max_energy + 5:
-                break
-            
-            ok = use_item_and_update_inventory(ctx, item_name)
-            if not ok:
-                break
-            energy += raw_energy
-            qty -= 1
-            used_any = True
-            ctx.cultivate_detail.turn_info.cached_energy = energy
-        if energy > limit:
-            break
-
-    while energy <= limit:
-        owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-        owned_map = {n: q for n, q in owned}
-        item_to_use = None
-        
-        best_diff = 9999
-        for item_name, raw_energy in ENERGY_ITEMS.items():
-            if owned_map.get(item_name, 0) > 0:
-                if energy + raw_energy > limit:
-                    if energy + raw_energy - limit < best_diff:
-                        best_diff = energy + raw_energy - limit
-                        item_to_use = item_name
-
-        if not item_to_use:
-            for item_name, raw_energy in sorted(ENERGY_ITEMS.items(), key=lambda x: x[1], reverse=True):
-                if owned_map.get(item_name, 0) > 0:
-                    item_to_use = item_name
-                    break
-        
-        if item_to_use:
-            ok = use_item_and_update_inventory(ctx, item_to_use)
-            if not ok:
-                break
-            energy += ENERGY_ITEMS[item_to_use]
-            used_any = True
-            ctx.cultivate_detail.turn_info.cached_energy = energy
-        else:
-            break
-
-    if used_any:
-        ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
-    return used_any
+    from module.umamusume.scenario.mant.training_recovery import handle_energy_recovery as impl
+    return impl(ctx)
 
 
 def handle_instant_use_items(ctx):
-    from module.umamusume.persistence import mark_buff_used, is_buff_used
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-
-    items_to_use = []
-    for item_name in INSTANT_USE_ITEMS:
-        qty = owned_map.get(item_name, 0)
-        if qty <= 0:
-            continue
-        if item_name in ONE_TIME_BUFF_ITEMS and is_buff_used(item_name):
-            continue
-        items_to_use.append(item_name)
-
-    if not items_to_use:
-        return False
-
-    open_items_panel(ctx)
-
-    selected = []
-    not_found = []
-    for item_name in items_to_use:
-        if try_click_item_plus_once(ctx, item_name):
-            selected.append(item_name)
-            time.sleep(0.15)
-        else:
-            not_found.append(item_name)
-
-    if not_found:
-        owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-        owned_map = {n: q for n, q in owned}
-        for missing in not_found:
-            if owned_map.get(missing, 0) > 0:
-                owned_map.pop(missing, None)
-        ctx.cultivate_detail.mant_owned_items = [(n, q) for n, q in owned_map.items() if q > 0]
-        from module.umamusume.persistence import save_inventory
-        save_inventory(ctx.cultivate_detail.mant_owned_items)
-
-    if not selected:
-        close_items_panel(ctx)
-        return False
-
-    ctx.ctrl.execute_adb_shell("shell input tap 530 1205", True)
-
-    for _ in range(20):
-        time.sleep(0.35)
-        frame = ctx.ctrl.get_screen()
-        if has_use_training_items_button(frame):
-            ctx.ctrl.execute_adb_shell("shell input tap 530 1205", True)
-            time.sleep(0.5)
-            update_max_energy_from_ocr(ctx)
-            break
-        if is_items_panel_open(frame):
-            ctx.ctrl.execute_adb_shell("shell input tap 530 1205", True)
-            time.sleep(0.35)
-
-    for _ in range(15):
-        time.sleep(0.35)
-        frame = ctx.ctrl.get_screen()
-        if is_items_panel_open(frame):
-            break
-
-    close_items_panel(ctx)
-
-    for item_name in selected:
-        owned_map[item_name] = max(0, owned_map.get(item_name, 0) - 1)
-        if item_name in ONE_TIME_BUFF_ITEMS:
-            mark_buff_used(item_name)
-
-    updated = [(n, q) for n, q in owned_map.items() if q > 0]
-    ctx.cultivate_detail.mant_owned_items = updated
-    from module.umamusume.persistence import save_inventory
-    save_inventory(ctx.cultivate_detail.mant_owned_items)
-    from module.umamusume.context import log_detected_items
-    log_detected_items(updated)
-
-    log.info(f"used instant items: {selected}")
-
-    return True
+    from module.umamusume.scenario.mant.actions import handle_instant_use_items as impl
+    return impl(ctx)
 
 
 def handle_charm(ctx):
-    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-    if mant_cfg is None:
-        return False
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    if owned_map.get('Good-Luck Charm', 0) <= 0:
-        return False
-
-    score_history = getattr(ctx.cultivate_detail, 'score_history', [])
-    if len(score_history) < 16:
-        return False
-
-    scores = getattr(ctx.cultivate_detail.turn_info, 'cached_original_scores', None)
-    if not scores or len(scores) != 5:
-        return False
-
-    best_idx = max(range(5), key=lambda i: scores[i])
-    best_score = scores[best_idx]
-
-    percentile = get_date_weighted_score_percentile(ctx)
-
-    charm_threshold = getattr(mant_cfg, 'charm_threshold', 40)
-
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    from module.umamusume.constants.game_constants import SUMMER_CAMP_2_START
-
-    if date <= SUMMER_CAMP_2_START and percentile <= charm_threshold:
-        return False
-
-    til = ctx.cultivate_detail.turn_info.training_info_list[best_idx]
-    fr = int(getattr(til, 'failure_rate', 0))
-    charm_failure_rate = getattr(mant_cfg, 'charm_failure_rate', 21)
-    if fr < charm_failure_rate:
-        return False
-
-    result = use_item_and_update_inventory(ctx, 'Good-Luck Charm')
-    if result:
-        ctx.cultivate_detail.turn_info.charm_used_this_turn = True
-    return result
+    from module.umamusume.scenario.mant.training_recovery import handle_charm as impl
+    return impl(ctx)
 
 
 def rescan_training(ctx):
-    close_items_panel(ctx)
-    ctx.cultivate_detail.turn_info.parse_train_info_finish = False
-    ctx.cultivate_detail.turn_info.turn_operation = None
-    ctx.cultivate_detail.last_decision_stats = None
-    from module.umamusume.asset.point import RETURN_TO_CULTIVATE_MAIN_MENU
-    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-    time.sleep(0.5)
-    from module.umamusume.asset.point import TO_TRAINING_SELECT
-    ctx.ctrl.click_by_point(TO_TRAINING_SELECT)
-    time.sleep(0.5)
+    from module.umamusume.scenario.mant.training_recovery import rescan_training as impl
+    return impl(ctx)
 
 
 def has_energy_recovery(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    for item_name in ENERGY_ITEMS:
-        if owned_map.get(item_name, 0) > 0:
-            return True
-    return False
+    from module.umamusume.scenario.mant.policy import has_energy_recovery as impl
+    return impl(ctx)
 
 
 def has_charm(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    return owned_map.get('Good-Luck Charm', 0) > 0
+    from module.umamusume.scenario.mant.policy import has_charm as impl
+    return impl(ctx)
 
 
 def has_whistle(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    return owned_map.get('Reset Whistle', 0) > 0
+    from module.umamusume.scenario.mant.policy import has_whistle as impl
+    return impl(ctx)
+
+
+def has_cupcakes(ctx):
+    from module.umamusume.scenario.mant.policy import has_cupcakes as impl
+    return impl(ctx)
 
 
 def whistle_loop(ctx, start_date):
-    if not ctx.task.running():
-        return False
-    if getattr(ctx.cultivate_detail.turn_info, 'date', None) != start_date:
-        return False
-    used = handle_training_whistle(ctx)
-    if not used:
-        return False
-    time.sleep(0.5)
-    rescan_training(ctx)
-    return True
+    from module.umamusume.scenario.mant.training_recovery import whistle_loop as impl
+    return impl(ctx, start_date)
 
 
 def handle_cupcake_use(ctx):
-    from module.umamusume.scenario.mant.constants import get_incoming_mood
-    cached_mood = getattr(ctx.cultivate_detail.turn_info, 'cached_mood', None)
-    if cached_mood is not None:
-        mood = cached_mood
-    else:
-        from bot.conn.fetch import read_mood
-        mood = read_mood(ctx.current_screen)
-    if mood is None or mood >= 5:
-        return False
-    _, total = get_chain_position(ctx)
-    if total > 1:
-        log.info(f"Race chain of {total} - skipping cupcake (mood item)")
-        return False
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    incoming = get_incoming_mood(date, 3)
-    owned = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
-    for name, boost in [('Berry Sweet Cupcake', 2), ('Plain Cupcake', 1)]:
-        if owned.get(name, 0) <= 0:
-            continue
-        if mood + boost + incoming > 5 and incoming > 0:
-            continue
-        if use_item_and_update_inventory(ctx, name):
-            ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
-            return True
-    return False
+    from module.umamusume.scenario.mant.actions import handle_cupcake_use as impl
+    return impl(ctx)
 
 def has_instant_use_items(ctx):
-    from module.umamusume.persistence import is_buff_used
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    for item in INSTANT_USE_ITEMS:
-        if owned_map.get(item, 0) <= 0:
-            continue
-        if item in ONE_TIME_BUFF_ITEMS and is_buff_used(item):
-            continue
-        return True
-    return False
+    from module.umamusume.scenario.mant.actions import has_instant_use_items as impl
+    return impl(ctx)
 
 
 MEGAPHONE_TIERS = {
@@ -1300,125 +951,33 @@ TRAINING_TYPE_ANKLET = {
 
 
 def get_best_percentile(ctx):
-    scores = getattr(ctx.cultivate_detail.turn_info, 'cached_original_scores', None)
-    if not scores or len(scores) != 5:
-        return None
-    score_history = getattr(ctx.cultivate_detail, 'score_history', [])
-    if len(score_history) < 16:
-        return None
-    best_score = max(scores)
-    prev = score_history[:-1]
-    below_count = sum(1 for s in prev if s < best_score)
-    return below_count / len(prev) * 100
+    from module.umamusume.scenario.mant.policy import get_best_percentile as impl
+    return impl(ctx)
 
 
 def get_stat_only_percentile(ctx):
-    scores = getattr(ctx.cultivate_detail.turn_info, 'cached_original_scores', None)
-    if not scores or len(scores) != 5:
-        return None
-    stat_only_history = getattr(ctx.cultivate_detail, 'stat_only_history', [])
-    if len(stat_only_history) < 16:
-        return None
-    best_score = getattr(ctx.cultivate_detail.turn_info, 'cached_stat_only_score', None)
-    if best_score is None:
-        return None
-    prev = stat_only_history[:-1]
-    below_count = sum(1 for s in prev if s < best_score)
-    return below_count / len(prev) * 100
+    from module.umamusume.scenario.mant.policy import get_stat_only_percentile as impl
+    return impl(ctx)
 
 
 
 
 def get_date_weighted_score_percentile(ctx):
-    score_history = getattr(ctx.cultivate_detail, 'score_history', [])
-    date_history = getattr(ctx.cultivate_detail, 'date_history', [])
-    if len(score_history) < 8 or len(date_history) != len(score_history):
-        return get_stat_only_percentile(ctx)
-
-    current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    scores = getattr(ctx.cultivate_detail.turn_info, 'cached_original_scores', None)
-    if not scores or len(scores) != 5:
-        return 50.0
-    current_score = max(scores)
-
-    mega_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-    mega_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-    if mega_turns > 0:
-        mult = MEGA_STAT_MULT.get(mega_tier, 1.0)
-        current_score /= mult
-
-    weighted_below = 0.0
-    weighted_total = 0.0
-    for i in range(len(score_history) - 1):
-        d = date_history[i]
-        distance = abs(d - current_date)
-        weight = 1.0 / (1.0 + distance)
-        if distance > 12:
-            continue
-        weighted_total += weight
-        if score_history[i] < current_score:
-            weighted_below += weight
-
-    if weighted_total <= 0:
-        return 50.0
-    return weighted_below / weighted_total * 100
+    from module.umamusume.scenario.mant.policy import get_date_weighted_score_percentile as impl
+    return impl(ctx)
 
 
 MEGA_STAT_MULT = {1: 1.20, 2: 1.40, 3: 1.60}
 
 
 def save_megaphone_scan_state_and_tick(ctx):
-    ctx.cultivate_detail.turn_info._mega_scan_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-    ctx.cultivate_detail.turn_info._mega_scan_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-    tick_megaphone(ctx)
+    from module.umamusume.scenario.mant.training_recovery import save_megaphone_scan_state_and_tick as impl
+    return impl(ctx)
 
 
 def megaphone_reevaluate(ctx, current_op):
-    pre_item_tier = getattr(ctx.cultivate_detail.turn_info, 'pre_item_tier', None)
-    pre_item_turns = getattr(ctx.cultivate_detail.turn_info, 'pre_item_turns', None)
-    if pre_item_tier is None or pre_item_turns is None:
-        return False
-
-    post_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-    post_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-
-    if post_item_tier == pre_item_tier and post_item_turns == pre_item_turns:
-        return False
-
-    scan_tier = getattr(ctx.cultivate_detail.turn_info, '_mega_scan_tier', 0)
-    scan_turns = getattr(ctx.cultivate_detail.turn_info, '_mega_scan_turns', 0)
-    old_mult = MEGA_STAT_MULT.get(scan_tier, 1.0) if scan_turns > 1 else 1.0
-    new_mult = MEGA_STAT_MULT.get(post_item_tier, 1.0) if post_item_turns > 0 else 1.0
-
-    if new_mult == old_mult:
-        return False
-
-    ratio = new_mult / old_mult
-    cached_stat_scores = getattr(ctx.cultivate_detail.turn_info, 'cached_stat_scores', None)
-    cached_scores = getattr(ctx.cultivate_detail.turn_info, 'cached_computed_scores', None)
-    cached_mults = getattr(ctx.cultivate_detail.turn_info, 'cached_facility_mults', None)
-    if not cached_stat_scores or not cached_scores or len(cached_stat_scores) != 5 or len(cached_scores) != 5:
-        return False
-
-    buffed_scores = []
-    for bi in range(5):
-        mult = cached_mults[bi] if cached_mults and len(cached_mults) == 5 else 1.0
-        delta = cached_stat_scores[bi] * (ratio - 1.0) * mult
-        buffed_scores.append(cached_scores[bi] + delta)
-
-    buffed_max = max(buffed_scores)
-    eps = 1e-9
-    ties = [bi for bi, bv in enumerate(buffed_scores) if abs(bv - buffed_max) < eps]
-    new_chosen = 4 if 4 in ties else (min(ties) if ties else int(np.argmax(buffed_scores)))
-
-    from module.umamusume.define import TrainingType
-    new_type = TrainingType(new_chosen + 1)
-
-    if new_type != current_op.training_type:
-        current_op.training_type = new_type
-        return True
-    else:
-        return False
+    from module.umamusume.scenario.mant.training_recovery import megaphone_reevaluate as impl
+    return impl(ctx, current_op)
 
 
 def count_races_in_window(ctx, duration):
@@ -1440,15 +999,13 @@ def count_races_in_window(ctx, duration):
     return count
 
 def get_chain_position(ctx) -> tuple[int, int]:
-    chain_map = getattr(ctx.cultivate_detail, 'race_chain_map', {})
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    return chain_map.get(date, (1, 1))
+    from module.umamusume.scenario.mant.policy import get_chain_position as impl
+    return impl(ctx)
 
 
 def has_scheduled_race_this_turn(ctx) -> bool:
-    chain_map = getattr(ctx.cultivate_detail, 'race_chain_map', {})
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    return date in chain_map
+    from module.umamusume.scenario.mant.policy import has_scheduled_race_this_turn as impl
+    return impl(ctx)
 
 MANT_CLIMAX_START = 73
 MANT_CLIMAX_TRAINING_TURNS = [73, 75, 77]
@@ -1461,27 +1018,8 @@ def remaining_training_turns(date):
 
 
 def remaining_training_turns_real(ctx, date):
-    if date >= MANT_CLIMAX_START:
-        clim_turns = [73, 74, 75, 76, 77, 78]
-        training_count = 0
-        for t in clim_turns:
-            if t >= date and t % 2 == 1:
-                training_count += 1
-        return training_count
-    else:
-        extra_races = getattr(ctx.cultivate_detail, 'extra_race_list', [])
-        if not extra_races:
-            return (MANT_CLIMAX_START - date) + len(MANT_CLIMAX_TRAINING_TURNS)
-        
-        from module.umamusume.asset.race_data import get_races_for_period
-        races_in_window = 0
-        for future_date in range(date, MANT_CLIMAX_START):
-            available = get_races_for_period(future_date)
-            if any(r in extra_races for r in available):
-                races_in_window += 1
-        
-        total_turns = (MANT_CLIMAX_START - date) + len(MANT_CLIMAX_TRAINING_TURNS)
-        return total_turns - races_in_window
+    from module.umamusume.scenario.mant.policy import remaining_training_turns_real as impl
+    return impl(ctx, date)
 
 
 def total_megaphone_turns(owned_map):
@@ -1505,144 +1043,13 @@ def compute_mega_urgency(ctx):
 
 
 def handle_megaphone(ctx):
-    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-    if mant_cfg is None:
-        return False
-
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    if date >= MANT_CLIMAX_START and date not in MANT_CLIMAX_TRAINING_TURNS:
-        return False
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    active_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-    active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-
-    total_available = total_megaphone_turns(owned_map) + active_turns
-    remaining = remaining_training_turns_real(ctx, date)
-    
-    energy_sum = sum(owned_map.get(item, 0) * raw_energy for item, raw_energy in ENERGY_ITEMS.items())
-    cupcake_count = owned_map.get('Plain Cupcake', 0) + owned_map.get('Berry Sweet Cupcake', 0)
-    
-    reduction_pct = 0.0
-    if energy_sum < 200:
-        reduction_pct += 0.15
-    if cupcake_count <= 0:
-        reduction_pct += 0.05
-        
-    effective_remaining = remaining * (1.0 - reduction_pct)
-        
-    dump = total_available >= effective_remaining
-
-    percentile = get_stat_only_percentile(ctx)
-    if percentile is None:
-        return False
-
-    from module.umamusume.constants.game_constants import is_summer_camp_period
-    is_summer = is_summer_camp_period(date)
-    summer_bonus = getattr(mant_cfg, 'mega_summer_bonus', 10)
-    race_penalty = getattr(mant_cfg, 'mega_race_penalty', 5)
-
-    def _mega_year_rate(d):
-        from module.umamusume.constants.game_constants import JUNIOR_YEAR_END, CLASSIC_YEAR_END
-        if d <= JUNIOR_YEAR_END:
-            return 2
-        elif d <= CLASSIC_YEAR_END:
-            return 3.5
-        return 5
-
-    best_mega = None
-    best_tier = 0
-    for name, (tier, duration) in sorted(MEGAPHONE_TIERS.items(), key=lambda x: -x[1][0]):
-        if owned_map.get(name, 0) <= 0:
-            continue
-        cfg_key = MEGAPHONE_CONFIG_KEYS[tier]
-        base_threshold = getattr(mant_cfg, cfg_key, 50)
-
-        threshold = base_threshold
-
-        if active_turns > 0 and active_tier > 0:
-            tier_diff = tier - active_tier
-            if tier_diff <= 0:
-                continue
-            upgrade_bonus = 7 if tier_diff == 1 else 15
-            threshold += upgrade_bonus
-
-        year_rate = _mega_year_rate(date)
-        own_qty = owned_map.get(name, 0)
-        threshold -= own_qty * year_rate
-        for other_name, (other_tier, _) in MEGAPHONE_TIERS.items():
-            if other_name == name:
-                continue
-            other_qty = owned_map.get(other_name, 0)
-            if other_qty > 0:
-                threshold -= other_qty * year_rate * 0.5
-
-        races_in_window = count_races_in_window(ctx, duration)
-        threshold += races_in_window * race_penalty
-
-        if is_summer:
-            threshold -= summer_bonus
-
-        if percentile >= threshold:
-            best_mega = name
-            best_tier = tier
-            break
-
-    if best_mega is None and dump and active_turns == 0:
-        for name, (tier, duration) in sorted(MEGAPHONE_TIERS.items(), key=lambda x: x[1][0]):
-            if owned_map.get(name, 0) > 0:
-                best_mega = name
-                best_tier = tier
-                break
-
-    if best_mega is None:
-        return False
-
-    _, duration = MEGAPHONE_TIERS[best_mega]
-    ok = use_item_and_update_inventory(ctx, best_mega)
-    if ok:
-        ctx.cultivate_detail.mant_megaphone_tier = best_tier
-        ctx.cultivate_detail.mant_megaphone_turns = duration
-        from module.umamusume.persistence import save_megaphone_state
-        save_megaphone_state(best_tier, duration)
-    return ok
+    from module.umamusume.scenario.mant.training_recovery import handle_megaphone as impl
+    return impl(ctx)
 
 
 def handle_anklet(ctx):
-    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-    if mant_cfg is None:
-        return False
-
-    percentile = get_stat_only_percentile(ctx)
-    if percentile is None:
-        return False
-
-
-    threshold = getattr(mant_cfg, 'training_weights_threshold', 40)
-    
-    if percentile < threshold:
-        return False
-
-    turn_info = getattr(ctx.cultivate_detail, 'turn_info', None)
-    op = getattr(turn_info, 'turn_operation', None) if turn_info else None
-    if op is None:
-        return False
-    training_type = getattr(op, 'training_type', None)
-    if training_type is None:
-        return False
-    training_val = training_type.value if hasattr(training_type, 'value') else int(training_type)
-
-    anklet_name = TRAINING_TYPE_ANKLET.get(training_val)
-    if anklet_name is None:
-        return False
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    if owned_map.get(anklet_name, 0) <= 0:
-        return False
-
-    return use_item_and_update_inventory(ctx, anklet_name)
+    from module.umamusume.scenario.mant.training_recovery import handle_anklet as impl
+    return impl(ctx)
 
 
 def tick_megaphone(ctx):
@@ -1657,201 +1064,37 @@ def tick_megaphone(ctx):
 
 
 def item_loop(ctx):
-    start_date = getattr(ctx.cultivate_detail.turn_info, 'date', None)
-    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0)
-    if current_energy is None:
-        current_energy = 0
-    current_energy = int(current_energy)
-
-    got_recovery = has_energy_recovery(ctx)
-    got_charm = has_charm(ctx)
-    got_whistle = has_whistle(ctx)
-
-    if got_recovery and got_charm:
-        charm_used = handle_charm(ctx)
-        if charm_used:
-            handle_energy_recovery(ctx)
-        else:
-            handle_energy_recovery(ctx)
-            if whistle_loop(ctx, start_date):
-                return
-            handle_charm(ctx)
-    elif got_recovery:
-        handle_energy_recovery(ctx)
-        if whistle_loop(ctx, start_date):
-            return
-    elif got_charm and got_whistle:
-        if whistle_loop(ctx, start_date):
-            return
-        handle_charm(ctx)
-    elif got_charm:
-        handle_charm(ctx)
-    else:
-        if whistle_loop(ctx, start_date):
-            return
-
-    handle_megaphone(ctx)
-    handle_anklet(ctx)
+    from module.umamusume.scenario.mant.training_recovery import item_loop as impl
+    return impl(ctx)
 
 
 def should_skip_fast_path(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    has_charm_item = owned_map.get(CHARM_ITEM, 0) > 0
-    energy_count = sum(owned_map.get(item, 0) for item in ENERGY_ITEMS)
-    if has_charm_item:
-        return True
-    if energy_count >= ENERGY_ITEM_SKIP_FAST_PATH_THRESHOLD:
-        return True
-    return False
+    from module.umamusume.scenario.mant.policy import should_skip_fast_path as impl
+    return impl(ctx)
 
 
 def handle_energy_drink_max_before_race(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    if owned_map.get('Energy Drink MAX', 0) <= 0:
-        return False
-    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
-    if current_energy is None:
-        return False
-    if int(current_energy) > 1:
-        return False
-    position, _ = get_chain_position(ctx)
-    if position > 3:
-        log.info(f"Race {position} in chain - deferring Energy Drink MAX (only used on races 1-3)")
-        return False
-    return use_item_and_update_inventory(ctx, 'Energy Drink MAX')
+    from module.umamusume.scenario.mant.race_prep import handle_energy_drink_max_before_race as impl
+    return impl(ctx)
 
 def handle_glow_sticks_before_race(ctx):
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    if owned_map.get('Glow Sticks', 0) <= 0:
-        return False
-    return use_item_and_update_inventory(ctx, 'Glow Sticks')
+    from module.umamusume.scenario.mant.race_prep import handle_glow_sticks_before_race as impl
+    return impl(ctx)
 
 
 MANT_CLIMAX_RACE_TURNS = [74, 76, 78]
 
 
 def remaining_climax_races(date):
-    return sum(1 for t in MANT_CLIMAX_RACE_TURNS if t >= date)
+    from module.umamusume.scenario.mant.race_prep import remaining_climax_races as impl
+    return impl(date)
 
 
 def handle_cleat_before_race(ctx, race_id, is_climax_override=False):
-    from module.umamusume.constants.game_constants import SUMMER_CAMP_2_START
-
-    if getattr(ctx.cultivate_detail, 'mant_cleat_used', False):
-        return False
-
-    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-    owned_map = {n: q for n, q in owned}
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    is_climax_race = is_climax_override or date in MANT_CLIMAX_RACE_TURNS
-
-    master_qty = owned_map.get('Master Cleat Hammer', 0)
-    artisan_qty = owned_map.get('Artisan Cleat Hammer', 0)
-
-    if master_qty + artisan_qty <= 0:
-        return False
-
-    if is_climax_race:
-        if master_qty > 0:
-            result = use_item_and_update_inventory(ctx, 'Master Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-        if artisan_qty > 0:
-            result = use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-        return False
-
-    from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SENIOR_YEAR_END
-    from module.umamusume.asset.race_data import is_g1_race
-
-    if date > SUMMER_CAMP_2_START:
-        total = master_qty + artisan_qty
-        if total <= 2:
-            return False
-        reserve_total = min(2, total)
-        reserve_master = min(master_qty, reserve_total)
-        spare_master = master_qty - reserve_master
-        spare_artisan = artisan_qty - (reserve_total - reserve_master)
-
-        is_senior = date <= SENIOR_YEAR_END
-
-        if is_senior and master_qty < 3 and spare_artisan > 0:
-            result = use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-
-        if spare_master > 0:
-            result = use_item_and_update_inventory(ctx, 'Master Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-        if spare_artisan > 0:
-            result = use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-        return False
-
-    if not is_g1_race(race_id):
-        return False
-
-    is_senior = CLASSIC_YEAR_END < date <= SENIOR_YEAR_END
-
-    if is_senior and master_qty < 3:
-        if artisan_qty > 0:
-            result = use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-        if master_qty > 0:
-            result = use_item_and_update_inventory(ctx, 'Master Cleat Hammer')
-            if result:
-                ctx.cultivate_detail.mant_cleat_used = True
-            return result
-        return False
-
-    if master_qty > 0:
-        result = use_item_and_update_inventory(ctx, 'Master Cleat Hammer')
-        if result:
-            ctx.cultivate_detail.mant_cleat_used = True
-        return result
-    if artisan_qty > 0:
-        result = use_item_and_update_inventory(ctx, 'Artisan Cleat Hammer')
-        if result:
-            ctx.cultivate_detail.mant_cleat_used = True
-        return result
-    return False
+    from module.umamusume.scenario.mant.race_prep import handle_cleat_before_race as impl
+    return impl(ctx, race_id, is_climax_override=is_climax_override)
 
 
 def should_skip_race(ctx):
-    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-    if mant_cfg is None:
-        return False
-    skip_pct = getattr(mant_cfg, 'skip_race_percentile', 0)
-    if skip_pct <= 0:
-        return False
-    pct_hist = getattr(ctx.cultivate_detail, 'percentile_history', [])
-    if len(pct_hist) < 16 or not pct_hist:
-        return False
-    last_pct = pct_hist[-1]
-
-    active_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-    active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-    effective_skip_pct = skip_pct
-    if active_turns > 0 and active_tier > 0:
-        mega_mult = MEGA_STAT_MULT.get(active_tier, 1.0)
-        bonus_pct = (mega_mult - 1.0) * 100
-        effective_skip_pct = max(0, skip_pct - bonus_pct)
-
-    if last_pct > effective_skip_pct:
-        log.info(f"skipping optional race: percentile {last_pct:.0f}% > threshold {effective_skip_pct:.0f}%"
-                 + (f" (megaphone t{active_tier} active)" if active_tier > 0 else ""))
-        return True
-    return False
+    from module.umamusume.scenario.mant.policy import should_skip_race as impl
+    return impl(ctx)

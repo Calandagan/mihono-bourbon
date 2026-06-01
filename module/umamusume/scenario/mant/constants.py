@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -57,6 +58,126 @@ class MantRaceSetType(Enum):
     REGION_FUKUSHIMA = "region_fukushima"
     REGION_NIIGATA = "region_niigata"
     REGION_KOKURA = "region_kokura"
+
+
+@dataclass(frozen=True)
+class MantItemMeta:
+    slug: str
+    display_name: str
+    item_type: str
+    cost: int
+    energy: int = 0
+    mood: int = 0
+    duration: int = 0
+    can_buy: bool = True
+    can_use: bool = True
+
+
+@dataclass(frozen=True)
+class DetectedMantItem:
+    slug: str
+    display_name: str
+    qty: int = 1
+    confidence: float = 0.0
+    screen_y: int = -1
+    source: str = "ocr"
+
+
+def display_to_slug(display_name: str) -> str:
+    return display_name.lower().replace("'", "").replace(" ", "_")
+
+
+def slug_to_display(slug: str) -> str | None:
+    item = MANT_ITEM_REGISTRY.get(slug)
+    return item.display_name if item is not None else None
+
+
+_MANT_ITEM_REGISTRY: dict[str, MantItemMeta] = {}
+
+
+def _register_item(
+    display_name: str,
+    item_type: str,
+    cost: int,
+    *,
+    energy: int = 0,
+    mood: int = 0,
+    duration: int = 0,
+    can_buy: bool = True,
+    can_use: bool = True,
+):
+    slug = display_to_slug(display_name)
+    _MANT_ITEM_REGISTRY[slug] = MantItemMeta(
+        slug=slug,
+        display_name=display_name,
+        item_type=item_type,
+        cost=cost,
+        energy=energy,
+        mood=mood,
+        duration=duration,
+        can_buy=can_buy,
+        can_use=can_use,
+    )
+
+
+for _display in ("Speed Notepad", "Stamina Notepad", "Power Notepad", "Guts Notepad", "Wit Notepad"):
+    _register_item(_display, MantItemType.STAT_BOOK_SMALL.value, 10)
+for _display in ("Speed Manual", "Stamina Manual", "Power Manual", "Guts Manual", "Wit Manual"):
+    _register_item(_display, MantItemType.STAT_BOOK_MEDIUM.value, 15)
+for _display in ("Speed Scroll", "Stamina Scroll", "Power Scroll", "Guts Scroll", "Wit Scroll"):
+    _register_item(_display, MantItemType.STAT_BOOK_LARGE.value, 30)
+for _display, _energy, _item_type, _cost in (
+    ("Vita 20", 20, MantItemType.ENERGY_SMALL.value, 35),
+    ("Vita 40", 40, MantItemType.ENERGY_MEDIUM.value, 55),
+    ("Vita 65", 65, MantItemType.ENERGY_LARGE.value, 75),
+    ("Royal Kale Juice", 100, MantItemType.GREEN_JUICE.value, 70),
+):
+    _register_item(_display, _item_type, _cost, energy=_energy, mood=-1 if _display == "Royal Kale Juice" else 0)
+for _display, _energy, _item_type, _cost in (
+    ("Energy Drink MAX", 5, MantItemType.MAX_ENERGY_SMALL.value, 30),
+    ("Energy Drink MAX EX", 10, MantItemType.MAX_ENERGY_MEDIUM.value, 50),
+):
+    _register_item(_display, _item_type, _cost, energy=_energy)
+for _display, _mood, _item_type, _cost in (
+    ("Plain Cupcake", 1, MantItemType.CAKE_SMALL.value, 30),
+    ("Berry Sweet Cupcake", 2, MantItemType.CAKE_LARGE.value, 55),
+):
+    _register_item(_display, _item_type, _cost, mood=_mood)
+_register_item("Yummy Cat Food", MantItemType.CAT_FOOD.value, 10)
+_register_item("Grilled Carrots", MantItemType.BBQ.value, 40)
+_register_item("Pretty Mirror", MantItemType.HAND_MIRROR.value, 150)
+_register_item("Reporter's Binoculars", MantItemType.GLASSES.value, 150)
+_register_item("Master Practice Guide", MantItemType.PRACTICE_NOTEBOOK.value, 150)
+_register_item("Scholar's Hat", MantItemType.SCHOLAR_HAT.value, 280)
+for _display in ("Fluffy Pillow", "Pocket Planner", "Rich Hand Cream", "Smart Scale", "Aroma Diffuser", "Practice Drills DVD"):
+    _register_item(_display, MantItemType.REMEDY.value, 15)
+_register_item("Miracle Cure", MantItemType.PANACEA.value, 40)
+for _display in (
+    "Speed Training Application",
+    "Stamina Training Application",
+    "Power Training Application",
+    "Guts Training Application",
+    "Wit Training Application",
+):
+    _register_item(_display, MantItemType.TRAINING_APPLICATION.value, 150)
+_register_item("Reset Whistle", MantItemType.WHISTLE.value, 20)
+for _display, _duration, _item_type, _cost in (
+    ("Coaching Megaphone", 4, MantItemType.MEGAPHONE_SMALL.value, 40),
+    ("Motivating Megaphone", 3, MantItemType.MEGAPHONE_MEDIUM.value, 55),
+    ("Empowering Megaphone", 2, MantItemType.MEGAPHONE_LARGE.value, 70),
+):
+    _register_item(_display, _item_type, _cost, duration=_duration)
+for _display in ("Speed Ankle Weights", "Stamina Ankle Weights", "Power Ankle Weights", "Guts Ankle Weights"):
+    _register_item(_display, MantItemType.ANKLET.value, 50, duration=1)
+_register_item("Good-Luck Charm", MantItemType.CHARM.value, 40, duration=1)
+_register_item("Artisan Cleat Hammer", MantItemType.HORSESHOE_SMALL.value, 25, duration=1)
+_register_item("Master Cleat Hammer", MantItemType.HORSESHOE_LARGE.value, 40, duration=1)
+_register_item("Glow Sticks", MantItemType.GLOW_STICK.value, 15, duration=1)
+
+MANT_ITEM_REGISTRY = dict(_MANT_ITEM_REGISTRY)
+MANT_ITEM_NAMES = [meta.display_name for meta in MANT_ITEM_REGISTRY.values()]
+MANT_ITEM_COSTS = {meta.display_name: meta.cost for meta in MANT_ITEM_REGISTRY.values()}
+MANT_SLUG_TO_DISPLAY = {slug: meta.display_name for slug, meta in MANT_ITEM_REGISTRY.items()}
 
 
 MANT_SHOP_ITEMS = {

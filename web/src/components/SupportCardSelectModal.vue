@@ -1,89 +1,89 @@
 <template>
-  <div id="support-card-select-modal" class="modal fade" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered modal-xl">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header d-flex align-items-center justify-content-between">
-          <h5 class="mb-0">Borrowing Support Card</h5>
-          <div>
-            <button class="btn btn-sm btn-outline-secondary me-2" @click="handleCancel">Cancel</button>
-            <button class="btn btn-sm btn--primary" @click="handleConfirm" :disabled="isConfirmDisabled">Confirm</button>
-          </div>
-        </div>
-        <div class="modal-body support-card-modal-body">
-          <div class="section-card p-3 mb-2">
-          <div class="type-btn-row">
-            <button
-              v-for="type in supportCardTypes"
-              :key="type.name"
-              type="button"
-              class="type-btn"
-              :class="[ { active: activeType === type.name }, type.name === 'custom' ? 'custom-btn' : '' ]"
-              @click="setActiveType(type.name)"
-              >
-              <template v-if="type.name !== 'custom'">
-                <img v-if="type.img" :src="type.img" :alt="type.name" class="type-btn-img" />
-              </template>
-              <template v-else>
-                <span class="type-btn-text">Custom</span>
-              </template>
-            </button>
-          </div>
-          <hr class="type-btn-divider"/>
-          <!-- 支援卡图片展示区域 -->
-          <div v-if="activeType !== 'custom'" class="support-card-img-grid mt-3">
-            <div v-for="row in filteredCardImageRows" :key="row[0].id" class="img-row">
-               <div
-                 v-for="card in row"
-                 :key="card.id"
-                 class="img-cell"
-               >
-                <div class="img-content">
-                  <div
-                     class="card-img-wrapper cursor-pointer"
-                  >
-                    <img
-                      :src="getCardImgUrl(card.id)"
-                      :alt="card.name"
-                      class="support-card-img"
-                      :title="renderSupportCardText(card)"
-                      @error="handleImgError"
-                    />
-                    <!-- 左上角SSR图标 -->
-                    <img
-                      :src="getRarityIcon('SSR')"
-                      class="card-ssr-icon"
-                      alt="SSR"
-                    />
-                    <!-- 右上角类型图标 -->
-                    <img
-                      :src="getTypeIcon(card.id)"
-                      class="card-type-icon"
-                      alt="type"
-                    />
-                  </div>
-                  <div class="support-card-label">
-                    {{ renderSupportCardTextEllipsis(card) }}
-                  </div>
-                </div>
-              </div>
-              <!-- 补齐空位，保证最后一行图片对齐 -->
-              <div
-                v-for="n in (8 - row.length)"
-                :key="'empty-'+n"
-                class="img-cell"
-              ></div>
+  <Teleport to="body">
+    <div v-if="show" class="support-card-overlay" @click.self="handleCancel">
+      <div class="modal-dialog modal-dialog-centered modal-xl" style="margin:auto">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header d-flex align-items-center justify-content-between">
+            <h5 class="mb-0">Borrowing Support Card</h5>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary me-2" @click="handleCancel">Cancel</button>
+              <button class="btn btn-sm btn--primary" @click="handleConfirm" :disabled="isConfirmDisabled">Confirm</button>
             </div>
           </div>
-          <div v-if="activeType === 'custom'" class="mt-3">
-            <input type="text" class="form-control" placeholder="Enter card name here example 'Planned Perfection' or 'Fire at My Heels'" v-model="customCardName">
+          <div class="modal-body support-card-modal-body">
+            <div class="section-card p-3 mb-2">
+            <div class="type-btn-row">
+              <button
+                v-for="type in supportCardTypes"
+                :key="type.name"
+                type="button"
+                class="type-btn"
+                :class="[ { active: activeType === type.name }, type.name === 'custom' ? 'custom-btn' : '' ]"
+                @click="setActiveType(type.name)"
+                >
+                <template v-if="type.name !== 'custom'">
+                  <img v-if="type.img" :src="type.img" :alt="type.name" class="type-btn-img" />
+                </template>
+                <template v-else>
+                  <span class="type-btn-text">Custom</span>
+                </template>
+              </button>
+            </div>
+            <hr class="type-btn-divider"/>
+            <div v-if="activeType !== 'custom'" class="support-card-img-grid mt-3">
+              <div v-for="row in filteredCardImageRows" :key="row[0].id" class="img-row">
+                 <div
+                   v-for="card in row"
+                   :key="card.id"
+                   class="img-cell"
+                 >
+                  <div class="img-content">
+                    <div
+                       class="card-img-wrapper cursor-pointer"
+                       :class="{ 'card-selected': selectedCard && selectedCard.id === card.id }"
+                       @click="selectCard(card)"
+                    >
+                      <img
+                        :src="getCardImgUrl(card.id)"
+                        :alt="card.name"
+                        class="support-card-img"
+                        :title="renderSupportCardText(card)"
+                        @error="handleImgError"
+                      />
+                      <img
+                        :src="getRarityIcon('SSR')"
+                        class="card-ssr-icon"
+                        alt="SSR"
+                      />
+                      <img
+                        :src="getTypeIcon(card.id)"
+                        class="card-type-icon"
+                        alt="type"
+                      />
+                    </div>
+                    <div class="support-card-label">
+                      {{ renderSupportCardTextEllipsis(card) }}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-for="n in (8 - row.length)"
+                  :key="'empty-'+n"
+                  class="img-cell"
+                ></div>
+              </div>
+            </div>
+            <div v-if="activeType === 'custom'" class="mt-3">
+              <input type="text" class="form-control" placeholder="Enter card name here example 'Planned Perfection' or 'Fire at My Heels'" v-model="customCardName">
+            </div>
+            <p class="chinese-disclaimer">Yes I know some of the cards are in chinese and no im not gonna fix it. Just type their names in custom tab</p>
+            </div>
           </div>
-          <p class="chinese-disclaimer">Yes I know some of the cards are in chinese and no im not gonna fix it. Just type their names in custom tab</p>
-          </div>
+          <div class="modal-footer d-none"></div>
         </div>
-        <div class="modal-footer d-none"></div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -184,10 +184,10 @@ export default {
   },
   computed: {
     isConfirmDisabled() {
-      return this.activeType === 'custom' && !this.customCardName.trim();
+      if (this.activeType === 'custom') return !this.customCardName.trim();
+      return !this.selectedCard;
     },
     filteredSupportCardList() {
-      // 根据activeType筛选支援卡
       if (this.activeType === 'speed') {
         return this.umamusumeSupportCardList.filter(card => card.id >= 10000 && card.id < 20000);
       } else if (this.activeType === 'stamina') {
@@ -204,7 +204,6 @@ export default {
       return [];
     },
     filteredCardImageRows() {
-      // 每行8张图片
       const cards = this.filteredSupportCardList;
       const rows = [];
       for (let i = 0; i < cards.length; i += 8) {
@@ -213,7 +212,6 @@ export default {
       return rows;
     },
     cardImageRows() {
-      // 每行8张图片
       const cards = this.umamusumeSupportCardList;
       const rows = [];
       for (let i = 0; i < cards.length; i += 8) {
@@ -222,33 +220,10 @@ export default {
       return rows;
     }
   },
-  watch: {
-    show(newVal) {
-      if (newVal) {
-        // 显示弹窗
-        $('#support-card-select-modal').modal({
-          backdrop: 'static',
-          keyboard: false,
-          show: true
-        });
-        // 默认选中第一个
-        if (!this.selectedCard) {
-          this.selectedCard = this.umamusumeSupportCardList[0];
-        }
-      } else {
-        // 隐藏弹窗
-        $('#support-card-select-modal').modal('hide');
-      }
-    }
-  },
   methods: {
     handleCancel() {
       this.$emit('update:show', false);
       this.$emit('cancel');
-      // 恢复父modal滚动
-      this.$nextTick(() => {
-        this.restoreParentModalScrolling();
-      });
     },
     handleConfirm() {
       if (this.activeType === 'custom') {
@@ -257,31 +232,11 @@ export default {
         this.$emit('confirm', this.selectedCard);
       }
       this.$emit('update:show', false);
-      // 恢复父modal滚动
-      this.$nextTick(() => {
-        this.restoreParentModalScrolling();
-      });
-    },
-    restoreParentModalScrolling() {
-      setTimeout(() => {
-        if ($('.modal-open').length > 0) {
-          $('body').addClass('modal-open');
-          const parentModal = $('#create-task-list-modal');
-          if (parentModal.hasClass('show')) {
-            const modalBody = parentModal.find('.modal-body');
-            if (modalBody.length > 0) {
-              modalBody.css('overflow-y', 'auto');
-              modalBody[0].offsetHeight;
-            }
-          }
-        }
-      }, 100);
     },
     getCardImgUrl(id) {
       return new URL(`../assets/img/support_cards/cards/${id}.png`, import.meta.url).href;
     },
     getRarityIcon(rarity){
-        // 现在只有SSR
         return new URL('../assets/img/support_cards/rarity/SSR.png', import.meta.url).href;
     },
     handleImgError(event) {
@@ -303,9 +258,8 @@ export default {
     },
     renderSupportCardTextEllipsis(card) {
       if (!card) return '';
-      const imgWidth = 120; // px
+      const imgWidth = 120;
       const name = card.name;
-      // 计算整体宽度
       let totalWidth = 0;
       let charWidth = [];
       for (let i = 0; i < name.length; i++) {
@@ -313,7 +267,6 @@ export default {
         totalWidth += width;
         charWidth.push(width);
       }
-      // 如果宽度足够，直接返回
       if (totalWidth <= imgWidth) {
         let type = '';
         if (card.id >= 10000 && card.id < 20000) type = 'Speed';
@@ -327,11 +280,8 @@ export default {
           return `${name}\n${card.desc}`;
         }
       }
-      // 需要省略
-      // 计算省略号宽度
       const ellipsis = '...';
       const ellipsisWidth = 3 * 3;
-      // 计算需要去掉多少字符
       let left = Math.ceil(name.length/2)-1;
       let right = name.length - left - 1;
 
@@ -374,14 +324,33 @@ export default {
       this.selectedCard = card;
     },
   },
-  mounted() {
-    $('#support-card-select-modal').on('hidden.bs.modal', () => {
-      this.$emit('update:show', false);
-      this.$nextTick(() => {
-        this.restoreParentModalScrolling();
-      });
-    });
-  }
 }
 </script>
 
+<style scoped>
+.support-card-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1070;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.card-img-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.card-img-wrapper.card-selected {
+  outline: 3px solid #6c63ff;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.35);
+}
+</style>

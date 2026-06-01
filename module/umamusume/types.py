@@ -1,5 +1,5 @@
-
 from __future__ import annotations
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from module.umamusume.define import *
@@ -81,12 +81,14 @@ class TurnOperation:
     turn_operation_type_replace: TurnOperationType
     training_type: TrainingType
     race_id: int
+    source: str
 
     def __init__(self):
         self.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_UNKNOWN
         self.turn_operation_type_replace = TurnOperationType.TURN_OPERATION_TYPE_UNKNOWN
         self.training_type = TrainingType.TRAINING_TYPE_UNKNOWN
         self.race_id = 0
+        self.source = ""
 
     def log_turn_operation(self):
         log.info("Current turn operation: %s", self.turn_operation_type.name)
@@ -124,10 +126,55 @@ class TurnInfo:
         self.motivation_level = MotivationLevel.MOTIVATION_LEVEL_UNKNOWN
         self.medic_room_available = False
         self.race_available = False
+        self.rest_available = False
+        self.train_available = False
+        self.skill_available = False
+        self.trip_available = False
         self.turn_operation = None
+        self.turn_plan = None
+        self.pending_training_scan = False
+        self.turn_decision_trace = []
+        self.item_use_options = []
+        self.item_use_selected = []
+        self.item_use_result = {}
+        self.shop_buy_options = []
+        self.shop_buy_selected = []
+        self.shop_buy_result = {}
+        self.race_candidates = []
+        self.race_rejections = []
         self.turn_info_logged = False
         self.turn_learn_skill_done = False
         self.aoharu_race_index = 0
+
+    def append_trace(self, kind: str, **payload):
+        row = {"kind": kind}
+        row.update(payload)
+        self.turn_decision_trace.append(row)
+        if len(self.turn_decision_trace) > 100:
+            self.turn_decision_trace = self.turn_decision_trace[-100:]
+        return row
+
+    def set_item_trace(self, *, options=None, selected=None, result=None):
+        if options is not None:
+            self.item_use_options = list(options)
+        if selected is not None:
+            self.item_use_selected = list(selected)
+        if result is not None:
+            self.item_use_result = dict(result)
+
+    def set_shop_trace(self, *, options=None, selected=None, result=None):
+        if options is not None:
+            self.shop_buy_options = list(options)
+        if selected is not None:
+            self.shop_buy_selected = list(selected)
+        if result is not None:
+            self.shop_buy_result = dict(result)
+
+    def set_race_trace(self, *, candidates=None, rejections=None):
+        if candidates is not None:
+            self.race_candidates = list(candidates)
+        if rejections is not None:
+            self.race_rejections = list(rejections)
 
     def log_turn_info(self, scenario_type: ScenarioType):
         log.info("Current turn time " + str(self.date))
@@ -217,3 +264,54 @@ class CultivateContextDetail:
     def reset_skill_learn(self):
         self.learn_skill_done = False
         self.learn_skill_selected = False
+
+
+@dataclass
+class TurnPlan:
+    primary_action: str = "training"
+    training_type: TrainingType = TrainingType.TRAINING_TYPE_UNKNOWN
+    race_id: int = 0
+    source: str = ""
+    pre_actions: list[str] = field(default_factory=list)
+    requires_training_scan: bool = False
+    requires_replan_after_pre_action: bool = False
+    reason: str = ""
+    debug: dict = field(default_factory=dict)
+
+    def to_turn_operation(self) -> TurnOperation:
+        operation = TurnOperation()
+        mapping = {
+            "training": TurnOperationType.TURN_OPERATION_TYPE_TRAINING,
+            "rest": TurnOperationType.TURN_OPERATION_TYPE_REST,
+            "medic": TurnOperationType.TURN_OPERATION_TYPE_MEDIC,
+            "trip": TurnOperationType.TURN_OPERATION_TYPE_TRIP,
+            "race": TurnOperationType.TURN_OPERATION_TYPE_RACE,
+        }
+        operation.turn_operation_type = mapping.get(
+            self.primary_action,
+            TurnOperationType.TURN_OPERATION_TYPE_UNKNOWN,
+        )
+        if operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_TRAINING:
+            operation.training_type = self.training_type
+        if operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
+            operation.race_id = self.race_id
+            operation.source = self.source or ""
+        return operation
+
+    def log(self):
+        action = self.primary_action or "unknown"
+        pre = ",".join(self.pre_actions) if self.pre_actions else "-"
+        msg = f"Turn plan: action={action} pre_actions={pre}"
+        if self.training_type != TrainingType.TRAINING_TYPE_UNKNOWN:
+            msg += f" training={self.training_type.name}"
+        if self.race_id:
+            msg += f" race_id={self.race_id}"
+        if self.source:
+            msg += f" source={self.source}"
+        if self.requires_training_scan:
+            msg += " requires_training_scan=True"
+        if self.requires_replan_after_pre_action:
+            msg += " requires_replan_after_pre_action=True"
+        if self.reason:
+            msg += f" reason={self.reason}"
+        log.info(msg)

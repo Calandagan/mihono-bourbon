@@ -160,8 +160,8 @@ class RuntimeThresholds(BaseModel):
 @server.get("/api/runtime-state")
 def get_runtime_state():
     try:
-        from bot.base.runtime_state import get_state
-        return get_state()
+        from bot.base.runtime_state import read_state
+        return dict(read_state())
     except Exception:
         return {
             "repetitive_count": 0,

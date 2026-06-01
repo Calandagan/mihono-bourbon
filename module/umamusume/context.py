@@ -3,14 +3,23 @@ from module.umamusume.scenario.registry import create_scenario
 from module.umamusume.scenario import ura_scenario
 from module.umamusume.scenario.aoharuhai import AoharuHaiScenario
 from module.umamusume.scenario.mant import MANTScenario
-from module.umamusume.task import UmamusumeTask, UmamusumeTaskType
+from module.umamusume.task import (
+    UmamusumeTask,
+    UmamusumeTaskType,
+    _normalize_facility_period_configs,
+    _normalize_list,
+    _normalize_matrix,
+    _normalize_spirit_explosion,
+    _safe_float,
+    _safe_int,
+)
 from module.umamusume.define import *
 from module.umamusume.types import TurnInfo
 from module.umamusume.constants.scoring_constants import (
     DEFAULT_BASE_SCORES, DEFAULT_SPIRIT_EXPLOSION, DEFAULT_PAL_FRIENDSHIP_SCORES,
     DEFAULT_PAL_CARD_MULTIPLIER, DEFAULT_NPC_SCORE_VALUE,
-    DEFAULT_SUMMER_SCORE_THRESHOLD, DEFAULT_STAT_VALUE_MULTIPLIER,
-    DEFAULT_WIT_SPECIAL_MULTIPLIER
+    DEFAULT_MAX_FAILURE_RATE, DEFAULT_SUMMER_SCORE_THRESHOLD, DEFAULT_STAT_VALUE_MULTIPLIER,
+    DEFAULT_WIT_SPECIAL_MULTIPLIER, DEFAULT_REST_THRESHOLD
 )
 import bot.base.log as logger
 
@@ -20,6 +29,14 @@ detected_skills_log = {}
 detected_portraits_log = {}
 detected_items_log = {}
 detected_shop_items_log = {}
+
+DEFAULT_CONTEXT_SCORE_VALUE = [
+    [0.11, 0.10, 0.01, 0.09],
+    [0.11, 0.10, 0.09, 0.09],
+    [0.11, 0.10, 0.12, 0.09],
+    [0.03, 0.05, 0.15, 0.09],
+    [0, 0, 0.15, 0, 0],
+]
 
 CARD_TYPE_MAPPING = {
     1: "Speed",
@@ -160,6 +177,7 @@ class CultivateContextDetail:
     pal_card_multiplier: float
     npc_score_value: list
     base_score: list
+    max_failure_rate: int
     summer_score_threshold: float
     stat_value_multiplier: list
     wit_special_multiplier: list
@@ -205,11 +223,18 @@ class CultivateContextDetail:
         self.mant_shop_items = []
         self.mant_shop_scanned_this_turn = False
         self.mant_shop_last_chunk = -1
+        self.mant_shop_snapshot_key = None
+        self.mant_failed_shop_names_snapshot = set()
+        self.mant_shop_error_pending = False
         self.mant_afflictions = []
         self.mant_coins = 0
         self.mant_inventory_scanned = False
         self.mant_owned_items = []
         self.mant_max_energy = 100
+        self.mant_failed_use_turn = None
+        self.mant_failed_use_items = set()
+        self.mant_item_use_error_pending = False
+        self.mant_race_rejections = set()
         self.user_provided_priority = False
         self.event_overrides = {}
         self.use_last_parents = False
@@ -220,6 +245,7 @@ class CultivateContextDetail:
         self.pal_card_multiplier = DEFAULT_PAL_CARD_MULTIPLIER
         self.npc_score_value = [list(row) for row in DEFAULT_NPC_SCORE_VALUE]
         self.base_score = list(DEFAULT_BASE_SCORES)
+        self.max_failure_rate = DEFAULT_MAX_FAILURE_RATE
         self.summer_score_threshold = DEFAULT_SUMMER_SCORE_THRESHOLD
         self.stat_value_multiplier = list(DEFAULT_STAT_VALUE_MULTIPLIER)
         self.wit_special_multiplier = list(DEFAULT_WIT_SPECIAL_MULTIPLIER)
@@ -268,9 +294,15 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
         detail.scenario = create_scenario(task.detail.scenario)
         if detail.scenario is None:
             pass
-        detail.expect_attribute = task.detail.expect_attribute
+        detail.expect_attribute = _normalize_list(
+            getattr(task.detail, 'expect_attribute', []),
+            [0, 0, 0, 0, 0],
+            length=5,
+            cast=int,
+            minimum=0,
+        )
         detail.follow_support_card_name = task.detail.follow_support_card_name
-        detail.follow_support_card_level = task.detail.follow_support_card_level
+        detail.follow_support_card_level = _safe_int(getattr(task.detail, 'follow_support_card_level', 50), 50, minimum=0)
         detail.extra_race_list = list(task.detail.extra_race_list or [])
         from module.umamusume.asset.race_data import compute_race_chains
         detail.race_chain_map = compute_race_chains(detail.extra_race_list)
@@ -283,57 +315,107 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
         detail.learn_skill_blacklist = list(task.detail.learn_skill_blacklist or [])
         detail.tactic_list = list(task.detail.tactic_list or [])
         detail.tactic_actions = list(getattr(task.detail, 'tactic_actions', []))
-        detail.clock_use_limit = task.detail.clock_use_limit
-        detail.learn_skill_threshold = task.detail.learn_skill_threshold
+        detail.clock_use_limit = _safe_int(getattr(task.detail, 'clock_use_limit', 0), 0, minimum=0)
+        detail.learn_skill_threshold = _safe_int(getattr(task.detail, 'learn_skill_threshold', 0), 0, minimum=0)
         detail.learn_skill_only_user_provided = task.detail.learn_skill_only_user_provided
         detail.allow_recover_tp = task.detail.allow_recover_tp
         try:
-            detail.extra_weight = list(task.detail.extra_weight or [])
+            detail.extra_weight = _normalize_matrix(
+                getattr(task.detail, 'extra_weight', []),
+                [[0, 0, 0, 0, 0] for _ in range(4)],
+                row_length=5,
+                minimum=-1.0,
+                maximum=1.0,
+            )
         except Exception:
-            detail.extra_weight = []
+            detail.extra_weight = [[0, 0, 0, 0, 0] for _ in range(4)]
 
         try:
-            se = getattr(task.detail, 'spirit_explosion', DEFAULT_SPIRIT_EXPLOSION)
-            detail.spirit_explosion = list(se) if se else list(DEFAULT_SPIRIT_EXPLOSION)
+            detail.spirit_explosion = _normalize_spirit_explosion(
+                getattr(task.detail, 'spirit_explosion', DEFAULT_SPIRIT_EXPLOSION)
+            )
         except Exception:
             detail.spirit_explosion = list(DEFAULT_SPIRIT_EXPLOSION)
 
 
-        detail.rest_threshold = getattr(task.detail, 'rest_threshold', getattr(task.detail, 'rest_treshold', getattr(task.detail, 'fast_path_energy_limit', 48)))
-        detail.motivation_threshold_year1 = int(getattr(task.detail, 'motivation_threshold_year1', 3))
-        detail.motivation_threshold_year2 = int(getattr(task.detail, 'motivation_threshold_year2', 4))
-        detail.motivation_threshold_year3 = int(getattr(task.detail, 'motivation_threshold_year3', 4))
+        detail.rest_threshold = _safe_int(
+            getattr(task.detail, 'rest_threshold', getattr(task.detail, 'rest_treshold', getattr(task.detail, 'fast_path_energy_limit', DEFAULT_REST_THRESHOLD))),
+            DEFAULT_REST_THRESHOLD,
+            minimum=0,
+        )
+        detail.motivation_threshold_year1 = _safe_int(getattr(task.detail, 'motivation_threshold_year1', 3), 3, minimum=1, maximum=5)
+        detail.motivation_threshold_year2 = _safe_int(getattr(task.detail, 'motivation_threshold_year2', 4), 4, minimum=1, maximum=5)
+        detail.motivation_threshold_year3 = _safe_int(getattr(task.detail, 'motivation_threshold_year3', 4), 4, minimum=1, maximum=5)
         detail.prioritize_recreation = getattr(task.detail, 'prioritize_recreation', False)
         detail.pal_name = getattr(task.detail, 'pal_name', "")
         detail.pal_thresholds = list(getattr(task.detail, 'pal_thresholds', []))
 
-        detail.pal_friendship_score = list(getattr(task.detail, 'pal_friendship_score', DEFAULT_PAL_FRIENDSHIP_SCORES))
-        detail.pal_card_multiplier = float(getattr(task.detail, 'pal_card_multiplier', DEFAULT_PAL_CARD_MULTIPLIER))
-        npc_sv = getattr(task.detail, 'npc_score_value', None)
-        if npc_sv and isinstance(npc_sv, list):
-            detail.npc_score_value = [list(row) for row in npc_sv]
-        else:
-            detail.npc_score_value = [list(row) for row in DEFAULT_NPC_SCORE_VALUE]
+        detail.pal_friendship_score = _normalize_list(
+            getattr(task.detail, 'pal_friendship_score', DEFAULT_PAL_FRIENDSHIP_SCORES),
+            DEFAULT_PAL_FRIENDSHIP_SCORES,
+            length=3,
+            minimum=0.0,
+        )
+        detail.pal_card_multiplier = _safe_float(
+            getattr(task.detail, 'pal_card_multiplier', DEFAULT_PAL_CARD_MULTIPLIER),
+            DEFAULT_PAL_CARD_MULTIPLIER,
+            minimum=0.0,
+        )
+        detail.npc_score_value = _normalize_matrix(
+            getattr(task.detail, 'npc_score_value', None),
+            DEFAULT_NPC_SCORE_VALUE,
+            row_length=3,
+            minimum=0.0,
+        )
 
-        detail.score_value = getattr(task.detail, 'score_value', [
-            [0.11, 0.10, 0.01, 0.09],
-            [0.11, 0.10, 0.09, 0.09],
-            [0.11, 0.10, 0.12, 0.09],
-            [0.03, 0.05, 0.15, 0.09],
-            [0, 0, 0.27, 0, 0]
-        ])
+        detail.score_value = _normalize_matrix(
+            getattr(task.detail, 'score_value', DEFAULT_CONTEXT_SCORE_VALUE),
+            DEFAULT_CONTEXT_SCORE_VALUE,
+            minimum=-1.0,
+        )
         detail.compensate_failure = getattr(task.detail, 'compensate_failure', True)
+        detail.max_failure_rate = _safe_int(
+            getattr(task.detail, 'max_failure_rate', DEFAULT_MAX_FAILURE_RATE),
+            DEFAULT_MAX_FAILURE_RATE,
+            minimum=0,
+            maximum=100,
+        )
         detail.use_last_parents = getattr(task.detail, 'use_last_parents', False)
-        detail.base_score = list(getattr(task.detail, 'base_score', DEFAULT_BASE_SCORES))
-        detail.summer_score_threshold = float(getattr(task.detail, 'summer_score_threshold', DEFAULT_SUMMER_SCORE_THRESHOLD))
-        detail.stat_value_multiplier = list(getattr(task.detail, 'stat_value_multiplier', DEFAULT_STAT_VALUE_MULTIPLIER))
-        detail.wit_special_multiplier = list(getattr(task.detail, 'wit_special_multiplier', DEFAULT_WIT_SPECIAL_MULTIPLIER))
+        detail.base_score = _normalize_list(
+            getattr(task.detail, 'base_score', DEFAULT_BASE_SCORES),
+            DEFAULT_BASE_SCORES,
+            length=5,
+        )
+        detail.summer_score_threshold = _safe_float(
+            getattr(task.detail, 'summer_score_threshold', DEFAULT_SUMMER_SCORE_THRESHOLD),
+            DEFAULT_SUMMER_SCORE_THRESHOLD,
+            minimum=0.0,
+        )
+        detail.stat_value_multiplier = _normalize_list(
+            getattr(task.detail, 'stat_value_multiplier', DEFAULT_STAT_VALUE_MULTIPLIER),
+            DEFAULT_STAT_VALUE_MULTIPLIER,
+            length=6,
+            minimum=0.0,
+        )
+        detail.wit_special_multiplier = _normalize_list(
+            getattr(task.detail, 'wit_special_multiplier', DEFAULT_WIT_SPECIAL_MULTIPLIER),
+            DEFAULT_WIT_SPECIAL_MULTIPLIER,
+            length=2,
+            minimum=0.0,
+        )
         detail.skip_double_circle_unless_high_hint = getattr(task.detail, 'skip_double_circle_unless_high_hint', False)
         detail.hint_boost_characters = list(getattr(task.detail, 'hint_boost_characters', []))
-        detail.hint_boost_multiplier = int(getattr(task.detail, 'hint_boost_multiplier', 100))
+        detail.hint_boost_multiplier = _safe_int(getattr(task.detail, 'hint_boost_multiplier', 100), 100, minimum=0)
         detail.friendship_score_groups = list(getattr(task.detail, 'friendship_score_groups', []))
-        detail.facility_ratios = list(getattr(task.detail, 'facility_ratios', [1.0] * 5))
-        detail.facility_period_configs = [dict(d) for d in getattr(task.detail, 'facility_period_configs', [{'enabled': False, 'base': 0.0, 'scale': 0.0} for _ in range(6)])]
+        detail.facility_ratios = _normalize_list(
+            getattr(task.detail, 'facility_ratios', [1.0] * 5),
+            [1.0] * 5,
+            length=5,
+            minimum=0.0,
+        )
+        detail.facility_period_configs = _normalize_facility_period_configs(
+            getattr(task.detail, 'facility_period_configs', None)
+        )
         detail.score_history = []
         detail.percentile_history = []
         detail.energy_history = []
@@ -365,7 +447,7 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
                         if _enabled:
                             detail.group_card_enabled = True
                             detail.group_card_name = _group_name
-                            detail.group_card_percentile = int(_val.get('percentile', 26)) if isinstance(_val, dict) else 26
+                            detail.group_card_percentile = _safe_int(_val.get('percentile', 26), 26, minimum=0, maximum=100) if isinstance(_val, dict) else 26
         if detail.prioritize_recreation and detail.pal_thresholds:
             detail.group_card_enabled = False
             detail.group_card_name = ""

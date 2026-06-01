@@ -61,8 +61,8 @@ def click_next_button(ctx: UmamusumeContext, prefer_right=False):
 
 def script_main_menu(ctx: UmamusumeContext):
     if ctx.cultivate_detail.cultivate_finish:
-        from bot.base.runtime_state import get_state
-        get_state()["in_career_run"] = False
+        from bot.base.runtime_state import set_state
+        set_state("in_career_run", False)
         mode_name = getattr(ctx.task.task_execute_mode, "name", None)
         if mode_name == "TASK_EXECUTE_MODE_FULL_AUTO":
             log.info("career run completed in full auto mode - resetting for next run")
@@ -79,8 +79,8 @@ def script_main_menu(ctx: UmamusumeContext):
         current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0) if ctx.cultivate_detail.turn_info else 0
         if current_date > 0:
             log.info(f"home screen post career date={current_date}")
-            from bot.base.runtime_state import get_state
-            get_state()["in_career_run"] = False
+            from bot.base.runtime_state import set_state
+            set_state("in_career_run", False)
             ctx.cultivate_detail.cultivate_finish = True
             mode_name = getattr(ctx.task.task_execute_mode, "name", None)
             if mode_name == "TASK_EXECUTE_MODE_FULL_AUTO":
@@ -171,12 +171,11 @@ def script_support_card_select(ctx: UmamusumeContext):
         return
 
     if image_match(img, REF_CULTIVATE_SUPPORT_CARD_EMPTY).find_match:
-        from bot.base.runtime_state import get_state
-        state = get_state()
+        from bot.base.runtime_state import set_state
         ctx.ctrl.click_by_point(TO_FOLLOW_SUPPORT_CARD_SELECT)
-        state["input_blocked"] = True
+        set_state("input_blocked", True)
         time.sleep(1.0)
-        state["input_blocked"] = False
+        set_state("input_blocked", False)
         return
     click_next_button(ctx, prefer_right=False)
 

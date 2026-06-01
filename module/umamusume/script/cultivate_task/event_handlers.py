@@ -25,6 +25,77 @@ EVENT_TEMPLATES = [
 ]
 
 
+def _is_transition_resolved(frame):
+    if frame is None:
+        return False
+    try:
+        from module.umamusume.scenario.mant.inventory import is_on_main_menu, is_on_training_screen
+        return is_on_main_menu(frame) or is_on_training_screen(frame)
+    except Exception:
+        return False
+
+
+def _nudge_post_event_transition(ctx: UmamusumeContext, event_name: str, choice_index: int) -> None:
+    start = time.time()
+    retried_event_click = False
+    while time.time() - start < 4.0:
+        time.sleep(0.35)
+        frame = ctx.ctrl.get_screen()
+        if frame is None or getattr(frame, "size", 0) == 0:
+            continue
+        ctx.current_screen = frame
+        try:
+            ctx.current_screen_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        except Exception:
+            ctx.current_screen_gray = None
+
+        if _is_transition_resolved(frame):
+            return
+
+        try:
+            from module.umamusume.asset.template import REF_NEXT, REF_NEXT2
+            gray = ctx.current_screen_gray if ctx.current_screen_gray is not None else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            next_match = image_match(gray, REF_NEXT)
+            if next_match.find_match:
+                ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "Event post-next")
+                continue
+            next2_match = image_match(gray, REF_NEXT2)
+            if next2_match.find_match:
+                ctx.ctrl.click(next2_match.center_point[0], next2_match.center_point[1], "Event post-next2")
+                continue
+        except Exception:
+            pass
+
+        try:
+            gray = ctx.current_screen_gray if ctx.current_screen_gray is not None else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if image_match(gray, UI_INFO).find_match:
+                from module.umamusume.script.cultivate_task.info import script_info
+                script_info(ctx)
+                continue
+        except Exception:
+            pass
+
+        if not retried_event_click and time.time() - start > 1.2:
+            try:
+                if is_still_on_event(ctx.ctrl):
+                    _, retry_selectors = parse_cultivate_event(ctx, frame)
+                    if isinstance(retry_selectors, list) and retry_selectors:
+                        fallback_idx = max(0, min(int(choice_index), len(retry_selectors)) - 1)
+                        target = retry_selectors[fallback_idx]
+                        log.info(
+                            "Re-clicking event option %s/%s for '%s' during post-event stabilization",
+                            fallback_idx + 1,
+                            len(retry_selectors),
+                            event_name,
+                        )
+                        ctx.ctrl.click(int(target[0]), int(target[1]), f"Event re-option-{fallback_idx + 1}")
+                        retried_event_click = True
+                        continue
+            except Exception:
+                pass
+            retried_event_click = True
+
+
 def is_still_on_event(ctrl):
     img = ctrl.get_screen()
     if img is None:
@@ -274,6 +345,7 @@ def script_cultivate_event(ctx: UmamusumeContext):
         target_pt = selectors[idx - 1]
         log.info(f"Clicking option {idx}/{len(selectors)} (source={choice_source})")
         ctx.ctrl.click(int(target_pt[0]), int(target_pt[1]), f"Event option-{choice_index}")
+        _nudge_post_event_transition(ctx, event_name, idx)
         threading.Thread(target=detect_hint_after_event, args=(ctx.ctrl, event_name), daemon=True).start()
         ctx.cultivate_detail.event_cooldown_until = time.time() + 2.5
         return
@@ -317,5 +389,6 @@ def script_cultivate_event(ctx: UmamusumeContext):
                     if fallback_idx < 0:
                         fallback_idx = 0
                     ctx.ctrl.click(int(retry_selectors[fallback_idx][0]), int(retry_selectors[fallback_idx][1]), f"Event fallback option-{fallback_idx + 1}")
+                    _nudge_post_event_transition(ctx, event_name, fallback_idx + 1)
             ctx.cultivate_detail.event_cooldown_until = time.time() + 3.0
         return

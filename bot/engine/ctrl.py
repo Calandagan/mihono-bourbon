@@ -1,6 +1,6 @@
 from bot.base.manifest import APP_MANIFEST_LIST
 from bot.engine.scheduler import scheduler
-from bot.conn.adb_controller import AdbController
+from bot.conn.runtime import build_controller_from_runtime_config, get_active_controller
 from module.umamusume.asset.point import *
 
 def start():
@@ -22,7 +22,8 @@ def get_task_list():
 
 def reset_task(task_id):
     scheduler.reset_task(task_id)
-    from config import CONFIG
-    ctrl = AdbController(CONFIG.bot.auto.adb.device_name)
-    ctrl.init_env()
+    ctrl = get_active_controller()
+    if ctrl is None:
+        ctrl = build_controller_from_runtime_config()
+        ctrl.init_env()
     ctrl.click_by_point(ESCAPE)

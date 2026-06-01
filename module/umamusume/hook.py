@@ -3,7 +3,6 @@ import time
 
 from bot.recog.image_matcher import image_match
 from module.umamusume.context import UmamusumeContext
-from module.umamusume.script.cultivate_task.ai import get_operation
 from module.umamusume.asset.point import *
 from module.umamusume.asset.template import *
 from module.umamusume.asset.template import UI_INFO, REF_EDIT_TEAM
@@ -192,10 +191,10 @@ def after_hook(ctx: UmamusumeContext):
         return
 
     try:
-        from bot.base.runtime_state import get_state
-        state = get_state()
+        from bot.base.runtime_state import read_state, set_state
+        state = read_state()
         if state.get('trigger_decision_reset', False):
-            state['trigger_decision_reset'] = False
+            set_state('trigger_decision_reset', False)
             ti = getattr(ctx.cultivate_detail, 'turn_info', None)
             if ti is not None:
                 cached_training = getattr(ti, 'cached_training_type', None)
@@ -248,33 +247,18 @@ def after_hook(ctx: UmamusumeContext):
     if image_match(img, BTN_SKIP).find_match:
         ctx.ctrl.click_by_point(SKIP)
     if image_match(img, BTN_SKIP_OFF).find_match:
-        from bot.base.runtime_state import get_state
-        get_state()["in_career_run"] = True
+        from bot.base.runtime_state import set_state
+        set_state("in_career_run", True)
         ctx.ctrl.click_by_point(SCENARIO_SKIP_OFF)
     if image_match(img, BTN_SKIP_SPEED_1).find_match:
-        from bot.base.runtime_state import get_state
-        get_state()["in_career_run"] = True
+        from bot.base.runtime_state import set_state
+        set_state("in_career_run", True)
         ctx.ctrl.click_by_point(SCENARIO_SKIP_SPEED_1)
     if ctx.cultivate_detail and ctx.cultivate_detail.turn_info is not None:
         if ctx.cultivate_detail.turn_info.parse_train_info_finish and ctx.cultivate_detail.turn_info.parse_main_menu_finish:
             if not ctx.cultivate_detail.turn_info.turn_info_logged:
                 ctx.cultivate_detail.turn_info.log_turn_info(ctx.task.detail.scenario)
                 ctx.cultivate_detail.turn_info.turn_info_logged = True
-            if ctx.cultivate_detail.turn_info.turn_operation is None:
-                # Only get operation if we haven't already decided on training
-                # This prevents AI from overriding training decisions with race decisions
-                # Also check if we're in training selection screen - don't override training decisions there
-                in_training_select = (getattr(ctx, 'current_ui', None) is not None and 
-                                      getattr(ctx.current_ui, 'ui_name', '') == "CULTIVATE_TRAINING_SELECT")
-                
-                if not in_training_select:
-                    log.info("Not in training selection screen - calling AI decision")
-                    log.info(f"Extra race list: {ctx.cultivate_detail.extra_race_list}")
-                    log.info(f"Debut race win status: {ctx.cultivate_detail.debut_race_win}")
-                    ctx.cultivate_detail.turn_info.turn_operation = get_operation(ctx)
-                    ctx.cultivate_detail.turn_info.turn_operation.log_turn_operation()
-                else:
-                    log.info("In training selection screen - skipping AI decision to avoid overriding training")
 
 
 

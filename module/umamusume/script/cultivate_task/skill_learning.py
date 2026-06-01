@@ -117,8 +117,7 @@ def sb_drag(ctx, from_y, to_y):
     ex = random.randint(SB_X_MIN, SB_X_MAX)
     dur = random.randint(166, 211)
     from_y, to_y = max(110, from_y), max(110, to_y)
-    ctx.ctrl.execute_adb_shell(
-        "shell input swipe " + str(sx) + " " + str(from_y) + " " + str(ex) + " " + str(to_y) + " " + str(dur), True)
+    ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
     time.sleep(0.15)
 
 
@@ -190,8 +189,8 @@ def script_follow_support_card_select(ctx: UmamusumeContext):
 
 
 def script_cultivate_finish(ctx: UmamusumeContext):
-    from bot.base.runtime_state import get_state
-    get_state()["in_career_run"] = False
+    from bot.base.runtime_state import set_state
+    set_state("in_career_run", False)
     try:
         from module.umamusume.persistence import clear_used_buffs, clear_megaphone_state
         clear_used_buffs()

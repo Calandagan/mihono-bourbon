@@ -142,3 +142,6 @@ scripts/
 testcase/
 career_data.json
 persist.json
+config.yaml
+backup_races/
+docs/

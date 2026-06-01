@@ -17,6 +17,14 @@ from module.umamusume.define import ScenarioType
 log = logger.get_logger(__name__)
 
 
+def is_veteran_max_umamusume_box(text: str) -> bool:
+    if not text:
+        return False
+    normalized = " ".join(text.lower().split())
+    required_tokens = ("veteran", "umamusume", "max")
+    return all(token in normalized for token in required_tokens)
+
+
 def get_race_point(ctx):
     try:
         if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
@@ -24,6 +32,27 @@ def get_race_point(ctx):
     except Exception:
         pass
     return CULTIVATE_RACE
+
+
+def _plan_user_race_for_period(ctx, period: int, *, purpose: str) -> bool:
+    from module.umamusume.script.cultivate_task.race_policy import build_user_race_operation_for_period
+
+    operation = build_user_race_operation_for_period(ctx, period, source="user_extra_race")
+    if operation is None:
+        log.info("No user-selected race available for %s in period %s - returning to planner", purpose, period)
+        if ctx.cultivate_detail.turn_info is not None:
+            ctx.cultivate_detail.turn_info.turn_operation = None
+            if hasattr(ctx.cultivate_detail.turn_info, "set_race_trace"):
+                ctx.cultivate_detail.turn_info.set_race_trace(
+                    candidates=[{"race_id": 0, "source": "none", "purpose": purpose, "reason": "no_user_race_for_period"}]
+                )
+        return False
+    ctx.cultivate_detail.turn_info.turn_operation = operation
+    if hasattr(ctx.cultivate_detail.turn_info, "set_race_trace"):
+        ctx.cultivate_detail.turn_info.set_race_trace(
+            candidates=[{"race_id": int(operation.race_id or 0), "source": "user_extra_race", "purpose": purpose, "rejected": False}]
+        )
+    return True
 
 def get_date_name(date_id: int) -> str:
     if date_id <= 0:
@@ -142,6 +171,14 @@ def script_info(ctx: UmamusumeContext):
             title_text = find_similar_text(original_text, TITLE, 0.6)
             if title_text == "":
                 log.warning(f"Still no match with lower threshold - OCR: '{original_text}'")
+                if is_veteran_max_umamusume_box(original_text):
+                    log.error(f"Stopping task due to Veteran Max Umamusume option box: '{original_text}'")
+                    ctx.task.disable_auto_restart = True
+                    ctx.task.skip_scheduler_persist = True
+                    ctx.task.skip_process_restart = True
+                    ctx.task.stop_scheduler_after_end = True
+                    ctx.task.end_task(TaskStatus.TASK_STATUS_FAILED, UEndTaskReason.UNKNOWN_OPTION_BOX)
+                    return
                 try:
                     from module.umamusume.asset.template import REF_NEXT
                     img_full = getattr(ctx, 'current_screen_gray', None)
@@ -358,41 +395,11 @@ def script_info(ctx: UmamusumeContext):
             next_period = current_date
             ctx.cultivate_detail.turn_info.date = current_date
 
-            from module.umamusume.asset.race_data import get_races_for_period
-            next_period_races = get_races_for_period(next_period)
-            user_selected_races = ctx.cultivate_detail.extra_race_list
-            matching_races = [race_id for race_id in next_period_races] if next_period_races else []
-            matching_races = [race_id for race_id in matching_races if race_id in user_selected_races]
-
-            if matching_races:
-                target_race_id = matching_races[0]
+            if _plan_user_race_for_period(ctx, next_period, purpose="unmet_requirements"):
+                log.info("racing for unmet requirements")
+                ctx.ctrl.click_by_point(get_race_point(ctx))
             else:
-                target_race_id = 0  
-
-            from module.umamusume.types import TurnOperation, TurnOperationType
-            ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-            ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-            ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-            log.info("racing for unmet requirements")
-            ctx.ctrl.click_by_point(get_race_point(ctx))
-
-
-            if not matching_races:
-                time.sleep(2) 
-
-                img2 = ctx.ctrl.get_screen(to_gray=True)
-                from module.umamusume.asset import REF_SUITABLE_RACE
-                suitable_race_match = image_match(img2, REF_SUITABLE_RACE)
-
-                if suitable_race_match.find_match:
-                    center_x = suitable_race_match.center_point[0]
-                    center_y = suitable_race_match.center_point[1]
-                    ctx.ctrl.click(center_x, center_y, "Click suitable race")
-                    log.info(f"Clicked suitable race at position ({center_x}, {center_y})")
-                else:
-                    log.info("Suitable race template not found - returning to main menu for normal logic")
-                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-                    ctx.cultivate_detail.turn_info.turn_operation = None
+                ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
 
         if title_text == TITLE[14]:
             ctx.ctrl.click_by_point(CULTIVATE_TRIP_WITH_FRIEND)
@@ -477,61 +484,12 @@ def script_info(ctx: UmamusumeContext):
             log.info(f"Current game date: {current_date} ({current_date_name}), planning races for: {next_period} ({next_period_name})")
             log.info(f"Updated game date to: {current_date} ({current_date_name})")
             
-            # Check for races in the next period
-            from module.umamusume.asset.race_data import get_races_for_period
-            next_period_races = get_races_for_period(next_period)
-            
-            if next_period_races:
-                log.info(f"Found {len(next_period_races)} races in next period {next_period} ({next_period_name}): {next_period_races}")
-                
-                # Check if any of these races are in user's selected race list
-                user_selected_races = ctx.cultivate_detail.extra_race_list
-                matching_races = [race_id for race_id in next_period_races if race_id in user_selected_races]
-                
-                if matching_races:
-                    log.info(f"Found {len(matching_races)} user-selected races in next period {next_period} ({next_period_name}): {matching_races}")
-                    # Set the first matching race as target
-                    target_race_id = matching_races[0]
-                    log.info(f"Setting target race ID: {target_race_id}")
-                else:
-                    log.info(f"No user-selected races found in next period {next_period} ({next_period_name})")
-                    target_race_id = 0  # Will search for any available race
+            if _plan_user_race_for_period(ctx, next_period, purpose="goal_not_reached"):
+                log.info("Set race operation for G1 goal farming")
+                ctx.ctrl.click_by_point(get_race_point(ctx))
+                log.info("Navigated to race selection to work towards G1 goals")
             else:
-                log.info(f"No races available in next period {next_period} ({next_period_name})")
-                target_race_id = 0  # Will search for any available race
-            
-            # Set a race operation so the race list logic knows what to do
-            from module.umamusume.types import TurnOperation, TurnOperationType
-            ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-            ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-            ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-            log.info("Set race operation for G1 goal farming")
-            ctx.ctrl.click_by_point(get_race_point(ctx))
-            log.info("Navigated to race selection to work towards G1 goals")
-            
-            # If no user-selected races found, search for suitable race template
-            if not matching_races:
-                log.info("No user-selected races found - searching for suitable race template")
-                time.sleep(2)  # Wait for race menu to load
-                
-                # Get current screen and search for suitable race template
-                img = ctx.ctrl.get_screen(to_gray=True)
-                from module.umamusume.asset import REF_SUITABLE_RACE
-                
-                suitable_race_match = image_match(img, REF_SUITABLE_RACE)
-                
-                if suitable_race_match.find_match:
-                    log.info("Found suitable race template - clicking on it")
-                    center_x = suitable_race_match.center_point[0]
-                    center_y = suitable_race_match.center_point[1]
-                    ctx.ctrl.click(center_x, center_y, "Click suitable race")
-                    log.info(f"Clicked suitable race at position ({center_x}, {center_y})")
-                else:
-                    log.info("Suitable race template not found - returning to main menu for normal logic")
-                    # Return to main menu since no races are available
-                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-                    # Clear the race operation so AI can decide what to do next
-                    ctx.cultivate_detail.turn_info.turn_operation = None
+                ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
 
         if title_text == TITLE[21]:  # insufficient fans (was TITLE[19])
             log.info("insufficient fans detected")
@@ -568,60 +526,12 @@ def script_info(ctx: UmamusumeContext):
             log.info(f"Current game date: {current_date} ({current_date_name}), planning races for: {next_period} ({next_period_name})")
             log.info(f"Updated game date to: {current_date} ({current_date_name})")
             
-            # Check for races in the next period
-            from module.umamusume.asset.race_data import get_races_for_period
-            next_period_races = get_races_for_period(next_period)
-            
-            if next_period_races:
-                log.info(f"Found {len(next_period_races)} races in next period {next_period} ({next_period_name}): {next_period_races}")
-                
-                # Check if any of these races are in user's selected race list
-                user_selected_races = ctx.cultivate_detail.extra_race_list
-                matching_races = [race_id for race_id in next_period_races if race_id in user_selected_races]
-                
-                if matching_races:
-                    log.info(f"Found {len(matching_races)} user-selected races in next period {next_period} ({next_period_name}): {matching_races}")
-                    # Set the first matching race as target
-                    target_race_id = matching_races[0]
-                    log.info(f"Setting target race ID: {target_race_id}")
-                else:
-                    log.info(f"No user-selected races found in next period {next_period} ({next_period_name})")
-                    target_race_id = 0  # Will search for any available race
+            if _plan_user_race_for_period(ctx, next_period, purpose="insufficient_fans"):
+                log.info("Set race operation for fan farming")
+                ctx.ctrl.click_by_point(get_race_point(ctx))
+                log.info("Navigated to race selection to work towards fan goals")
             else:
-                log.info(f"No races available in next period {next_period} ({next_period_name})")
-                target_race_id = 0  # Will search for any available race
-            
-            # Set a race operation so the race list logic knows what to do
-            from module.umamusume.types import TurnOperation, TurnOperationType
-            ctx.cultivate_detail.turn_info.turn_operation = TurnOperation()
-            ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-            ctx.cultivate_detail.turn_info.turn_operation.race_id = target_race_id
-            log.info("Set race operation for fan farming")
-            ctx.ctrl.click_by_point(get_race_point(ctx))
-            log.info("Navigated to race selection to work towards fan goals")
-            
-            # If no user-selected races found, search for suitable race template
-            if not matching_races:
-                log.info("No user-selected races found - searching for suitable race template")
-                time.sleep(2)  # Wait for race menu to load
-                
-                # Get current screen and search for suitable race template
-                img = ctx.ctrl.get_screen(to_gray=True)
-                from module.umamusume.asset import REF_SUITABLE_RACE
-                suitable_race_match = image_match(img, REF_SUITABLE_RACE)
-                
-                if suitable_race_match.find_match:
-                    log.info("Found suitable race template - clicking on it")
-                    center_x = suitable_race_match.center_point[0]
-                    center_y = suitable_race_match.center_point[1]
-                    ctx.ctrl.click(center_x, center_y, "Click suitable race")
-                    log.info(f"Clicked suitable race at position ({center_x}, {center_y})")
-                else:
-                    log.info("Suitable race template not found - returning to main menu for normal logic")
-                    # Return to main menu since no races are available
-                    ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-                    # Clear the race operation so AI can decide what to do next
-                    ctx.cultivate_detail.turn_info.turn_operation = None
+                ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
 
         if title_text == TITLE[22]:  # Consecutive Racing (was TITLE[20])
             ctx.ctrl.click_by_point(CULTIVATE_TOO_MUCH_RACE_WARNING_CONFIRM)

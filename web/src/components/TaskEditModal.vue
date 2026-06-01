@@ -354,7 +354,7 @@
                 <div class="col-3">
                   <div class="form-group">
                     <label for="selectSupportCardLevel">Support Card Level (≥)</label>
-                    <input v-model="supportCardLevel" type="number" class="form-control" id="selectSupportCardLevel"
+                    <input v-model.number="supportCardLevel" type="number" class="form-control" id="selectSupportCardLevel"
                       placeholder="">
                   </div>
                 </div>
@@ -366,14 +366,14 @@
                 <div class="col-3">
                   <div class="form-group">
                     <label for="inputClockUseLimit">Clock Usage Limit</label>
-                    <input v-model="clockUseLimit" type="number" class="form-control" id="inputClockUseLimit"
+                    <input v-model.number="clockUseLimit" type="number" class="form-control" id="inputClockUseLimit"
                       placeholder="">
                   </div>
                 </div>
                 <div class="col-3">
                   <div class="form-group">
                     <label for="inputRestTreshold">Rest Threshold</label>
-                    <input v-model="restTreshold" type="number" min="20" max="80" class="form-control" id="inputRestTreshold" placeholder="">
+                    <input v-model.number="restTreshold" type="number" min="20" max="80" class="form-control" id="inputRestTreshold" placeholder="">
                   </div>
                 </div>
                 <div class="col-3">
@@ -384,6 +384,15 @@
                       <button type="button" class="token" :class="{ active: !compensateFailure }" @click="compensateFailure = false">No</button>
                     </div>
                   </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="d-block mb-2">Block Training At Or Above Failure Rate</label>
+                <div class="slider-row">
+                  <span class="slider-label">Risk limit</span>
+                  <input type="range" class="form-range" v-model.number="maxFailureRate" min="0" max="100" step="1" style="flex:1;margin:0 12px;">
+                  <span class="slider-value">{{ maxFailureRate }}%</span>
+                  <input v-model.number="maxFailureRate" type="number" min="0" max="100" class="form-control ml-2" style="width:88px;">
                 </div>
               </div>
                             <div class="form-group Cure-asap">
@@ -399,7 +408,7 @@
                   <div class="form-group">
                     <label for="speed-value-input">Speed</label>
                     <div class="input-group input-group-sm">
-                      <input type="number" v-model="expectSpeedValue" class="form-control" id="speed-value-input">
+                      <input type="number" v-model.number="expectSpeedValue" class="form-control" id="speed-value-input">
                       <div class="input-group-append"><span class="input-group-text">pt</span></div>
                     </div>
                   </div>
@@ -408,7 +417,7 @@
                   <div class="form-group">
                     <label for="stamina-value-input">Stamina</label>
                     <div class="input-group input-group-sm">
-                      <input type="number" v-model="expectStaminaValue" class="form-control" id="stamina-value-input">
+                      <input type="number" v-model.number="expectStaminaValue" class="form-control" id="stamina-value-input">
                       <div class="input-group-append"><span class="input-group-text">pt</span></div>
                     </div>
                   </div>
@@ -417,7 +426,7 @@
                   <div class="form-group">
                     <label for="power-value-input">Power</label>
                     <div class="input-group input-group-sm">
-                      <input type="number" v-model="expectPowerValue" class="form-control" id="power-value-input">
+                      <input type="number" v-model.number="expectPowerValue" class="form-control" id="power-value-input">
                       <div class="input-group-append"><span class="input-group-text">pt</span></div>
                     </div>
                   </div>
@@ -426,7 +435,7 @@
                   <div class="form-group">
                     <label for="will-value-input">Guts</label>
                     <div class="input-group input-group-sm">
-                      <input type="number" v-model="expectWillValue" class="form-control" id="will-value-input">
+                      <input type="number" v-model.number="expectWillValue" class="form-control" id="will-value-input">
                       <div class="input-group-append"><span class="input-group-text">pt</span></div>
                     </div>
                   </div>
@@ -435,7 +444,7 @@
                   <div class="form-group">
                     <label for="intelligence-value-input">Wit</label>
                     <div class="input-group input-group-sm">
-                      <input type="number" v-model="expectIntelligenceValue" class="form-control"
+                      <input type="number" v-model.number="expectIntelligenceValue" class="form-control"
                         id="intelligence-value-input">
                       <div class="input-group-append"><span class="input-group-text">pt</span></div>
                     </div>
@@ -751,7 +760,7 @@
                 <div class="row">
                   <div v-for="(v, i) in extraWeight1" :key="i" class="col-md-2 col-6">
                     <div class="form-group mb-1"><small>{{ ['Speed','Stamina','Power','Guts','Wit'][i] }}</small></div>
-                    <input type="number" v-model="extraWeight1[i]" class="form-control"
+                    <input type="number" v-model.number="extraWeight1[i]" class="form-control"
                       @input="onExtraWeightInput(extraWeight1, i)" id="speed-value-input">
                   </div>
                 </div>
@@ -759,7 +768,7 @@
                 <div class="row">
                   <div v-for="(v, i) in extraWeight2" :key="i" class="col-md-2 col-6">
                     <div class="form-group mb-1"><small>{{ ['Speed','Stamina','Power','Guts','Wit'][i] }}</small></div>
-                    <input type="number" v-model="extraWeight2[i]" class="form-control"
+                    <input type="number" v-model.number="extraWeight2[i]" class="form-control"
                       @input="onExtraWeightInput(extraWeight2, i)" id="speed-value-input">
                   </div>
                 </div>
@@ -767,7 +776,7 @@
                 <div class="row">
                   <div v-for="(v, i) in extraWeight3" :key="i" class="col-md-2 col-6">
                     <div class="form-group mb-1"><small>{{ ['Speed','Stamina','Power','Guts','Wit'][i] }}</small></div>
-                    <input type="number" v-model="extraWeight3[i]" class="form-control"
+                    <input type="number" v-model.number="extraWeight3[i]" class="form-control"
                       @input="onExtraWeightInput(extraWeight3, i)" id="speed-value-input">
                   </div>
                 </div>
@@ -775,7 +784,7 @@
                 <div class="row">
                   <div v-for="(v, i) in extraWeightSummer" :key="i" class="col-md-2 col-6">
                     <div class="form-group mb-1"><small>{{ ['Speed','Stamina','Power','Guts','Wit'][i] }}</small></div>
-                    <input type="number" v-model="extraWeightSummer[i]" class="form-control"
+                    <input type="number" v-model.number="extraWeightSummer[i]" class="form-control"
                       @input="onExtraWeightInput(extraWeightSummer, i)" id="speed-value-input">
                   </div>
                 </div>
@@ -1555,7 +1564,7 @@
                   <div class="col-md-3">
                     <div class="form-group">
                       <label for="inputSkillLearnThresholdLimit">Learn when skill points ≥</label>
-                      <input v-model="learnSkillThreshold" type="number" class="form-control"
+                      <input v-model.number="learnSkillThreshold" type="number" class="form-control"
                         id="inputSkillLearnThresholdLimit" placeholder="">
                     </div>
                   </div>
@@ -1599,19 +1608,19 @@
                   <div class="col-4">
                     <div class="form-group">
                       <label>Year 1</label>
-                      <input type="number" v-model="skillEventWeight[0]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(0)">
+                      <input type="number" v-model.number="skillEventWeight[0]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(0)">
                     </div>
                   </div>
                   <div class="col-4">
                     <div class="form-group">
                       <label>Year 2</label>
-                      <input type="number" v-model="skillEventWeight[1]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(1)">
+                      <input type="number" v-model.number="skillEventWeight[1]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(1)">
                     </div>
                   </div>
                   <div class="col-4">
                     <div class="form-group">
                       <label>Year 3</label>
-                      <input type="number" v-model="skillEventWeight[2]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(2)">
+                      <input type="number" v-model.number="skillEventWeight[2]" class="form-control" step="0.1" min="0" max="1" @input="onInspirationWeightInput(2)">
                     </div>
                   </div>
                 </div>
@@ -2275,6 +2284,7 @@ export default {
       clockUseLimit: 99,
       restTreshold: 48,
       compensateFailure: true,
+      maxFailureRate: 20,
       summerScoreThreshold: 0.17,
       witRaceSearchThreshold: 0.08,
       learnSkillThreshold: 888,
@@ -3574,6 +3584,7 @@ export default {
           "allow_recover_tp": this.recoverTP,
           "rest_threshold": this.restTreshold,  
           "compensate_failure": this.compensateFailure,
+          "max_failure_rate": this.maxFailureRate,
           "summer_score_threshold": this.summerScoreThreshold,
           "wit_race_search_threshold": this.witRaceSearchThreshold,
           "use_last_parents": this.useLastParents,
@@ -3750,6 +3761,7 @@ export default {
         this.summerScoreThreshold = (this.presetsUse.summer_score_threshold !== undefined ? this.presetsUse.summer_score_threshold : 0.17),
         this.witRaceSearchThreshold = (this.presetsUse.wit_race_search_threshold !== undefined ? this.presetsUse.wit_race_search_threshold : 0.08),
       this.compensateFailure = (this.presetsUse.compensate_failure !== false)
+      this.maxFailureRate = (this.presetsUse.max_failure_rate !== undefined ? this.presetsUse.max_failure_rate : 20)
       this.useLastParents = (this.presetsUse.use_last_parents === true)
       this.overrideInsufficientFansForcedRaces = (this.presetsUse.override_insufficient_fans_forced_races === true)
       this.learnSkillOnlyUserProvided = !!this.presetsUse.learn_skill_only_user_provided
@@ -4148,6 +4160,7 @@ export default {
       this.clockUseLimit = data.clock_use_limit !== undefined ? data.clock_use_limit : this.clockUseLimit;
       this.restTreshold = data.rest_threshold || data.rest_treshold || this.restTreshold;
       this.compensateFailure = data.compensate_failure !== false;
+      this.maxFailureRate = data.max_failure_rate !== undefined ? data.max_failure_rate : 20;
       this.summerScoreThreshold = data.summer_score_threshold !== undefined ? data.summer_score_threshold : 0.17;
       this.witRaceSearchThreshold = data.wit_race_search_threshold !== undefined ? data.wit_race_search_threshold : 0.08;
       this.useLastParents = data.use_last_parents === true;
@@ -4434,6 +4447,7 @@ export default {
         name: this.presetNameEdit,
         event_overrides: this.buildEventChoices(),
         compensate_failure: this.compensateFailure,
+        max_failure_rate: this.maxFailureRate,
         use_last_parents: this.useLastParents,
         override_insufficient_fans_forced_races: this.overrideInsufficientFansForcedRaces,
         scenario: this.selectedScenario,
@@ -4479,6 +4493,7 @@ export default {
         follow_support_card_level: this.supportCardLevel,
         clock_use_limit: this.clockUseLimit,
         rest_threshold: this.restTreshold,  
+        max_failure_rate: this.maxFailureRate,
         summer_score_threshold: this.summerScoreThreshold,
         wit_race_search_threshold: this.witRaceSearchThreshold,
         learn_skill_threshold: this.learnSkillThreshold,
@@ -4658,6 +4673,7 @@ export default {
         name: 'Shared Preset',
         event_overrides: this.buildEventChoices(),
         compensate_failure: this.compensateFailure,
+        max_failure_rate: this.maxFailureRate,
         use_last_parents: this.useLastParents,
         override_insufficient_fans_forced_races: this.overrideInsufficientFansForcedRaces,
         scenario: this.selectedScenario,
@@ -4676,6 +4692,7 @@ export default {
         follow_support_card_level: this.supportCardLevel,
         clock_use_limit: this.clockUseLimit,
         rest_threshold: this.restTreshold,
+        max_failure_rate: this.maxFailureRate,
         summer_score_threshold: this.summerScoreThreshold,
         wit_race_search_threshold: this.witRaceSearchThreshold,
         learn_skill_threshold: this.learnSkillThreshold,

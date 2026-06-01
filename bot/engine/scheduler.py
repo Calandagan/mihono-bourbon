@@ -19,6 +19,7 @@ class Scheduler:
     active = False
     
     _executor_lock = threading.Lock()
+    controller_factory = None
 
     def add_task(self, task):
         log.info(f"Task added: {task.task_id}")
@@ -29,6 +30,10 @@ class Scheduler:
         task_executor.active = True
         executor_thread = threading.Thread(target=task_executor.start, args=([task]))
         executor_thread.start()
+
+    def configure_controller_factory(self, controller_factory):
+        with self._executor_lock:
+            self.controller_factory = controller_factory
 
     def compute_next_cron(self, cron_expr):
         now = datetime.datetime.now()
@@ -80,7 +85,7 @@ class Scheduler:
                 del self.task_list[i]
 
     def init(self):
-        task_executor = executor.Executor()
+        task_executor = executor.Executor(controller_factory=self.controller_factory)
         cleanup_counter = 0
         while True:
             if self.active:
@@ -97,6 +102,8 @@ class Scheduler:
                                 break 
                         elif task.task_execute_mode == TaskExecuteMode.TASK_EXECUTE_MODE_FULL_AUTO:
                             if not task_executor.active:
+                                if getattr(task, 'disable_auto_restart', False):
+                                    continue
                                 if task.task_status in [TaskStatus.TASK_STATUS_SUCCESS, TaskStatus.TASK_STATUS_FAILED, TaskStatus.TASK_STATUS_INTERRUPT]:
                                     task.task_status = TaskStatus.TASK_STATUS_PENDING
                                 if task.task_status == TaskStatus.TASK_STATUS_PENDING:
@@ -112,6 +119,8 @@ class Scheduler:
                                             task.cron_job_config.next_time = self.compute_next_cron(task.cron_job_config.cron)
                         elif task.task_execute_mode == TaskExecuteMode.TASK_EXECUTE_MODE_LOOP:
                             if not task_executor.active:
+                                if getattr(task, 'disable_auto_restart', False):
+                                    continue
                                 if task.task_status in [TaskStatus.TASK_STATUS_SUCCESS, TaskStatus.TASK_STATUS_FAILED, TaskStatus.TASK_STATUS_INTERRUPT]:
                                     task.task_status = TaskStatus.TASK_STATUS_PENDING
                                 if task.task_status == TaskStatus.TASK_STATUS_PENDING:

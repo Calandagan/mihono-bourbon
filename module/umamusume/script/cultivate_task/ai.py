@@ -55,6 +55,16 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
     if not ctx.cultivate_detail.debut_race_win:
         if not hasattr(ctx.cultivate_detail.turn_info, 'race_search_attempted'):
             turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+
+    if ctx.cultivate_detail.debut_race_win:
+        _date = ctx.cultivate_detail.turn_info.date
+        _avail = _get_races_for_period_cached(_date)
+        _extra = [r for r in ctx.cultivate_detail.extra_race_list if r in _avail]
+        if _extra:
+            turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+            turn_operation.race_id = _extra[0]
+            return turn_operation
+
     cached_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
     if cached_energy is not None and cached_energy > 0:
         state = fetch_state(ctx.current_screen)
@@ -74,18 +84,34 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
     else:
         mood_threshold = ctx.cultivate_detail.motivation_threshold_year3
 
+    if getattr(ctx.cultivate_detail.turn_info, 'force_safe_recovery', False):
+        if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_MEDIC_GENERAL:
+            if not has_scheduled_race_this_turn(ctx) and not has_optional_race_this_turn(ctx):
+                turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_MEDIC
+                return turn_operation
+        if not has_optional_race_this_turn(ctx):
+            from module.umamusume.script.cultivate_task.helpers import should_use_pal_outing_simple
+            if should_use_pal_outing_simple(ctx):
+                turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRIP
+                return turn_operation
+            if (mood_raw is not None) and mood_val < mood_threshold and energy < ENERGY_TRIP_GENERAL:
+                turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_TRIP
+                return turn_operation
+        turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
+        return turn_operation
+
     mant_skip_fast_path = False
     try:
         if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-            from module.umamusume.scenario.mant.inventory import should_skip_fast_path
+            from module.umamusume.scenario.mant.policy import should_skip_fast_path
             mant_skip_fast_path = should_skip_fast_path(ctx)
 
             if not mant_skip_fast_path:
                 if getattr(ctx.cultivate_detail.turn_info, "energy_recovery_deferred", False):
                     mant_skip_fast_path = True
                 else:
-                    from module.umamusume.scenario.mant.inventory import has_energy_recovery
-                    if has_energy_recovery(ctx):
+                    from module.umamusume.scenario.mant.policy import has_energy_recovery, has_cupcakes
+                    if has_energy_recovery(ctx) or has_cupcakes(ctx):
                         mant_skip_fast_path = True
                     else:
                         from module.umamusume.asset.race_data import get_races_for_period
@@ -159,17 +185,9 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
                 available_races = get_races_for_period(date)
                 extra_race_this_turn = [r for r in ctx.cultivate_detail.extra_race_list if r in available_races]
                 if extra_race_this_turn:
-                    skip_race = False
-                    try:
-                        if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                            from module.umamusume.scenario.mant.inventory import should_skip_race
-                            skip_race = should_skip_race(ctx)
-                    except Exception:
-                        pass
-                    if not skip_race:
-                        turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
-                        turn_operation.race_id = extra_race_this_turn[0]
-                        return turn_operation
+                    turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+                    turn_operation.race_id = extra_race_this_turn[0]
+                    return turn_operation
                 else:
                     turn_operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
                     return turn_operation
@@ -257,7 +275,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
             if ctx.cultivate_detail.turn_info.medic_room_available and energy <= ENERGY_MEDIC_GENERAL:
                 medic = True
             trip = False
-            if not ctx.cultivate_detail.turn_info.medic_room_available and (
+            if not ctx.cultivate_detail.turn_info.medic_room_available and not mant_skip_fast_path and (
                 (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not support_card_max >= MIN_SUPPORT_GOOD_TRAINING_URA)
                 or (40 < ctx.cultivate_detail.turn_info.date <= 60 and mood_val < ctx.cultivate_detail.motivation_threshold_year2 and energy < ENERGY_TRIP_GENERAL)
                 or (64 < ctx.cultivate_detail.turn_info.date <= 99 and mood_val < ctx.cultivate_detail.motivation_threshold_year3 and energy < ENERGY_TRIP_GENERAL)
@@ -317,7 +335,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
             skip_race = False
             try:
                 if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                    from module.umamusume.scenario.mant.inventory import should_skip_race
+                    from module.umamusume.scenario.mant.policy import should_skip_race
                     skip_race = should_skip_race(ctx)
             except Exception:
                 pass
@@ -331,7 +349,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
         medic = True
 
     trip = False
-    if not ctx.cultivate_detail.turn_info.medic_room_available and (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not support_card_max >= MIN_SUPPORT_GOOD_TRAINING
+    if not ctx.cultivate_detail.turn_info.medic_room_available and not mant_skip_fast_path and (ctx.cultivate_detail.turn_info.date <= 36 and mood_val < ctx.cultivate_detail.motivation_threshold_year1 and energy < ENERGY_TRIP_GENERAL and not support_card_max >= MIN_SUPPORT_GOOD_TRAINING
                                                                     or 40 < ctx.cultivate_detail.turn_info.date <= 60 and mood_val < ctx.cultivate_detail.motivation_threshold_year2 and energy < ENERGY_TRIP_GENERAL
                                                                     or 64 < ctx.cultivate_detail.turn_info.date <= 99 and mood_val < ctx.cultivate_detail.motivation_threshold_year3 and energy < ENERGY_TRIP_GENERAL):
         try:
@@ -437,7 +455,7 @@ def get_operation(ctx: UmamusumeContext) -> TurnOperation | None:
 
 
 def has_scheduled_race_this_turn(ctx):
-    from module.umamusume.scenario.mant.inventory import has_scheduled_race_this_turn as check_fn
+    from module.umamusume.scenario.mant.policy import has_scheduled_race_this_turn as check_fn
     return check_fn(ctx)
 
 def has_optional_race_this_turn(ctx):

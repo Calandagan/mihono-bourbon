@@ -56,9 +56,34 @@ DAILY_WAIT_OFFSET = random.randint(16, 188)
 DAILY_OFFSET_DAY = datetime.date.today()
 
 from bot.conn.adb_client import AdbClient
+from bot.conn.runtime import (
+    RuntimeControllerConfig,
+    build_controller_from_runtime_config,
+    write_runtime_controller_config,
+)
 
 def get_adb_client(device_id):
     return AdbClient(device_id)
+
+
+def get_runtime_controller_type() -> str:
+    value = str(os.environ.get("UAT_CONTROLLER", "adb") or "adb").strip().lower()
+    return "win32" if value == "win32" else "adb"
+
+
+def get_runtime_window_title() -> str:
+    return str(os.environ.get("UAT_WINDOW_TITLE", "Umamusume") or "Umamusume")
+
+
+def load_runtime_selected_device():
+    try:
+        from bot.conn.runtime import read_runtime_controller_config
+        cfg = read_runtime_controller_config()
+        if cfg.controller_type == "adb" and cfg.device_name:
+            return cfg.device_name
+    except Exception:
+        pass
+    return None
 
 def get_adb_devices():
     try:
@@ -244,8 +269,8 @@ def time_window_enforcer(device_id: str):
         if is_in_allowed_window(now):
             if paused:
                 time.sleep(random.randint(16, 188))
-                from bot.base.runtime_state import get_state
-                get_state()["input_blocked"] = False
+                from bot.base.runtime_state import set_state
+                set_state("input_blocked", False)
                 KEEPALIVE_ACTIVE = True
                 for tid in list(paused_task_ids):
                     if not str(tid).startswith("CRONJOB_"):
@@ -272,8 +297,8 @@ def time_window_enforcer(device_id: str):
                     save_scheduler_state()
                 except Exception:
                     pass
-                from bot.base.runtime_state import get_state
-                get_state()["input_blocked"] = True
+                from bot.base.runtime_state import set_state
+                set_state("input_blocked", True)
                 try:
                     get_adb_client(device_id).run_cmd(["shell", "am", "force-stop", 
                              "com.cygames.umamusume"], timeout=5)
@@ -300,45 +325,64 @@ if __name__ == '__main__':
 
     cleanup_orphan_processes()
 
+    controller_type = get_runtime_controller_type()
     selected_device = None
-    if os.environ.get("UAT_AUTORESTART", "0") == "1":
-        try:
-            with open("config.yaml", 'r', encoding='utf-8') as f:
-                cfg = yaml.safe_load(f)
-            selected_device = cfg['bot']['auto']['adb']['device_name']
+    runtime_config = RuntimeControllerConfig(
+        controller_type=controller_type,
+        device_name="",
+        window_title=get_runtime_window_title(),
+    )
+
+    if controller_type == "adb":
+        if os.environ.get("UAT_AUTORESTART", "0") == "1":
+            selected_device = load_runtime_selected_device()
+            if not selected_device:
+                try:
+                    with open("config.yaml", 'r', encoding='utf-8') as f:
+                        cfg = yaml.safe_load(f)
+                    selected_device = cfg['bot']['auto']['adb']['device_name']
+                except Exception:
+                    selected_device = None
             if not selected_device:
                 selected_device = select_device()
-        except Exception:
+        else:
             selected_device = select_device()
+
+        if selected_device is None:
+            print("No device selected")
+            sys.exit(1)
+
+        if not connect_to_device(selected_device, max_retries=3):
+            print("Connection failed")
+            sys.exit(1)
+
+        uninstall_uiautomator(selected_device)
+
+        if not validate_device_setup(selected_device):
+            log.info("Device validation failed")
+
+        if not run_health_checks(selected_device):
+            print("Health checks failed")
+            sys.exit(1)
+
+        runtime_config = RuntimeControllerConfig(
+            controller_type="adb",
+            device_name=selected_device,
+            window_title=get_runtime_window_title(),
+        )
     else:
-        selected_device = select_device()
-    
-    if selected_device is None:
-        print("No device selected")
-        sys.exit(1)
-    
-    if not connect_to_device(selected_device, max_retries=3):
-        print("Connection failed")
-        sys.exit(1)
-    
-    uninstall_uiautomator(selected_device)
+        print(f"Using Win32 controller for window '{runtime_config.window_title}'")
 
-    if not validate_device_setup(selected_device):
-        log.info("Device validation failed")
-
-    if not run_health_checks(selected_device):
-        print("Health checks failed")
-        sys.exit(1)
-    
-    if not update_config(selected_device):
-        print("Config update failed")
+    if not write_runtime_controller_config(runtime_config):
+        print("Runtime controller config update failed")
         sys.exit(1)
     
     normalize_start_end()
     
-    enforcer_thread = threading.Thread(target=time_window_enforcer, 
-                                       args=(selected_device,), daemon=True)
-    enforcer_thread.start()
+    if controller_type == "adb" and selected_device:
+        enforcer_thread = threading.Thread(target=time_window_enforcer,
+                                           args=(selected_device,), daemon=True)
+        enforcer_thread.start()
     
     from bake_templates import bake, BAKED_PATH
     if not BAKED_PATH.exists():
@@ -370,6 +414,7 @@ if __name__ == '__main__':
     except Exception:
         pass
     
+    scheduler.configure_controller_factory(lambda: build_controller_from_runtime_config(runtime_config))
     scheduler_thread = threading.Thread(target=scheduler.init, args=())
     scheduler_thread.start()
     
@@ -417,7 +462,7 @@ if __name__ == '__main__':
         try:
             run("bot.server.handler:server", host="127.0.0.1", port=8071, log_level="error")
         finally:
-            if ":" in selected_device:
+            if controller_type == "adb" and selected_device and ":" in selected_device:
                 try:
                     _run_adb(["disconnect", selected_device], timeout=5)
                 except Exception:

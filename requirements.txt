@@ -121,4 +121,5 @@ whichcraft==0.6.1
 wrapt==1.15.0
 xmltodict==0.13.0
 yarl==1.8.2
+pytest==8.3.5
 zipp==3.8.0

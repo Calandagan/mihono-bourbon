@@ -5,7 +5,7 @@ from module.umamusume.define import ScenarioType
 from bot.recog.training_stat_scanner import parse_training_result_template
 from .handlers import get_mant_ui_handlers
 from .hooks import mant_after_hook
-from .constants import MANT_FIXED_EVENTS
+from .constants import MANT_FIXED_EVENTS, MANT_RACE_CHAIN_PENALTIES
 
 
 import bot.base.log as logger
@@ -29,6 +29,8 @@ def get_incoming_energy(current_turn, lookahead=1):
 
 @register(ScenarioType.SCENARIO_TYPE_MANT)
 class MANTScenario(URAScenario):
+    TRAINING_TEMPLATE_SCENARIO = "ura"
+
     def __init__(self):
         super().__init__()
 
@@ -47,14 +49,40 @@ class MANTScenario(URAScenario):
     def get_stat_areas(self) -> dict:
         return STAT_AREAS_MANT
 
+    def training_template_scenario(self) -> str:
+        return self.TRAINING_TEMPLATE_SCENARIO
+
     def parse_training_result(self, img) -> list[int]:
-        return parse_training_result_template(img, scenario="ura")
+        return parse_training_result_template(img, scenario=self.training_template_scenario())
 
     def get_ui_handlers(self) -> dict:
         return get_mant_ui_handlers()
 
     def after_hook(self, ctx, img):
         return mant_after_hook(ctx, img)
+
+    def get_incoming_energy(self, current_turn, lookahead=1):
+        return get_incoming_energy(current_turn, lookahead=lookahead)
+
+    def get_incoming_mood(self, current_turn, lookahead=3):
+        total = 0
+        for data in MANT_FIXED_EVENTS.values():
+            if current_turn <= data["turn"] < current_turn + lookahead:
+                total += data["effect"].get("mood", 0)
+        return total
+
+    def get_race_chain_penalty(self, chain_length):
+        return MANT_RACE_CHAIN_PENALTIES.get(chain_length, MANT_RACE_CHAIN_PENALTIES[max(MANT_RACE_CHAIN_PENALTIES)])
+
+    def is_climax_race_turn(self, date):
+        from .race_prep import MANT_CLIMAX_RACE_TURNS
+
+        return int(date) in MANT_CLIMAX_RACE_TURNS
+
+    def has_scheduled_race_this_turn(self, ctx):
+        from .policy import has_scheduled_race_this_turn
+
+        return has_scheduled_race_this_turn(ctx)
 
     def compute_scenario_bonuses(self, ctx, idx, support_card_info_list, date, period_idx, current_energy):
         additive = 0.0
@@ -65,7 +93,7 @@ class MANTScenario(URAScenario):
         if current_energy is None:
             return (additive, multiplier, formula_parts, mult_parts)
 
-        incoming = get_incoming_energy(date, lookahead=1)
+        incoming = self.get_incoming_energy(date, lookahead=1)
         if incoming <= 0:
             return (additive, multiplier, formula_parts, mult_parts)
 

@@ -1,4 +1,5 @@
 import time
+import random
 import cv2
 
 import bot.base.log as logger
@@ -71,7 +72,7 @@ def script_cultivate_goal_race(ctx: UmamusumeContext):
         else:
             log.info(f"This is a regular race (ID: {race_id}) - entering detail interface")
             if mant_cfg is not None and race_id == 0:
-                from module.umamusume.scenario.mant.inventory import (
+                from module.umamusume.scenario.mant.race_prep import (
                     handle_energy_drink_max_before_race, handle_glow_sticks_before_race
                 )
                 handle_energy_drink_max_before_race(ctx)
@@ -89,7 +90,7 @@ def try_use_cleat(ctx, race_id, is_climax=False):
     mant_cfg = getattr(getattr(ctx.task.detail, 'scenario_config', None), 'mant_config', None)
     if mant_cfg is None:
         return False
-    from module.umamusume.scenario.mant.inventory import handle_cleat_before_race
+    from module.umamusume.scenario.mant.race_prep import handle_cleat_before_race
     return handle_cleat_before_race(ctx, race_id, is_climax)
 
 
@@ -109,8 +110,9 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
     turn_op = ctx.cultivate_detail.turn_info.turn_operation
     if turn_op and turn_op.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
         race_id = turn_op.race_id
+        race_source = getattr(turn_op, "source", "") or ""
 
-        if race_id == 0:
+        if race_id == 0 and race_source == "legacy_fallback":
             log.info("Suitable race search mode")
             time.sleep(0.4)
             
@@ -120,6 +122,10 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
             
             if suitable_match.find_match:
                 log.info("Found suitable race")
+                if hasattr(ctx.cultivate_detail.turn_info, "set_race_trace"):
+                    ctx.cultivate_detail.turn_info.set_race_trace(
+                        candidates=[{"race_id": 0, "mode": "suitable_race", "source": "legacy_fallback", "matched": True, "rejected": False}]
+                    )
                 try_use_cleat(ctx, race_id, is_climax=True)
                 center_x = suitable_match.center_point[0]
                 center_y = suitable_match.center_point[1]
@@ -129,6 +135,14 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                 return
             else:
                 log.info("No suitable race, continuing with wit training")
+                current_turn = int(getattr(ctx.cultivate_detail.turn_info, "date", 0) or 0)
+                rejections = getattr(ctx.cultivate_detail, "mant_race_rejections", set())
+                rejections.add((current_turn, 0))
+                ctx.cultivate_detail.mant_race_rejections = rejections
+                if hasattr(ctx.cultivate_detail.turn_info, "set_race_trace"):
+                    ctx.cultivate_detail.turn_info.set_race_trace(
+                        rejections=[{"turn": current_turn, "race_id": 0, "source": "legacy_fallback", "reason": "no_suitable_race_match"}]
+                    )
                 ctx.cultivate_detail.turn_info.race_search_attempted = True
                 ctx.cultivate_detail.turn_info.turn_operation = None
                 ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
@@ -166,97 +180,99 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                     time.sleep(0.4)
                     return
         if ctx.cultivate_detail.turn_info.turn_operation.turn_operation_type == TurnOperationType.TURN_OPERATION_TYPE_RACE:
-            race_id_up = ctx.cultivate_detail.turn_info.turn_operation.race_id
-            scroll_up_deadline = time.time() + 3.0
-            while time.time() < scroll_up_deadline:
-                img_up = ctx.ctrl.get_screen()
-                selected_up = find_race(ctx, img_up, race_id_up)
-                if selected_up:
-                    try_use_cleat(ctx, race_id_up)
-                    time.sleep(0.5)
-                    ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
-                    time.sleep(0.5)
-                    return
-                ctx.ctrl.swipe(x1=340, y1=741, x2=347, y2=882, duration=0.58, name="")
-                time.sleep(0.58)
-
-            swiped = False
-            scroll_attempts = 0
-            max_scroll_attempts = 50
-            while scroll_attempts < max_scroll_attempts:
-                scroll_attempts += 1
-                img = cv2.cvtColor(ctx.ctrl.get_screen(), cv2.COLOR_BGR2RGB)
-                if not compare_color_equal(img[705, 701], [211, 209, 219]):
-                    if swiped is True:
-                        time.sleep(1.5)
+            target_race_id = ctx.cultivate_detail.turn_info.turn_operation.race_id
+            log.info(f"Searching for race ID: {target_race_id}")
+            
+            direction = "down" # Start by searching downwards
+            scrolled_down = False
+            scrolled_up = False
+            last_thumb_y = -1
+            stall_count = 0
+            
+            search_deadline = time.time() + 45.0
+            while time.time() < search_deadline:
+                if not ctx.task.running():
                     break
-                ctx.ctrl.swipe(x1=20, y1=850, x2=20, y2=985, duration=0.27, name="")
-                swiped = True
-
-            img = ctx.ctrl.get_screen()
-            ctx.current_screen = img
-            ti = ctx.cultivate_detail.turn_info
-            current_race_id = ctx.cultivate_detail.turn_info.turn_operation.race_id
-            if not hasattr(ti, 'race_search_started_at') or getattr(ti, 'race_search_id', None) != current_race_id:
-                ti.race_search_started_at = time.time()
-                ti.race_search_id = current_race_id
-
-            while True:
-                if time.time() - ti.race_search_started_at > 30:
-                    try:
-                        if getattr(ctx.task.detail, 'extra_race_list', None) is ctx.cultivate_detail.extra_race_list:
-                            ctx.cultivate_detail.extra_race_list = list(ctx.cultivate_detail.extra_race_list)  
-                        if current_race_id and current_race_id in ctx.cultivate_detail.extra_race_list:        
-                            ctx.cultivate_detail.extra_race_list.remove(current_race_id)
-                    except Exception as e:
-                        log.debug(f"Race removal error: {e}")
-                    ctx.cultivate_detail.turn_info.turn_operation = None
-                    if hasattr(ti, 'race_search_started_at'):
-                        delattr(ti, 'race_search_started_at')
-                    if hasattr(ti, 'race_search_id'):
-                        delattr(ti, 'race_search_id')
-                    return
-
-                race_id = ctx.cultivate_detail.turn_info.turn_operation.race_id
-                log.info(f"Looking for race ID: {race_id}")
-                
-                selected = False
-                for retry in range(3):
-                    selected = find_race(ctx, img, race_id)
-                    if selected:
-                        break
-                    if retry < 2:
-                        time.sleep(0.5)
-                        img = ctx.ctrl.get_screen()
-                        ctx.current_screen = img
-                
-                if selected:
-                    log.info(f"Found race ID: {race_id}")
-                    if hasattr(ti, 'race_search_started_at'):
-                        delattr(ti, 'race_search_started_at')
-                    if hasattr(ti, 'race_search_id'):
-                        delattr(ti, 'race_search_id')
-                    try_use_cleat(ctx, race_id)
-                    time.sleep(0.58)
-                    ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
-                    time.sleep(0.58)
-                    return
-
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                if not compare_color_equal(img[1006, 701], [211, 209, 219]):
-                    log.info(f"Bottom reached")
-                    spam_deadline = time.time() + 3.7
-                    while time.time() < spam_deadline:
-                        ctx.ctrl.swipe(x1=20, y1=850, x2=20, y2=985, duration=1.0, name="")
-                        time.sleep(0.17)
-                    time.sleep(0.3)
-                    img = ctx.ctrl.get_screen()
-                    ctx.current_screen = img
-
-                ctx.ctrl.swipe(x1=20, y1=1000, x2=20, y2=865, duration=1.0, name="")
-                time.sleep(0.58)
+                    
                 img = ctx.ctrl.get_screen()
                 ctx.current_screen = img
+                
+                # Try to find the race in the current view
+                selected = find_race(ctx, img, target_race_id)
+                if selected:
+                    log.info(f"Found race ID: {target_race_id}")
+                    try_use_cleat(ctx, target_race_id)
+                    time.sleep(random.uniform(0.5, 0.7))
+                    ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
+                    return
+
+                # Check scrollbar to detect limits robustly
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                
+                # Race list scrollbar is usually at X=701, track from ~700 to ~1010
+                thumb_y = None
+                for y in range(700, 1015):
+                    # Check if pixel is NOT the track color [211, 209, 219]
+                    r, g, b = img_rgb[y, 701]
+                    if abs(r - 211) > 10 or abs(g - 209) > 10 or abs(b - 219) > 10:
+                        thumb_y = y
+                        break
+                
+                at_top = (thumb_y is not None and thumb_y <= 715)
+                at_bottom = True # Assume bottom if we can't find anything below
+                for y in range(max(700, (thumb_y or 0) + 10), 1015):
+                    r, g, b = img_rgb[y, 701]
+                    if abs(r - 211) <= 10 and abs(g - 209) <= 10 and abs(b - 219) <= 10:
+                        # Found track color below thumb, not at bottom yet
+                        at_bottom = False
+                        break
+
+                # Logic to change direction or stop
+                if direction == "down":
+                    if at_bottom:
+                        log.info("Reached bottom of race list, changing direction to UP")
+                        direction = "up"
+                        if at_top: # Small list
+                            break
+                        continue
+                elif direction == "up":
+                    if at_top:
+                        log.info("Reached top of race list, race not found")
+                        break
+                
+                # Perform a humanized swipe
+                sx = random.randint(300, 420)
+                ex = sx + random.randint(-20, 20)
+                dur = random.randint(300, 500)
+                
+                if direction == "down":
+                    y1, y2 = random.randint(850, 950), random.randint(650, 750)
+                    ctx.ctrl.swipe(x1=sx, y1=y1, x2=ex, y2=y2, duration=dur/1000.0, name="")
+                    scrolled_down = True
+                else:
+                    y1, y2 = random.randint(650, 750), random.randint(850, 950)
+                    ctx.ctrl.swipe(x1=sx, y1=y1, x2=ex, y2=y2, duration=dur/1000.0, name="")
+                    scrolled_up = True
+                    
+                time.sleep(random.uniform(0.4, 0.6))
+
+            # If we reach here, the race wasn't found
+            log.warning(f"Race ID {target_race_id} not found in list")
+            current_turn = int(getattr(ctx.cultivate_detail.turn_info, 'date', 0) or 0)
+            rejections = getattr(ctx.cultivate_detail, 'mant_race_rejections', set())
+            rejections.add((current_turn, target_race_id))
+            ctx.cultivate_detail.mant_race_rejections = rejections
+            ctx.cultivate_detail.turn_info.set_race_trace(
+                rejections=[{"turn": current_turn, "race_id": target_race_id, "reason": "not_found_in_race_list"}]
+            )
+            # Try to remove it from extra races if it's a failure
+            try:
+                if target_race_id in ctx.cultivate_detail.extra_race_list:
+                    ctx.cultivate_detail.extra_race_list.remove(target_race_id)
+            except Exception:
+                pass
+            ctx.cultivate_detail.turn_info.turn_operation = None
+            ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
         else:
             ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
 
