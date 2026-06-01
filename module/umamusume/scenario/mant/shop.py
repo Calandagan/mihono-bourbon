@@ -27,7 +27,7 @@ CONTENT_X2 = 640
 PURCHASED_CHECK_X1 = 200
 PURCHASED_CHECK_X2 = 600
 MANT_SHOP_SCAN_START = 13
-MANT_SHOP_SCAN_INTERVAL = 6
+MANT_SHOP_SCAN_INTERVAL = 4
 
 MANT_SHOP_COIN_ROI = (394, 437, 525, 685)
 
@@ -536,6 +536,10 @@ def scan_mant_shop(ctx):
     items_list = dedup_detections(all_detections, captured_frames)
 
     first_item_gy = items_list[0][2] if items_list else 0
+
+    # Leave the shop in a deterministic state for the buy phase.
+    scroll_to_top(ctx)
+    time.sleep(0.15)
 
     return items_list, ratio, drag_ratio, first_item_gy
 

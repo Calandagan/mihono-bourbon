@@ -52,6 +52,13 @@ def get_deck_type_counts(pal_card_store) -> dict[int, int]:
     return deck_counts
 
 
+def deck_info_is_known(deck_counts) -> bool:
+    try:
+        return sum(int(v or 0) for v in (deck_counts or {}).values()) > 0
+    except Exception:
+        return False
+
+
 def get_shop_stock_cap(display_name) -> int | None:
     return SHOP_STOCK_CAPS.get(display_name)
 
@@ -279,6 +286,7 @@ def build_emergency_expiring_targets(
     post_senior_summer = current_date > SUMMER_CAMP_2_END
 
     cure_names = set(ailment_cure_map.values())
+    known_deck = deck_info_is_known(deck_counts)
     for tier in range(1, getattr(mant_cfg, "tier_count", 0) + 1):
         tier_added = 0
         for slug, tier_value in getattr(mant_cfg, "item_tiers", {}).items():
@@ -299,7 +307,7 @@ def build_emergency_expiring_targets(
             if stock_cap_reached(display, owned_map):
                 continue
 
-            if "Training Application" in display or "Ankle Weights" in display:
+            if known_deck and ("Training Application" in display or "Ankle Weights" in display):
                 if "Speed" in display and deck_counts.get(1, 0) == 0:
                     continue
                 if "Stamina" in display and deck_counts.get(2, 0) == 0:
@@ -365,7 +373,8 @@ def should_skip_shop_item(
         return True
     if display_name == "Energy Drink MAX" and int((owned_map or {}).get("Energy Drink MAX", 0) or 0) > 0:
         return True
-    if "Training Application" in display_name or "Ankle Weights" in display_name:
+    known_deck = deck_info_is_known(deck_counts)
+    if known_deck and ("Training Application" in display_name or "Ankle Weights" in display_name):
         if "Speed" in display_name and deck_counts.get(1, 0) == 0:
             return True
         if "Stamina" in display_name and deck_counts.get(2, 0) == 0:
@@ -387,6 +396,7 @@ __all__ = [
     "get_shop_stock_cap",
     "get_shop_stock_state",
     "get_deck_type_counts",
+    "deck_info_is_known",
     "stock_cap_reached",
     "compute_bbq_purchase_state",
     "compute_charm_purchase_state",

@@ -156,6 +156,23 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertTrue(skipped)
 
+    def test_should_skip_shop_item_does_not_reject_training_items_when_deck_info_is_unknown(self):
+        skipped = shop_policy.should_skip_shop_item(
+            "Speed Ankle Weights",
+            priority_set=set(),
+            one_time_buff_items=set(),
+            used_buffs=set(),
+            ignore_cat=False,
+            ignore_carrots=False,
+            display_to_slug=lambda name: name.lower().replace(" ", "_"),
+            all_cures={"Rich Hand Cream"},
+            has_miracle_cure=False,
+            owned_map={},
+            ailment_cure_all="Miracle Cure",
+            deck_counts={1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+        )
+        self.assertFalse(skipped)
+
     def test_specific_cure_is_not_blocked_just_because_miracle_exists(self):
         skipped = shop_policy.should_skip_shop_item(
             "Rich Hand Cream",
