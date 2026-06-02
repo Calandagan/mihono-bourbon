@@ -31,6 +31,17 @@ sys.modules.setdefault(
     types.SimpleNamespace(
         ENERGY_ITEMS={"Vita 20": 20, "Vita 40": 40, "Royal Kale Juice": 100},
         CHARM_ITEM="Good-Luck Charm",
+        MEGAPHONE_TIERS={
+            "Basic Megaphone": (1, 2),
+            "Cheer Megaphone": (2, 2),
+            "Motivating Megaphone": (3, 3),
+        },
+        MEGAPHONE_CONFIG_KEYS={
+            "Basic Megaphone": "basic_megaphone",
+            "Cheer Megaphone": "cheer_megaphone",
+            "Motivating Megaphone": "motivating_megaphone",
+        },
+        TRAINING_TYPE_ANKLET={},
         MEGA_STAT_MULT={1: 1.12, 2: 1.2, 3: 1.3},
         ENERGY_ITEM_SKIP_FAST_PATH_THRESHOLD=2,
         MANT_CLIMAX_START=73,
@@ -62,6 +73,12 @@ _shop_policy_spec = importlib.util.spec_from_file_location("test_mant_shop_polic
 shop_policy = importlib.util.module_from_spec(_shop_policy_spec)
 assert _shop_policy_spec is not None and _shop_policy_spec.loader is not None
 _shop_policy_spec.loader.exec_module(shop_policy)
+
+_training_recovery_path = Path(__file__).resolve().parents[1] / "module" / "umamusume" / "scenario" / "mant" / "training_recovery.py"
+_training_recovery_spec = importlib.util.spec_from_file_location("test_mant_training_recovery_module", _training_recovery_path)
+training_recovery = importlib.util.module_from_spec(_training_recovery_spec)
+assert _training_recovery_spec is not None and _training_recovery_spec.loader is not None
+_training_recovery_spec.loader.exec_module(training_recovery)
 
 _race_prep_path = Path(__file__).resolve().parents[1] / "module" / "umamusume" / "scenario" / "mant" / "race_prep.py"
 _race_prep_spec = importlib.util.spec_from_file_location("test_mant_race_prep_module", _race_prep_path)
@@ -110,6 +127,70 @@ class MantPolicyTests(unittest.TestCase):
         self.assertEqual(targets, ["Rich Hand Cream"])
         self.assertEqual(bought, {"Rich Hand Cream"})
         self.assertEqual(budget, 85)
+
+    def test_pick_training_recovery_item_prefers_vitas_before_juice(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Royal Kale Juice", 2),
+                    ("Vita 20", 5),
+                    ("Vita 40", 1),
+                ]
+            )
+        )
+        self.assertEqual(policy.pick_training_recovery_item(ctx), "Vita 20")
+
+    def test_pick_training_recovery_item_falls_back_to_juice_last(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Royal Kale Juice", 2),
+                ]
+            )
+        )
+        self.assertEqual(policy.pick_training_recovery_item(ctx), "Royal Kale Juice")
+
+    def test_choose_training_failure_recovery_action_prefers_charm_before_energy(self):
+        training_info = types.SimpleNamespace(
+            support_card_info_list=[],
+            failure_rate=18,
+            speed_incr=8,
+            stamina_incr=0,
+            power_incr=0,
+            will_incr=0,
+            intelligence_incr=0,
+            skill_point_incr=0,
+        )
+        ctx = types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(
+                        mant_config=types.SimpleNamespace(charm_failure_rate=30)
+                    )
+                )
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Good-Luck Charm", 1),
+                    ("Vita 20", 5),
+                ],
+                mant_failed_use_turn=None,
+                mant_failed_use_items=set(),
+                mant_item_use_error_pending=False,
+                turn_info=types.SimpleNamespace(
+                    date=20,
+                    energy_item_used_this_turn=False,
+                    cached_original_scores=[1.0, 0.1, 0.1, 0.1, 0.1],
+                    training_info_list=[training_info] * 5,
+                    set_item_trace=lambda **kwargs: None,
+                    append_trace=lambda *args, **kwargs: None,
+                ),
+            ),
+        )
+
+        action, item_name = training_recovery.choose_training_failure_recovery_action(ctx)
+        self.assertEqual(action, "charm")
+        self.assertEqual(item_name, "Good-Luck Charm")
 
     def test_compute_bbq_purchase_state_rewards_non_rainbow_pressure(self):
         cfg = types.SimpleNamespace(

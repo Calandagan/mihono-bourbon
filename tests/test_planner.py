@@ -119,6 +119,21 @@ class PlannerTests(unittest.TestCase):
         self.assertTrue(plan.requires_replan_after_pre_action)
         self.assertIn("retry with energy_item", plan.reason)
 
+    def test_plan_training_turn_force_safe_recovery_in_mant_falls_back_to_rest_without_items(self):
+        ctx = _make_ctx()
+        fake_recovery = types.SimpleNamespace(
+            choose_training_failure_recovery_action=lambda _ctx: (None, None),
+        )
+        with patch.dict(sys.modules, {"module.umamusume.scenario.mant.training_recovery": fake_recovery}):
+            plan = planner.plan_training_turn(
+                ctx,
+                TrainingType.TRAINING_TYPE_SPEED,
+                force_safe_recovery=True,
+            )
+
+        self.assertEqual(plan.primary_action, "rest")
+        self.assertIn("no MANT recovery items", plan.reason)
+
     def test_plan_training_turn_preserves_scored_training_choice(self):
         ctx = _make_ctx()
         ai_operation = TurnOperation()

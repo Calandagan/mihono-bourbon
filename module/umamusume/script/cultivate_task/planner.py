@@ -241,6 +241,10 @@ def plan_training_turn(
                     )
             except Exception:
                 pass
+            return TurnPlan(
+                primary_action="rest",
+                reason="all trainings blocked by failure limit and no MANT recovery items",
+            )
         if should_use_pal_outing_simple(ctx):
             return TurnPlan(primary_action="trip", reason="all trainings blocked by failure limit")
         return TurnPlan(primary_action="rest", reason="all trainings blocked by failure limit")

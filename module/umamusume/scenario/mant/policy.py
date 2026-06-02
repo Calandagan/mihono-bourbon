@@ -5,6 +5,12 @@ from module.umamusume.scenario.mant.constants import display_to_slug
 
 ENERGY_ITEMS = _inventory.ENERGY_ITEMS
 CHARM_ITEM = _inventory.CHARM_ITEM
+TRAINING_RECOVERY_ITEM_PRIORITY = (
+    "Vita 20",
+    "Vita 40",
+    "Vita 65",
+    "Royal Kale Juice",
+)
 
 
 def _cfg_get(cfg, key, default):
@@ -171,6 +177,18 @@ def pick_best_energy_item(ctx, excluded_items=None):
     if best_effective < energy_score_threshold:
         return None
     return best_item
+
+
+def pick_training_recovery_item(ctx, excluded_items=None):
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    excluded = set(excluded_items or [])
+    for item_name in TRAINING_RECOVERY_ITEM_PRIORITY:
+        if item_name in excluded:
+            continue
+        if int(owned_map.get(item_name, 0) or 0) > 0:
+            return item_name
+    return None
 
 
 def has_energy_recovery(ctx):
@@ -378,6 +396,7 @@ __all__ = [
     "get_mant_coin_reserve",
     "get_mant_shop_buy_floor",
     "pick_best_energy_item",
+    "pick_training_recovery_item",
     "has_energy_recovery",
     "has_charm",
     "should_use_energy_before_race",

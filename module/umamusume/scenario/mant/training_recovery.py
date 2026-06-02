@@ -14,6 +14,7 @@ from module.umamusume.scenario.mant.policy import (
     has_energy_recovery,
     has_whistle,
     pick_best_energy_item,
+    pick_training_recovery_item,
     remaining_training_turns_real,
 )
 
@@ -122,20 +123,15 @@ def _best_training_snapshot(ctx):
 
 def _build_failure_recovery_targets(ctx):
     _ensure_item_fail_state(ctx)
-    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
-    snapshot = _best_training_snapshot(ctx)
     options = []
     selected = []
 
-    charm_threshold = getattr(mant_cfg, 'charm_failure_rate', 21) if mant_cfg is not None else 21
     charm_failed = _item_failed(ctx, 'Good-Luck Charm')
     charm_available = has_charm(ctx)
-    charm_failure_ok = snapshot is not None and int(snapshot.get('failure_rate', -1)) >= int(charm_threshold)
     charm_selected = (
         charm_available
         and not charm_failed
         and not getattr(ctx.cultivate_detail.turn_info, 'energy_item_used_this_turn', False)
-        and charm_failure_ok
     )
     options.append(
         item_option(
@@ -146,8 +142,7 @@ def _build_failure_recovery_targets(ctx):
             skip_reason=None if charm_selected else (
                 "failed_this_turn" if charm_failed else
                 "no_owned" if not charm_available else
-                "energy_already_used" if getattr(ctx.cultivate_detail.turn_info, 'energy_item_used_this_turn', False) else
-                "failure_below_threshold"
+                "energy_already_used"
             ),
             reason="prefer_charm_before_energy" if charm_selected else "not_selected",
             planned_use="training_failure_recovery",
@@ -158,7 +153,7 @@ def _build_failure_recovery_targets(ctx):
         return options, selected, ("charm", "Good-Luck Charm")
 
     failed_names = set(getattr(ctx.cultivate_detail, 'mant_failed_use_items', set()))
-    energy_item = pick_best_energy_item(ctx, excluded_items=failed_names)
+    energy_item = pick_training_recovery_item(ctx, excluded_items=failed_names)
     energy_selected = bool(energy_item)
     options.append(
         item_option(
@@ -319,9 +314,13 @@ def handle_training_whistle(ctx):
     return use_item_and_update_inventory(ctx, 'Reset Whistle')
 
 
-def handle_energy_item(ctx):
+def handle_energy_item(ctx, item_name=None):
     _ensure_item_fail_state(ctx)
-    item_name = pick_best_energy_item(ctx, excluded_items=getattr(ctx.cultivate_detail, 'mant_failed_use_items', set()))
+    if item_name is None:
+        item_name = pick_training_recovery_item(
+            ctx,
+            excluded_items=getattr(ctx.cultivate_detail, 'mant_failed_use_items', set()),
+        )
     if item_name is None:
         _record_item_trace(
             ctx,
@@ -361,20 +360,21 @@ def handle_energy_item(ctx):
     return ok
 
 
-def handle_energy_recovery(ctx):
+def handle_energy_recovery(ctx, item_name=None):
     current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
     if current_energy is None:
         return False
     current_energy = int(current_energy)
 
     max_energy = getattr(ctx.cultivate_detail, 'mant_max_energy', 100)
-    item_name = pick_best_energy_item(ctx)
+    if item_name is None:
+        item_name = pick_training_recovery_item(ctx)
     if item_name is None:
         return False
 
     raw_energy = _inventory.ENERGY_ITEMS.get(item_name, 0)
     predicted_energy = min(max_energy, current_energy + raw_energy)
-    ok = handle_energy_item(ctx)
+    ok = handle_energy_item(ctx, item_name=item_name)
     if not ok:
         return False
 
