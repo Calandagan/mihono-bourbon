@@ -203,6 +203,37 @@ def has_charm(ctx):
     return owned_map.get('Good-Luck Charm', 0) > 0
 
 
+def should_prefer_training_recovery_over_rest(ctx, current_energy: int | None = None) -> bool:
+    if current_energy is None:
+        current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
+    if current_energy is None:
+        return False
+    try:
+        current_energy = int(current_energy)
+    except Exception:
+        return False
+
+    try:
+        threshold = int(
+            getattr(
+                ctx.cultivate_detail,
+                'rest_threshold',
+                getattr(
+                    ctx.cultivate_detail,
+                    'rest_treshold',
+                    getattr(ctx.cultivate_detail, 'fast_path_energy_limit', 48),
+                ),
+            )
+        )
+    except Exception:
+        threshold = 48
+
+    if current_energy > threshold:
+        return False
+
+    return has_charm(ctx) or has_energy_recovery(ctx)
+
+
 def should_use_energy_before_race(ctx, race_id: int = 0, current_energy: int | None = None) -> bool:
     if current_energy is None:
         current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', 0)
@@ -399,6 +430,7 @@ __all__ = [
     "pick_training_recovery_item",
     "has_energy_recovery",
     "has_charm",
+    "should_prefer_training_recovery_over_rest",
     "should_use_energy_before_race",
     "has_whistle",
     "has_cupcakes",

@@ -1161,12 +1161,19 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         and planner_turn.primary_action == "training"
         and any(action in ("energy_item", "charm") for action in getattr(planner_turn, "pre_actions", []) or [])
     )
+    mant_recovery_priority = False
+    if is_mant:
+        try:
+            from module.umamusume.scenario.mant.policy import should_prefer_training_recovery_over_rest
+            mant_recovery_priority = should_prefer_training_recovery_over_rest(ctx, energy)
+        except Exception:
+            mant_recovery_priority = False
 
 
     if getattr(ctx.cultivate_detail, 'group_card_enabled', False):
         gc_dates = getattr(ctx.cultivate_detail, 'group_card_available_dates', [])
         gc_percentile = getattr(ctx.cultivate_detail, 'group_card_percentile', 26)
-        if not mant_recovery_pending and gc_dates and len(history) >= 2:
+        if not (mant_recovery_pending or mant_recovery_priority) and gc_dates and len(history) >= 2:
             if percentile < gc_percentile:
                 from module.umamusume.asset.race_data import get_races_for_period
                 date = ctx.cultivate_detail.turn_info.date
@@ -1194,7 +1201,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
         best_idx_tmp = None
         best_score_tmp = 0.0
     
-    if (not mant_recovery_pending and
+    if (not (mant_recovery_pending or mant_recovery_priority) and
         ctx.cultivate_detail.prioritize_recreation and 
         ctx.cultivate_detail.pal_event_stage > 0 and
         best_idx_tmp is not None):

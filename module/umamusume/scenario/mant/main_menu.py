@@ -331,6 +331,7 @@ def handle_mant_shop_scan(ctx, current_date):
 
         for tier in range(1, mant_cfg.tier_count + 1):
             tier_added = 0
+            tier_has_viable_candidate = False
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
                 if t != tier or slug not in shop_slugs:
@@ -366,6 +367,7 @@ def handle_mant_shop_scan(ctx, current_date):
                 if copies <= 0:
                     continue
 
+                tier_has_viable_candidate = True
                 actual_copies = 1 if display in all_cures or display == AILMENT_CURE_ALL else copies
                 for _i in range(actual_copies):
                     remaining_after = budget - cost
@@ -386,7 +388,11 @@ def handle_mant_shop_scan(ctx, current_date):
                     budget -= cost
                     tier_added += 1
 
-            if tier_added > 0:
+            if tier_added > 0 or tier_has_viable_candidate:
+                if tier_has_viable_candidate and tier_added == 0:
+                    log.info(
+                        f"[SHOP] Tier {tier} has viable higher-priority items but budget/floor blocked purchase; not descending"
+                    )
                 break
 
         targets = priority_targets + tier_targets
@@ -603,17 +609,37 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
 CLIMAX_MASTER_RESERVE = 40
 
 
-def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map):
+def _would_cleat_be_used(cleat_name, race_id, current_date, owned_map, *, is_climax_override=False):
     from module.umamusume.scenario.mant.race_prep import would_cleat_be_useful_before_race
 
-    return would_cleat_be_useful_before_race(cleat_name, race_id, current_date, owned_map)
+    return would_cleat_be_useful_before_race(
+        cleat_name,
+        race_id,
+        current_date,
+        owned_map,
+        is_climax_override=is_climax_override,
+    )
+
+
+def _get_pending_cleat_race_context(ctx, current_date):
+    from module.umamusume.script.cultivate_task.race_policy import get_pending_race_context
+
+    pending = get_pending_race_context(ctx)
+    if not pending.has_race:
+        return None
+    if not pending.race_id and not pending.is_climax and pending.source != "goal_forced":
+        return None
+    return {
+        "race_id": int(pending.race_id or 0),
+        "source": pending.source or "none",
+        "is_climax": bool(pending.is_climax),
+    }
 
 
 def handle_mant_cleat_shop_buy(ctx, current_date):
     from module.umamusume.scenario.mant.shop import (
         SHOP_ITEM_COSTS, scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
     )
-    from module.umamusume.define import TurnOperationType
     from module.umamusume.scenario.mant.race_prep import get_cleat_state
     import time as _t
 
@@ -631,19 +657,22 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
         return False
     shop_available = {name for name, _, _, _, buyable in shop_items if buyable}
 
-    turn_op = getattr(ctx.cultivate_detail.turn_info, 'turn_operation', None)
-    if not turn_op or getattr(turn_op, 'turn_operation_type', None) != TurnOperationType.TURN_OPERATION_TYPE_RACE:
+    race_ctx = _get_pending_cleat_race_context(ctx, current_date)
+    if not race_ctx:
         return False
-    race_id = int(getattr(turn_op, 'race_id', 0) or 0)
-    if race_id <= 0:
-        return False
+    race_id = int(race_ctx["race_id"] or 0)
+    race_source = race_ctx["source"]
+    is_climax = bool(race_ctx["is_climax"])
 
     state = get_cleat_state(owned)
     reserve_total = state["reserve_total"]
     spare_total = state["spare_master"] + state["spare_artisan"]
     reserve_budget = CLIMAX_MASTER_RESERVE if reserve_total < 2 else 0
 
-    for candidate in ('Artisan Cleat Hammer', 'Master Cleat Hammer'):
+    candidate_order = ('Master Cleat Hammer', 'Artisan Cleat Hammer') if is_climax else (
+        'Artisan Cleat Hammer', 'Master Cleat Hammer'
+    )
+    for candidate in candidate_order:
         if candidate not in shop_available:
             continue
         cost = SHOP_ITEM_COSTS.get(candidate, 9999)
@@ -651,7 +680,13 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
             continue
         if budget - cost < reserve_budget:
             continue
-        useful = _would_cleat_be_used(candidate, race_id, current_date, owned)
+        useful = _would_cleat_be_used(
+            candidate,
+            race_id,
+            current_date,
+            owned,
+            is_climax_override=is_climax,
+        )
         if not useful and reserve_total >= 2:
             continue
         return _execute_cleat_buy(
@@ -661,8 +696,10 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
             source="cleat_override",
             debug={
                 "race_id": race_id,
+                "race_source": race_source,
                 "climax_reserve": reserve_total,
                 "spare_cleats": spare_total,
+                "is_climax": is_climax,
                 "race_usefulness": bool(useful),
             },
         )

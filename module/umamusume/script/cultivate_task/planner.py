@@ -156,6 +156,80 @@ def build_training_pre_actions(ctx: UmamusumeContext, training_type: TrainingTyp
     return actions
 
 
+def _clear_stale_mant_race_operation(
+    ctx: UmamusumeContext,
+    reason: str,
+    *,
+    race_source: str = "",
+) -> None:
+    turn_info = ctx.cultivate_detail.turn_info
+    if hasattr(turn_info, "append_trace"):
+        turn_info.append_trace(
+            "mant_race_operation_cleared",
+            reason=reason,
+            source=race_source or "",
+            date=int(getattr(turn_info, "date", 0) or 0),
+        )
+    turn_info.turn_operation = None
+    turn_info.turn_plan = None
+    turn_info.pending_training_scan = False
+    turn_info.parse_train_info_finish = False
+    ctx.cultivate_detail.mant_cleat_used = False
+    if hasattr(ctx.cultivate_detail, "mant_climax_pending_train"):
+        ctx.cultivate_detail.mant_climax_pending_train = False
+
+
+def _validate_mant_race_operation(ctx: UmamusumeContext, race_decision) -> bool:
+    turn_info = ctx.cultivate_detail.turn_info
+    turn_operation = getattr(turn_info, "turn_operation", None)
+    if (
+        not is_mant(ctx)
+        or turn_operation is None
+        or getattr(turn_operation, "turn_operation_type", None) != TurnOperationType.TURN_OPERATION_TYPE_RACE
+    ):
+        return True
+
+    race_source = getattr(turn_operation, "source", "") or ""
+    race_id = int(getattr(turn_operation, "race_id", 0) or 0)
+    pending_train = bool(getattr(ctx.cultivate_detail, "mant_climax_pending_train", False))
+    train_available = bool(getattr(turn_info, "train_available", False))
+
+    if pending_train and train_available:
+        _clear_stale_mant_race_operation(
+            ctx,
+            "post_climax_training_pending",
+            race_source=race_source,
+        )
+        return False
+
+    if not race_decision.has_race:
+        _clear_stale_mant_race_operation(
+            ctx,
+            "stored_race_without_current_race_decision",
+            race_source=race_source,
+        )
+        return False
+
+    if race_source == "climax_forced" and not race_decision.climax_race:
+        _clear_stale_mant_race_operation(ctx, "climax_race_no_longer_active", race_source=race_source)
+        return False
+
+    if race_source == "goal_forced" and not race_decision.forced_race:
+        _clear_stale_mant_race_operation(ctx, "forced_goal_race_no_longer_active", race_source=race_source)
+        return False
+
+    if race_source == "user_extra_race" and race_decision.source != "user_extra_race":
+        _clear_stale_mant_race_operation(ctx, "user_race_no_longer_selected", race_source=race_source)
+        return False
+
+    current_race_id = int(race_decision.race_id or 0)
+    if race_id and current_race_id and race_id != current_race_id:
+        _clear_stale_mant_race_operation(ctx, "stored_race_id_mismatch", race_source=race_source)
+        return False
+
+    return True
+
+
 def plan_main_menu_turn(ctx: UmamusumeContext) -> TurnPlan:
     turn_info = ctx.cultivate_detail.turn_info
     if getattr(turn_info, "pending_training_scan", False):
@@ -167,6 +241,13 @@ def plan_main_menu_turn(ctx: UmamusumeContext) -> TurnPlan:
             requires_replan_after_pre_action=any(action in ("energy_item", "charm") for action in pre_actions),
             reason="pending training scan",
         )
+    race_decision = get_race_turn_decision(ctx)
+    if getattr(turn_info, "turn_operation", None) is not None and not _validate_mant_race_operation(ctx, race_decision):
+        return TurnPlan(
+            primary_action="training",
+            requires_training_scan=True,
+            reason="stale MANT race operation cleared",
+        )
     op_plan = turn_operation_to_plan(turn_info.turn_operation)
     if op_plan is not None:
         if op_plan.primary_action == "race":
@@ -177,8 +258,6 @@ def plan_main_menu_turn(ctx: UmamusumeContext) -> TurnPlan:
             action in ("energy_item", "charm") for action in op_plan.pre_actions
         )
         return op_plan
-
-    race_decision = get_race_turn_decision(ctx)
     if race_decision.has_race:
         if hasattr(turn_info, "set_race_trace"):
             turn_info.set_race_trace(candidates=list(race_decision.candidates or []))

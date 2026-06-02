@@ -17,6 +17,11 @@ SHOP_STOCK_CAPS = {
     "Guts Ankle Weights": 3,
 }
 
+CONTEXTUAL_ONLY_SHOP_ITEMS = {
+    "Artisan Cleat Hammer",
+    "Master Cleat Hammer",
+}
+
 
 def get_deck_type_counts(pal_card_store) -> dict[int, int]:
     deck_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
@@ -61,6 +66,10 @@ def deck_info_is_known(deck_counts) -> bool:
 
 def get_shop_stock_cap(display_name) -> int | None:
     return SHOP_STOCK_CAPS.get(display_name)
+
+
+def is_contextual_shop_override_item(display_name) -> bool:
+    return display_name in CONTEXTUAL_ONLY_SHOP_ITEMS
 
 
 def get_shop_stock_state(display_name, owned_map) -> tuple[int, int | None]:
@@ -298,6 +307,8 @@ def build_emergency_expiring_targets(
                 continue
             if display in cure_names or display == ailment_cure_all:
                 continue
+            if is_contextual_shop_override_item(display):
+                continue
             if display in one_time_buff_items and display in used_buffs:
                 continue
             if ignore_grilled_carrots and slug == "grilled_carrots":
@@ -358,6 +369,8 @@ def should_skip_shop_item(
 ):
     if display_name in priority_set:
         return True
+    if is_contextual_shop_override_item(display_name):
+        return True
     if display_name in one_time_buff_items and display_name in used_buffs:
         return True
     if ignore_cat and display_name == "Yummy Cat Food":
@@ -397,6 +410,7 @@ __all__ = [
     "get_shop_stock_state",
     "get_deck_type_counts",
     "deck_info_is_known",
+    "is_contextual_shop_override_item",
     "stock_cap_reached",
     "compute_bbq_purchase_state",
     "compute_charm_purchase_state",

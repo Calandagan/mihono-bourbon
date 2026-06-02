@@ -337,6 +337,60 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.primary_action, "training")
         self.assertTrue(plan.requires_training_scan)
 
+    def test_plan_main_menu_turn_clears_stale_climax_race_when_training_is_pending(self):
+        operation = TurnOperation()
+        operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+        operation.race_id = 0
+        operation.source = "climax_forced"
+        ctx = _make_ctx(date=76, turn_operation=operation)
+        ctx.cultivate_detail.mant_climax_pending_train = True
+        ctx.cultivate_detail.turn_info.train_available = True
+
+        with patch.object(
+            planner,
+            "get_race_turn_decision",
+            return_value=RaceTurnDecision(has_race=True, race_id=0, source="climax_forced", climax_race=True),
+        ), patch.object(planner, "get_current_energy", return_value=80):
+            plan = planner.plan_main_menu_turn(ctx)
+
+        self.assertEqual(plan.primary_action, "training")
+        self.assertTrue(plan.requires_training_scan)
+        self.assertIsNone(ctx.cultivate_detail.turn_info.turn_operation)
+        self.assertFalse(getattr(ctx.cultivate_detail, "mant_climax_pending_train", False))
+
+    def test_plan_main_menu_turn_clears_stale_user_race_operation_when_turn_is_no_longer_race(self):
+        operation = TurnOperation()
+        operation.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_RACE
+        operation.race_id = 2056
+        operation.source = "user_extra_race"
+        ctx = _make_ctx(date=77, turn_operation=operation)
+
+        with patch.object(
+            planner,
+            "get_race_turn_decision",
+            return_value=RaceTurnDecision(),
+        ), patch.object(planner, "get_current_energy", return_value=80):
+            plan = planner.plan_main_menu_turn(ctx)
+
+        self.assertEqual(plan.primary_action, "training")
+        self.assertTrue(plan.requires_training_scan)
+        self.assertIsNone(ctx.cultivate_detail.turn_info.turn_operation)
+
+    def test_get_pending_race_context_uses_decision_when_turn_operation_is_missing(self):
+        ctx = _make_ctx(date=74)
+
+        with patch.object(
+            race_policy,
+            "get_race_turn_decision",
+            return_value=RaceTurnDecision(has_race=True, race_id=0, source="climax_forced", climax_race=True),
+        ):
+            pending = race_policy.get_pending_race_context(ctx)
+
+        self.assertTrue(pending.has_race)
+        self.assertEqual(pending.source, "climax_forced")
+        self.assertEqual(pending.race_id, 0)
+        self.assertTrue(pending.is_climax)
+
 
 if __name__ == "__main__":
     unittest.main()

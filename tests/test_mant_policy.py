@@ -150,6 +150,26 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertEqual(policy.pick_training_recovery_item(ctx), "Royal Kale Juice")
 
+    def test_should_prefer_training_recovery_over_rest_when_low_energy_and_charm_available(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                rest_threshold=48,
+                mant_owned_items=[("Good-Luck Charm", 1)],
+                turn_info=types.SimpleNamespace(cached_energy=20),
+            )
+        )
+        self.assertTrue(policy.should_prefer_training_recovery_over_rest(ctx))
+
+    def test_should_prefer_training_recovery_over_rest_is_false_without_items(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                rest_threshold=48,
+                mant_owned_items=[],
+                turn_info=types.SimpleNamespace(cached_energy=20),
+            )
+        )
+        self.assertFalse(policy.should_prefer_training_recovery_over_rest(ctx))
+
     def test_choose_training_failure_recovery_action_prefers_charm_before_energy(self):
         training_info = types.SimpleNamespace(
             support_card_info_list=[],
@@ -237,6 +257,23 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertTrue(skipped)
 
+    def test_should_skip_shop_item_treats_cleats_as_contextual_only(self):
+        skipped = shop_policy.should_skip_shop_item(
+            "Master Cleat Hammer",
+            priority_set=set(),
+            one_time_buff_items=set(),
+            used_buffs=set(),
+            ignore_cat=False,
+            ignore_carrots=False,
+            display_to_slug=lambda name: name.lower().replace(" ", "_"),
+            all_cures={"Rich Hand Cream"},
+            has_miracle_cure=False,
+            owned_map={},
+            ailment_cure_all="Miracle Cure",
+            deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
+        )
+        self.assertTrue(skipped)
+
     def test_should_skip_shop_item_does_not_reject_training_items_when_deck_info_is_unknown(self):
         skipped = shop_policy.should_skip_shop_item(
             "Speed Ankle Weights",
@@ -301,6 +338,23 @@ class MantPolicyTests(unittest.TestCase):
             ailment_cure_all="Miracle Cure",
         )
         self.assertEqual(targets, ["Grilled Carrots"])
+
+    def test_choose_cleat_for_race_prefers_master_on_climax_turn(self):
+        selected = race_prep.choose_cleat_for_race(
+            74,
+            0,
+            {"Artisan Cleat Hammer": 1, "Master Cleat Hammer": 1},
+            is_climax_override=True,
+        )
+        self.assertEqual(selected, "Master Cleat Hammer")
+
+    def test_choose_cleat_for_race_uses_spare_artisan_first_on_regular_race(self):
+        selected = race_prep.choose_cleat_for_race(
+            50,
+            2056,
+            {"Artisan Cleat Hammer": 3, "Master Cleat Hammer": 2},
+        )
+        self.assertEqual(selected, "Artisan Cleat Hammer")
 
     def test_build_emergency_expiring_targets_stops_after_first_valid_tier(self):
         cfg = types.SimpleNamespace(

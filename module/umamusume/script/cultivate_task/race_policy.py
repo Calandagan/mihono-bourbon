@@ -19,6 +19,16 @@ class RaceTurnDecision:
     rival_hint: bool = False
 
 
+@dataclass
+class PendingRaceContext:
+    has_race: bool = False
+    race_id: int = 0
+    source: str = "none"
+    is_climax: bool = False
+    scheduled_race: bool = False
+    forced_race: bool = False
+
+
 def is_mant(ctx) -> bool:
     try:
         return ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT
@@ -131,7 +141,39 @@ def get_race_turn_decision(ctx) -> RaceTurnDecision:
     return RaceTurnDecision()
 
 
+def get_pending_race_context(ctx) -> PendingRaceContext:
+    turn_info = getattr(ctx.cultivate_detail, "turn_info", None)
+    if turn_info is None:
+        return PendingRaceContext()
+
+    turn_operation = getattr(turn_info, "turn_operation", None)
+    if (
+        turn_operation is not None
+        and getattr(turn_operation, "turn_operation_type", None) == TurnOperationType.TURN_OPERATION_TYPE_RACE
+    ):
+        source = getattr(turn_operation, "source", "") or "none"
+        return PendingRaceContext(
+            has_race=True,
+            race_id=int(getattr(turn_operation, "race_id", 0) or 0),
+            source=source,
+            is_climax=(source == "climax_forced") or get_climax_race_this_turn(ctx),
+            scheduled_race=(source == "user_extra_race" and get_scheduled_race_this_turn(ctx)),
+            forced_race=(source == "goal_forced"),
+        )
+
+    decision = get_race_turn_decision(ctx)
+    return PendingRaceContext(
+        has_race=bool(decision.has_race),
+        race_id=int(decision.race_id or 0),
+        source=decision.source or "none",
+        is_climax=bool(decision.climax_race),
+        scheduled_race=bool(decision.scheduled_race),
+        forced_race=bool(decision.forced_race),
+    )
+
+
 __all__ = [
+    "PendingRaceContext",
     "RaceTurnDecision",
     "is_mant",
     "get_extra_races_this_turn",
@@ -142,4 +184,5 @@ __all__ = [
     "is_forced_race_turn",
     "get_plannable_race_choice",
     "get_race_turn_decision",
+    "get_pending_race_context",
 ]
