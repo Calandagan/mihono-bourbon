@@ -464,6 +464,52 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertEqual(targets, ["Grilled Carrots"])
 
+    def test_build_emergency_expiring_targets_buys_all_enabled_items_across_tiers(self):
+        cfg = types.SimpleNamespace(
+            tier_count=4,
+            item_tiers={
+                "speed_scroll": 1,
+                "grilled_carrots": 3,
+                "motivating_megaphone": 4,
+            },
+            tier_thresholds={1: 999, 3: 999, 4: 999},
+        )
+        targets, budget = shop_policy.build_emergency_expiring_targets(
+            current_date=40,
+            budget=200,
+            shop_items=[
+                ("Speed Scroll", 1.0, 10, 1, True),
+                ("Grilled Carrots", 1.0, 20, 1, True),
+                ("Motivating Megaphone", 1.0, 30, 1, True),
+            ],
+            mant_cfg=cfg,
+            owned_map={},
+            deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
+            used_buffs=set(),
+            one_time_buff_items=set(),
+            ignore_grilled_carrots=False,
+            shop_item_costs={
+                "Speed Scroll": 20,
+                "Grilled Carrots": 40,
+                "Motivating Megaphone": 55,
+            },
+            slug_to_display={
+                "speed_scroll": "Speed Scroll",
+                "grilled_carrots": "Grilled Carrots",
+                "motivating_megaphone": "Motivating Megaphone",
+            },
+            display_to_slug=lambda name: {
+                "Speed Scroll": "speed_scroll",
+                "Grilled Carrots": "grilled_carrots",
+                "Motivating Megaphone": "motivating_megaphone",
+            }[name],
+            detected_portraits_log={"a": {"is_npc": False, "favor": 1}},
+            ailment_cure_map={},
+            ailment_cure_all="Miracle Cure",
+        )
+        self.assertEqual(targets, ["Speed Scroll", "Grilled Carrots", "Motivating Megaphone"])
+        self.assertEqual(budget, 85)
+
     def test_collect_emergency_cure_targets_skips_disabled_cure(self):
         cfg = types.SimpleNamespace(item_tiers={"rich_hand_cream": 0, "miracle_cure": 1})
         targets, bought, budget = shop_policy.collect_emergency_cure_targets(
@@ -583,7 +629,7 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertEqual(selected, "Artisan Cleat Hammer")
 
-    def test_build_emergency_expiring_targets_stops_after_first_valid_tier(self):
+    def test_build_emergency_expiring_targets_buys_all_valid_enabled_tiers(self):
         cfg = types.SimpleNamespace(
             tier_count=4,
             item_tiers={"motivating_megaphone": 1, "grilled_carrots": 2},
@@ -612,7 +658,7 @@ class MantPolicyTests(unittest.TestCase):
             ailment_cure_map={},
             ailment_cure_all="Miracle Cure",
         )
-        self.assertEqual(targets, ["Motivating Megaphone"])
+        self.assertEqual(targets, ["Motivating Megaphone", "Grilled Carrots"])
 
     def test_choose_cleat_for_race_prefers_spare_artisan_on_normal_race(self):
         selected = race_prep.choose_cleat_for_race(

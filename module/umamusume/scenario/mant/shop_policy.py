@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from module.umamusume.constants.game_constants import CLASSIC_YEAR_END, SUMMER_CAMP_2_END
+from module.umamusume.constants.game_constants import CLASSIC_YEAR_END
 from module.umamusume.scenario.mant.constants import get_incoming_mood
 
 SHOP_STOCK_CAPS = {
@@ -336,12 +336,9 @@ def build_emergency_expiring_targets(
     )
     budget = int(budget or 0)
     targets: list[str] = []
-    post_senior_summer = current_date > SUMMER_CAMP_2_END
-
     cure_names = set(ailment_cure_map.values())
     known_deck = deck_info_is_known(deck_counts)
     for tier in range(1, getattr(mant_cfg, "tier_count", 0) + 1):
-        tier_added = 0
         for slug, tier_value in getattr(mant_cfg, "item_tiers", {}).items():
             if tier_value != tier or slug not in shop_slugs:
                 continue
@@ -380,20 +377,12 @@ def build_emergency_expiring_targets(
             copies = expiring_counts.get(display, 0)
             if copies <= 0:
                 continue
-            threshold = 0
-            if tier > 1 and not post_senior_summer:
-                threshold = getattr(mant_cfg, "tier_thresholds", {}).get(tier, (tier - 1) * 50)
             for _ in range(copies):
                 remaining_after = budget - cost
                 if remaining_after < 0:
                     break
-                if threshold > 0 and remaining_after < threshold:
-                    break
                 targets.append(display)
                 budget -= cost
-                tier_added += 1
-        if tier_added > 0:
-            break
 
     return targets, budget
 

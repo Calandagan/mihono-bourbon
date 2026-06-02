@@ -207,7 +207,6 @@ def handle_mant_shop_scan(ctx, current_date):
     from module.umamusume.scenario.mant.policy import (
         get_mant_coin_cap,
         get_mant_coin_reserve,
-        get_mant_shop_buy_floor,
     )
     from module.umamusume.scenario.mant.shop_policy import (
         collect_shop_copy_counts,
@@ -262,8 +261,8 @@ def handle_mant_shop_scan(ctx, current_date):
         shop_copy_counts = collect_shop_copy_counts(items_list)
 
         img = ctx.ctrl.get_screen()
-        any_sale = handle_mant_on_sale(img) if img is not None else False
-        sale_modifier = 0.9 if any_sale else 1.0
+        if img is not None:
+            handle_mant_on_sale(img)
 
         from module.umamusume.persistence import get_used_buffs, get_ignore_cat_food, get_ignore_grilled_carrots
         from module.umamusume.scenario.mant.actions import ONE_TIME_BUFF_ITEMS
@@ -334,9 +333,9 @@ def handle_mant_shop_scan(ctx, current_date):
             if max_stock is not None:
                 option_meta[name]["max_stock"] = max_stock
 
+        # Buy aggressively across every enabled tier. We still respect hard
+        # caps/disabled items, but we no longer hold coins back with tier floors.
         for tier in range(1, mant_cfg.tier_count + 1):
-            tier_added = 0
-            tier_has_viable_candidate = False
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
                 if int(t or 0) < 1 or t != tier or slug not in shop_slugs:
@@ -374,32 +373,17 @@ def handle_mant_shop_scan(ctx, current_date):
                 if copies <= 0:
                     continue
 
-                tier_has_viable_candidate = True
                 actual_copies = 1 if display in all_cures or display == AILMENT_CURE_ALL else copies
                 for _i in range(actual_copies):
                     remaining_after = budget - cost
                     if remaining_after < 0:
                         skip_overrides.setdefault(display, "budget_exhausted")
                         break
-                    threshold = 0
-                    if tier > 2:
-                        raw_threshold = mant_cfg.tier_thresholds.get(tier, (tier - 1) * 50)
-                        threshold = int(raw_threshold * sale_modifier)
-                    floor = get_mant_shop_buy_floor(display, tier, current_date, start_budget, threshold, mant_cfg)
-                    if remaining_after < floor:
-                        skip_overrides.setdefault(display, "budget_floor")
-                        break
                     tier_targets.append(display)
                     target_sources.setdefault(display, "tier_policy")
                     target_ui_tiers.setdefault(display, tier)
                     budget -= cost
-                    tier_added += 1
-
-            if tier_added > 0 or tier_has_viable_candidate:
-                if tier_has_viable_candidate and tier_added == 0:
-                    log.info(
-                        f"[SHOP] Tier {tier} has viable higher-priority items but budget/floor blocked purchase; not descending"
-                    )
+            if budget <= 0:
                 break
 
         targets = priority_targets + tier_targets
