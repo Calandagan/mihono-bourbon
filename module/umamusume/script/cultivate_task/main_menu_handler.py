@@ -470,8 +470,12 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 if has_charm(ctx):
                     ctx.cultivate_detail.turn_info.energy_recovery_deferred = True
                 else:
+                    from module.umamusume.scenario.mant.policy import get_low_energy_threshold
                     from module.umamusume.scenario.mant.training_recovery import handle_energy_recovery
-                    if handle_energy_recovery(ctx):
+                    if handle_energy_recovery(
+                        ctx,
+                        mode="critical_low" if energy <= get_low_energy_threshold() else "failure",
+                    ):
                         energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', energy)
         if energy <= limit:
             if getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False):

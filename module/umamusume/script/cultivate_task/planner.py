@@ -358,7 +358,7 @@ def execute_mant_pre_action(ctx: UmamusumeContext, action: str, race_id: int = 0
     )
 
     if action == "energy_item":
-        return handle_energy_recovery(ctx)
+        return handle_energy_recovery(ctx, mode="race" if race_id else "failure")
     if action == "charm":
         return handle_charm(ctx)
     if action == "megaphone":

@@ -10,6 +10,7 @@ from module.umamusume.scenario.mant.item_targets import item_option, selected_it
 from module.umamusume.scenario.mant.policy import (
     get_date_weighted_score_percentile,
     get_stat_only_percentile,
+    is_critical_low_energy,
     has_charm,
     has_energy_recovery,
     has_whistle,
@@ -125,10 +126,14 @@ def _build_failure_recovery_targets(ctx):
     _ensure_item_fail_state(ctx)
     options = []
     selected = []
+    current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
+    critical_low = is_critical_low_energy(current_energy)
 
     charm_failed = _item_failed(ctx, 'Good-Luck Charm')
     charm_available = has_charm(ctx)
     charm_selected = (
+        critical_low
+        and
         charm_available
         and not charm_failed
         and not getattr(ctx.cultivate_detail.turn_info, 'energy_item_used_this_turn', False)
@@ -142,9 +147,10 @@ def _build_failure_recovery_targets(ctx):
             skip_reason=None if charm_selected else (
                 "failed_this_turn" if charm_failed else
                 "no_owned" if not charm_available else
+                "not_critical_low_energy" if not critical_low else
                 "energy_already_used"
             ),
-            reason="prefer_charm_before_energy" if charm_selected else "not_selected",
+            reason="critical_low_energy_prefer_charm" if charm_selected else "not_selected",
             planned_use="training_failure_recovery",
         )
     )
@@ -153,7 +159,13 @@ def _build_failure_recovery_targets(ctx):
         return options, selected, ("charm", "Good-Luck Charm")
 
     failed_names = set(getattr(ctx.cultivate_detail, 'mant_failed_use_items', set()))
-    energy_item = pick_training_recovery_item(ctx, excluded_items=failed_names)
+    energy_item_mode = "critical_low" if critical_low else "failure"
+    energy_item = pick_training_recovery_item(
+        ctx,
+        excluded_items=failed_names,
+        mode=energy_item_mode,
+        current_energy=current_energy,
+    )
     energy_selected = bool(energy_item)
     options.append(
         item_option(
@@ -165,13 +177,34 @@ def _build_failure_recovery_targets(ctx):
                 "no_recovery_items" if not has_energy_recovery(ctx) else
                 "failed_this_turn_or_not_useful"
             ),
-            reason="fallback_energy_recovery" if energy_selected else "not_selected",
+            reason=(
+                "critical_low_energy_recovery"
+                if energy_selected and critical_low else
+                "failure_threshold_recovery"
+                if energy_selected else
+                "not_selected"
+            ),
             planned_use="training_failure_recovery",
         )
     )
     if energy_selected:
         selected.append(selected_item(energy_item))
         return options, selected, ("energy_item", energy_item)
+
+    if not critical_low and charm_available and not charm_failed and not getattr(ctx.cultivate_detail.turn_info, 'energy_item_used_this_turn', False):
+        options.append(
+            item_option(
+                "Good-Luck Charm",
+                "training_failure_recovery",
+                priority=3,
+                selected=True,
+                skip_reason=None,
+                reason="fallback_charm_after_vitas",
+                planned_use="training_failure_recovery",
+            )
+        )
+        selected.append(selected_item("Good-Luck Charm"))
+        return options, selected, ("charm", "Good-Luck Charm")
 
     return options, selected, (None, None)
 
@@ -314,12 +347,14 @@ def handle_training_whistle(ctx):
     return use_item_and_update_inventory(ctx, 'Reset Whistle')
 
 
-def handle_energy_item(ctx, item_name=None):
+def handle_energy_item(ctx, item_name=None, *, mode: str = "failure"):
     _ensure_item_fail_state(ctx)
     if item_name is None:
         item_name = pick_training_recovery_item(
             ctx,
             excluded_items=getattr(ctx.cultivate_detail, 'mant_failed_use_items', set()),
+            mode=mode,
+            current_energy=getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None),
         )
     if item_name is None:
         _record_item_trace(
@@ -360,7 +395,7 @@ def handle_energy_item(ctx, item_name=None):
     return ok
 
 
-def handle_energy_recovery(ctx, item_name=None):
+def handle_energy_recovery(ctx, item_name=None, *, mode: str = "failure"):
     current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
     if current_energy is None:
         return False
@@ -368,13 +403,13 @@ def handle_energy_recovery(ctx, item_name=None):
 
     max_energy = getattr(ctx.cultivate_detail, 'mant_max_energy', 100)
     if item_name is None:
-        item_name = pick_training_recovery_item(ctx)
+        item_name = pick_training_recovery_item(ctx, mode=mode, current_energy=current_energy)
     if item_name is None:
         return False
 
     raw_energy = _inventory.ENERGY_ITEMS.get(item_name, 0)
     predicted_energy = min(max_energy, current_energy + raw_energy)
-    ok = handle_energy_item(ctx, item_name=item_name)
+    ok = handle_energy_item(ctx, item_name=item_name, mode=mode)
     if not ok:
         return False
 

@@ -5,11 +5,22 @@ from module.umamusume.scenario.mant.constants import display_to_slug
 
 ENERGY_ITEMS = _inventory.ENERGY_ITEMS
 CHARM_ITEM = _inventory.CHARM_ITEM
-TRAINING_RECOVERY_ITEM_PRIORITY = (
+TRAINING_FAILURE_VITA_PRIORITY = (
+    "Vita 20",
+    "Vita 40",
+    "Vita 65",
+)
+TRAINING_LOW_ENERGY_ITEM_PRIORITY = (
     "Royal Kale Juice",
     "Vita 20",
     "Vita 40",
     "Vita 65",
+)
+RACE_ENERGY_ITEM_PRIORITY = (
+    "Vita 20",
+    "Vita 40",
+    "Vita 65",
+    "Royal Kale Juice",
 )
 
 
@@ -179,16 +190,48 @@ def pick_best_energy_item(ctx, excluded_items=None):
     return best_item
 
 
-def pick_training_recovery_item(ctx, excluded_items=None):
+def get_low_energy_threshold() -> int:
+    try:
+        return int(getattr(_inventory, "LOW_ENERGY_THRESHOLD", 5) or 5)
+    except Exception:
+        return 5
+
+
+def is_critical_low_energy(current_energy: int | None) -> bool:
+    if current_energy is None:
+        return False
+    try:
+        return int(current_energy) <= get_low_energy_threshold()
+    except Exception:
+        return False
+
+
+def _pick_owned_energy_item(ctx, priority, excluded_items=None):
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
     excluded = set(excluded_items or [])
-    for item_name in TRAINING_RECOVERY_ITEM_PRIORITY:
+    for item_name in priority:
         if item_name in excluded:
             continue
         if int(owned_map.get(item_name, 0) or 0) > 0:
             return item_name
     return None
+
+
+def pick_training_recovery_item(ctx, excluded_items=None, *, mode: str = "failure", current_energy: int | None = None):
+    if current_energy is None:
+        current_energy = getattr(ctx.cultivate_detail.turn_info, 'cached_energy', None)
+    if mode == "critical_low":
+        return _pick_owned_energy_item(ctx, TRAINING_LOW_ENERGY_ITEM_PRIORITY, excluded_items=excluded_items)
+    if mode == "race":
+        return _pick_owned_energy_item(ctx, RACE_ENERGY_ITEM_PRIORITY, excluded_items=excluded_items)
+    if is_critical_low_energy(current_energy):
+        return _pick_owned_energy_item(ctx, TRAINING_LOW_ENERGY_ITEM_PRIORITY, excluded_items=excluded_items)
+    return _pick_owned_energy_item(
+        ctx,
+        TRAINING_FAILURE_VITA_PRIORITY + ("Royal Kale Juice",),
+        excluded_items=excluded_items,
+    )
 
 
 def has_energy_recovery(ctx):

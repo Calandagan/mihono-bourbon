@@ -179,7 +179,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 from module.umamusume.scenario.mant.training_recovery import handle_energy_recovery
                 from module.umamusume.scenario.mant.policy import has_scheduled_race_this_turn
                 if has_scheduled_race_this_turn(ctx) and getattr(ctx.cultivate_detail.turn_info, 'energy_recovery_deferred', False):
-                    handle_energy_recovery(ctx)
+                    handle_energy_recovery(ctx, mode="race")
                 ctx.cultivate_detail.turn_info.energy_recovery_deferred = False
                 ctx.cultivate_detail.turn_info.post_item_rescan_needed = False
                 ctx.cultivate_detail.turn_info.energy_item_used = False
@@ -1036,7 +1036,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                         )
                         rescan_training(ctx)
                         return
-                    if action == "energy_item" and handle_energy_recovery(ctx):
+                    if action == "energy_item" and handle_energy_recovery(ctx, item_name=item_name, mode="failure"):
                         log.info(
                             f"All available trainings exceed failure limit ({failure_limit}%) - "
                             f"used {item_name} and will re-evaluate"

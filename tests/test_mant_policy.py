@@ -130,25 +130,28 @@ class MantPolicyTests(unittest.TestCase):
         self.assertEqual(bought, {"Rich Hand Cream"})
         self.assertEqual(budget, 85)
 
-    def test_pick_training_recovery_item_prefers_kale_before_vitas(self):
+    def test_pick_training_recovery_item_prefers_kale_before_vitas_when_energy_is_critical(self):
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(
                 mant_owned_items=[
                     ("Royal Kale Juice", 2),
                     ("Vita 20", 5),
                     ("Vita 40", 1),
-                ]
+                ],
+                turn_info=types.SimpleNamespace(cached_energy=5),
             )
         )
         self.assertEqual(policy.pick_training_recovery_item(ctx), "Royal Kale Juice")
 
-    def test_pick_training_recovery_item_uses_vita20_after_kale(self):
+    def test_pick_training_recovery_item_uses_vita20_for_normal_failure_recovery(self):
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(
                 mant_owned_items=[
+                    ("Royal Kale Juice", 2),
                     ("Vita 20", 2),
                     ("Vita 40", 1),
-                ]
+                ],
+                turn_info=types.SimpleNamespace(cached_energy=20),
             )
         )
         self.assertEqual(policy.pick_training_recovery_item(ctx), "Vita 20")
@@ -159,10 +162,24 @@ class MantPolicyTests(unittest.TestCase):
                 mant_owned_items=[
                     ("Vita 40", 1),
                     ("Vita 65", 3),
-                ]
+                ],
+                turn_info=types.SimpleNamespace(cached_energy=20),
             )
         )
         self.assertEqual(policy.pick_training_recovery_item(ctx), "Vita 40")
+
+    def test_pick_training_recovery_item_for_race_uses_energy_only(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Royal Kale Juice", 1),
+                    ("Vita 20", 2),
+                    ("Good-Luck Charm", 1),
+                ],
+                turn_info=types.SimpleNamespace(cached_energy=0),
+            )
+        )
+        self.assertEqual(policy.pick_training_recovery_item(ctx, mode="race"), "Vita 20")
 
     def test_should_prefer_training_recovery_over_rest_when_low_energy_and_charm_available(self):
         ctx = types.SimpleNamespace(
@@ -184,7 +201,7 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertFalse(policy.should_prefer_training_recovery_over_rest(ctx))
 
-    def test_choose_training_failure_recovery_action_prefers_charm_before_energy(self):
+    def test_choose_training_failure_recovery_action_prefers_charm_when_energy_is_critical(self):
         training_info = types.SimpleNamespace(
             support_card_info_list=[],
             failure_rate=18,
@@ -213,6 +230,7 @@ class MantPolicyTests(unittest.TestCase):
                 mant_item_use_error_pending=False,
                 turn_info=types.SimpleNamespace(
                     date=20,
+                    cached_energy=5,
                     energy_item_used_this_turn=False,
                     cached_original_scores=[1.0, 0.1, 0.1, 0.1, 0.1],
                     training_info_list=[training_info] * 5,
@@ -226,7 +244,7 @@ class MantPolicyTests(unittest.TestCase):
         self.assertEqual(action, "charm")
         self.assertEqual(item_name, "Good-Luck Charm")
 
-    def test_choose_training_failure_recovery_action_prefers_kale_before_vitas_when_no_charm(self):
+    def test_choose_training_failure_recovery_action_prefers_kale_when_critical_and_no_charm(self):
         training_info = types.SimpleNamespace(
             support_card_info_list=[],
             failure_rate=18,
@@ -255,6 +273,7 @@ class MantPolicyTests(unittest.TestCase):
                 mant_item_use_error_pending=False,
                 turn_info=types.SimpleNamespace(
                     date=20,
+                    cached_energy=5,
                     energy_item_used_this_turn=False,
                     cached_original_scores=[1.0, 0.1, 0.1, 0.1, 0.1],
                     training_info_list=[training_info] * 5,
@@ -267,6 +286,50 @@ class MantPolicyTests(unittest.TestCase):
         action, item_name = training_recovery.choose_training_failure_recovery_action(ctx)
         self.assertEqual(action, "energy_item")
         self.assertEqual(item_name, "Royal Kale Juice")
+
+    def test_choose_training_failure_recovery_action_prefers_vita_before_charm_when_not_critical(self):
+        training_info = types.SimpleNamespace(
+            support_card_info_list=[],
+            failure_rate=18,
+            speed_incr=8,
+            stamina_incr=0,
+            power_incr=0,
+            will_incr=0,
+            intelligence_incr=0,
+            skill_point_incr=0,
+        )
+        ctx = types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(
+                        mant_config=types.SimpleNamespace(charm_failure_rate=30)
+                    )
+                )
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Good-Luck Charm", 1),
+                    ("Royal Kale Juice", 1),
+                    ("Vita 20", 3),
+                ],
+                mant_failed_use_turn=None,
+                mant_failed_use_items=set(),
+                mant_item_use_error_pending=False,
+                turn_info=types.SimpleNamespace(
+                    date=20,
+                    cached_energy=18,
+                    energy_item_used_this_turn=False,
+                    cached_original_scores=[1.0, 0.1, 0.1, 0.1, 0.1],
+                    training_info_list=[training_info] * 5,
+                    set_item_trace=lambda **kwargs: None,
+                    append_trace=lambda *args, **kwargs: None,
+                ),
+            ),
+        )
+
+        action, item_name = training_recovery.choose_training_failure_recovery_action(ctx)
+        self.assertEqual(action, "energy_item")
+        self.assertEqual(item_name, "Vita 20")
 
     def test_compute_bbq_purchase_state_rewards_non_rainbow_pressure(self):
         cfg = types.SimpleNamespace(
