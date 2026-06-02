@@ -214,7 +214,9 @@ def handle_mant_shop_scan(ctx, current_date):
         collect_shop_turns,
         collect_priority_cure_targets,
         get_deck_type_counts,
+        get_shop_item_ui_tier,
         get_shop_stock_state,
+        is_shop_item_disabled,
         should_skip_shop_item,
     )
     if not is_shop_scan_turn(current_date):
@@ -282,6 +284,8 @@ def handle_mant_shop_scan(ctx, current_date):
             AILMENT_CURE_MAP,
             AILMENT_CURE_ALL,
             SHOP_ITEM_COSTS,
+            mant_cfg=mant_cfg,
+            display_to_slug=display_to_slug,
         )
         if bought_cures:
             ctx.cultivate_detail._mant_bought_cures_this_cycle = bought_cures
@@ -295,6 +299,7 @@ def handle_mant_shop_scan(ctx, current_date):
         def should_skip(display_name):
             return should_skip_shop_item(
                 display_name,
+                mant_cfg=mant_cfg,
                 priority_set=priority_set,
                 one_time_buff_items=ONE_TIME_BUFF_ITEMS,
                 used_buffs=used_buffs,
@@ -323,7 +328,7 @@ def handle_mant_shop_scan(ctx, current_date):
             current_num, max_stock = get_shop_stock_state(name, owned_map)
             option_meta[name] = {
                 "source": "tier_policy",
-                "ui_tier": mant_cfg.item_tiers.get(slug),
+                "ui_tier": get_shop_item_ui_tier(mant_cfg, slug, default=mant_cfg.tier_count),
                 "current_stock": current_num,
             }
             if max_stock is not None:
@@ -334,7 +339,7 @@ def handle_mant_shop_scan(ctx, current_date):
             tier_has_viable_candidate = False
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
-                if t != tier or slug not in shop_slugs:
+                if int(t or 0) < 1 or t != tier or slug not in shop_slugs:
                     continue
                 tier_items.append(slug)
 
@@ -346,7 +351,9 @@ def handle_mant_shop_scan(ctx, current_date):
                     continue
                 if should_skip(display):
                     current_num, max_stock = get_shop_stock_state(display, owned_map)
-                    if current_num and max_stock is not None and current_num >= max_stock:
+                    if is_shop_item_disabled(mant_cfg, display_name=display, display_to_slug=display_to_slug):
+                        skip_overrides[display] = "disabled_by_ui"
+                    elif current_num and max_stock is not None and current_num >= max_stock:
                         skip_overrides[display] = "stock_cap_reached"
                     elif display in priority_set:
                         skip_overrides[display] = "already_selected_by_urgent_cure_policy"
@@ -482,6 +489,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
         build_emergency_expiring_targets,
         collect_emergency_cure_targets,
         get_deck_type_counts,
+        is_shop_item_disabled,
     )
     import time as _t
 
@@ -535,6 +543,8 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
             SHOP_ITEM_COSTS,
             existing_targets=emergency_targets,
             bought_this_cycle=bought_this_cycle,
+            mant_cfg=mant_cfg,
+            display_to_slug=display_to_slug,
         )
         ctx.cultivate_detail._mant_bought_cures_this_cycle = bought_this_cycle
 
@@ -551,7 +561,10 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
     ctx.cultivate_detail.mant_shop_items = items_list
 
     fresh_available = {name for name, _, _, _, buyable in items_list if buyable}
-    final_targets = [tgt for tgt in emergency_targets if tgt in fresh_available]
+    final_targets = [
+        tgt for tgt in emergency_targets
+        if tgt in fresh_available and not is_shop_item_disabled(mant_cfg, display_name=tgt, display_to_slug=display_to_slug)
+    ]
     cure_names = set(AILMENT_CURE_MAP.values()) | {AILMENT_CURE_ALL}
     selected_meta = {
         tgt: {
@@ -641,6 +654,8 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
         SHOP_ITEM_COSTS, scan_mant_shop, buy_shop_items, BACK_BTN_X, BACK_BTN_Y
     )
     from module.umamusume.scenario.mant.race_prep import get_cleat_state
+    from module.umamusume.scenario.mant.shop import display_to_slug
+    from module.umamusume.scenario.mant.shop_policy import is_shop_item_disabled
     import time as _t
 
     if getattr(ctx.cultivate_detail.turn_info, 'mant_cleat_shop_done', False):
@@ -656,6 +671,7 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
     if not shop_items:
         return False
     shop_available = {name for name, _, _, _, buyable in shop_items if buyable}
+    mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
 
     race_ctx = _get_pending_cleat_race_context(ctx, current_date)
     if not race_ctx:
@@ -674,6 +690,8 @@ def handle_mant_cleat_shop_buy(ctx, current_date):
     )
     for candidate in candidate_order:
         if candidate not in shop_available:
+            continue
+        if is_shop_item_disabled(mant_cfg, display_name=candidate, display_to_slug=display_to_slug):
             continue
         cost = SHOP_ITEM_COSTS.get(candidate, 9999)
         if cost > budget:

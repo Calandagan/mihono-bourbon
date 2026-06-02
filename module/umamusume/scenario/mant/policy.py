@@ -6,10 +6,10 @@ from module.umamusume.scenario.mant.constants import display_to_slug
 ENERGY_ITEMS = _inventory.ENERGY_ITEMS
 CHARM_ITEM = _inventory.CHARM_ITEM
 TRAINING_RECOVERY_ITEM_PRIORITY = (
+    "Royal Kale Juice",
     "Vita 20",
     "Vita 40",
     "Vita 65",
-    "Royal Kale Juice",
 )
 
 

@@ -23,6 +23,27 @@ CONTEXTUAL_ONLY_SHOP_ITEMS = {
 }
 
 
+def get_shop_item_ui_tier(mant_cfg, slug, default=0) -> int:
+    tiers = getattr(mant_cfg, "item_tiers", {}) if mant_cfg else {}
+    try:
+        return int(tiers.get(slug, default))
+    except Exception:
+        return int(default)
+
+
+def is_shop_item_disabled(mant_cfg, *, slug=None, display_name=None, display_to_slug=None) -> bool:
+    if mant_cfg is None:
+        return False
+    if slug is None and display_name is not None and display_to_slug is not None:
+        try:
+            slug = display_to_slug(display_name)
+        except Exception:
+            slug = None
+    if not slug:
+        return False
+    return get_shop_item_ui_tier(mant_cfg, slug, default=0) == 0
+
+
 def get_deck_type_counts(pal_card_store) -> dict[int, int]:
     deck_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     try:
@@ -156,7 +177,18 @@ def collect_shop_turns(items_list) -> dict[str, int]:
     return turns_map
 
 
-def collect_priority_cure_targets(active_ailments, owned_map, shop_available, budget, ailment_cure_map, ailment_cure_all, shop_item_costs):
+def collect_priority_cure_targets(
+    active_ailments,
+    owned_map,
+    shop_available,
+    budget,
+    ailment_cure_map,
+    ailment_cure_all,
+    shop_item_costs,
+    *,
+    mant_cfg=None,
+    display_to_slug=None,
+):
     owned_map = owned_map or {}
     shop_available = set(shop_available or set())
     bought_cures = set()
@@ -172,13 +204,20 @@ def collect_priority_cure_targets(active_ailments, owned_map, shop_available, bu
         for cure in needed_cures:
             if cure in bought_cures:
                 continue
+            if is_shop_item_disabled(mant_cfg, display_name=cure, display_to_slug=display_to_slug):
+                continue
             if int(owned_map.get(cure, 0) or 0) <= 0 and cure in shop_available:
                 cost = int(shop_item_costs.get(cure, 9999) or 9999)
                 if cost <= budget:
                     priority_targets.append(cure)
                     bought_cures.add(cure)
                     budget -= cost
-        if not bought_cures.intersection(needed_cures) and ailment_cure_all in shop_available and int(owned_map.get(ailment_cure_all, 0) or 0) <= 0:
+        if (
+            not bought_cures.intersection(needed_cures)
+            and ailment_cure_all in shop_available
+            and not is_shop_item_disabled(mant_cfg, display_name=ailment_cure_all, display_to_slug=display_to_slug)
+            and int(owned_map.get(ailment_cure_all, 0) or 0) <= 0
+        ):
             cost = int(shop_item_costs.get(ailment_cure_all, 9999) or 9999)
             if cost <= budget:
                 priority_targets.append(ailment_cure_all)
@@ -198,6 +237,8 @@ def collect_emergency_cure_targets(
     *,
     existing_targets=None,
     bought_this_cycle=None,
+    mant_cfg=None,
+    display_to_slug=None,
 ):
     owned_map = owned_map or {}
     shop_available = set(shop_available or set())
@@ -222,6 +263,8 @@ def collect_emergency_cure_targets(
             ):
                 covered = True
                 break
+            if is_shop_item_disabled(mant_cfg, display_name=cure_name, display_to_slug=display_to_slug):
+                break
             if cure_name in shop_available:
                 cost = int(shop_item_costs.get(cure_name, 9999) or 9999)
                 if cost <= budget:
@@ -237,6 +280,7 @@ def collect_emergency_cure_targets(
     if (
         any_uncovered
         and ailment_cure_all in shop_available
+        and not is_shop_item_disabled(mant_cfg, display_name=ailment_cure_all, display_to_slug=display_to_slug)
         and ailment_cure_all not in planned_set
         and ailment_cure_all not in bought
         and int(owned_map.get(ailment_cure_all, 0) or 0) <= 0
@@ -301,6 +345,8 @@ def build_emergency_expiring_targets(
         for slug, tier_value in getattr(mant_cfg, "item_tiers", {}).items():
             if tier_value != tier or slug not in shop_slugs:
                 continue
+            if int(tier_value or 0) < 1:
+                continue
 
             display = slug_to_display.get(slug)
             if not display or display not in expiring:
@@ -355,6 +401,7 @@ def build_emergency_expiring_targets(
 def should_skip_shop_item(
     display_name,
     *,
+    mant_cfg,
     priority_set,
     one_time_buff_items,
     used_buffs,
@@ -368,6 +415,8 @@ def should_skip_shop_item(
     deck_counts,
 ):
     if display_name in priority_set:
+        return True
+    if is_shop_item_disabled(mant_cfg, display_name=display_name, display_to_slug=display_to_slug):
         return True
     if is_contextual_shop_override_item(display_name):
         return True
@@ -416,5 +465,7 @@ __all__ = [
     "compute_charm_purchase_state",
     "compute_cupcake_purchase_state",
     "collect_priority_cure_targets",
+    "get_shop_item_ui_tier",
+    "is_shop_item_disabled",
     "should_skip_shop_item",
 ]

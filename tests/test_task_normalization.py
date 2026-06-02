@@ -17,10 +17,30 @@ if "colorlog" not in sys.modules:
     sys.modules["colorlog"] = types.SimpleNamespace(ColoredFormatter=_ColoredFormatter)
 
 from bot.base.task import TaskExecuteMode
+from module.umamusume.scenario.configs import MantConfig
 from module.umamusume.task import build_task
 
 
 class TaskNormalizationTests(unittest.TestCase):
+    def test_mant_config_preserves_disabled_bucket_and_clamps_enabled_tiers(self):
+        cfg = MantConfig(
+            {
+                "tier_count": "4",
+                "item_tiers": {
+                    "good-luck_charm": "0",
+                    "vita_20": "2",
+                    "vita_40": "9",
+                    "royal_kale_juice": "-5",
+                },
+            }
+        )
+
+        self.assertEqual(cfg.tier_count, 4)
+        self.assertEqual(cfg.item_tiers["good-luck_charm"], 0)
+        self.assertEqual(cfg.item_tiers["vita_20"], 2)
+        self.assertEqual(cfg.item_tiers["vita_40"], 4)
+        self.assertEqual(cfg.item_tiers["royal_kale_juice"], 4)
+
     def test_build_task_normalizes_numeric_and_matrix_fields(self):
         task = build_task(
             TaskExecuteMode.TASK_EXECUTE_MODE_ONE_TIME,

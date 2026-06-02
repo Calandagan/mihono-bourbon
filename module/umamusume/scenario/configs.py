@@ -37,8 +37,25 @@ class MantConfig:
     skip_race_percentile: int
 
     def __init__(self, config: dict):
-        self.item_tiers = config.get("item_tiers", {})
-        self.tier_count = config.get("tier_count", 8)
+        self.tier_count = int(config.get("tier_count", 8) or 8)
+        if self.tier_count < 1:
+            self.tier_count = 1
+        raw_item_tiers = config.get("item_tiers", {}) or {}
+        self.item_tiers = {}
+        if isinstance(raw_item_tiers, dict):
+            for slug, raw_tier in raw_item_tiers.items():
+                try:
+                    tier = int(raw_tier)
+                except Exception:
+                    continue
+                if tier == 0:
+                    self.item_tiers[slug] = 0
+                elif tier < 1:
+                    self.item_tiers[slug] = self.tier_count
+                elif tier > self.tier_count:
+                    self.item_tiers[slug] = self.tier_count
+                else:
+                    self.item_tiers[slug] = tier
         self.whistle_threshold = config.get("whistle_threshold", 20)
         self.whistle_focus_summer = config.get("whistle_focus_summer", True)
         self.focus_summer_classic = config.get("focus_summer_classic", 20)
@@ -53,7 +70,7 @@ class MantConfig:
         self.charm_threshold = config.get("charm_threshold", 40)
         self.charm_failure_rate = config.get("charm_failure_rate", 21)
         raw_thresholds = config.get("tier_thresholds", {})
-        self.tier_thresholds = {int(k): v for k, v in raw_thresholds.items()}
+        self.tier_thresholds = {int(k): v for k, v in raw_thresholds.items() if int(k) >= 1}
         self.skip_race_percentile = config.get("skip_race_percentile", 0)
 
 

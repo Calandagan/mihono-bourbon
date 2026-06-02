@@ -120,6 +120,27 @@
                             <div v-if="mantGetItemsInTier(t).length === 0" class="mant-tier-empty">empty</div>
                           </div>
                         </div>
+                        <div
+                          class="mant-tier-row"
+                          :class="{ 'mant-tier-dragover': mantDragOverTier === mantDisabledTier }"
+                          @dragover.prevent="mantDragOverTier = mantDisabledTier"
+                          @dragleave="mantDragOverTier = null"
+                          @drop.prevent="mantDropOnTier(mantDisabledTier, $event)">
+                          <div class="mant-tier-label mant-tier-label--disabled">
+                            <div>Disabled</div>
+                            <div class="mant-tier-subtitle">Never Buy</div>
+                          </div>
+                          <div class="mant-tier-items">
+                            <div v-for="id in mantGetItemsInTier(mantDisabledTier)" :key="id"
+                                 class="mant-item-cell"
+                                 draggable="true"
+                                 @dragstart="mantDragStart(id, $event)"
+                                 @dragend="mantDragEnd">
+                              <img :src="getMantItemImg(id)" :alt="id" class="mant-item-img" />
+                            </div>
+                            <div v-if="mantGetItemsInTier(mantDisabledTier).length === 0" class="mant-tier-empty">empty</div>
+                          </div>
+                        </div>
                       </div>
                       <div class="mant-thresholds mt-3">
                         <label>Use when percentile is (whistle above rest below)</label>
@@ -2447,6 +2468,9 @@ export default {
     window.removeEventListener('drop', this.onGlobalDrop, false);
   },
   computed: {
+    mantDisabledTier() {
+      return 0;
+    },
     mantCanRemoveTier() {
       return this.mantTierCount > 1;
     },
@@ -3469,28 +3493,23 @@ export default {
     },
     mantNormalizeTiers() {
       const ids = this.mantGetAllItemIds();
-      let needsMigration = false;
+      this.mantTierCount = Math.max(1, Math.trunc(Number(this.mantTierCount) || 8));
       for (const id of ids) {
-        if (this.mantItemTiers[id] !== undefined && this.mantItemTiers[id] < 1) {
-          needsMigration = true;
-          break;
+        const rawValue = this.mantItemTiers[id];
+        const normalized = Number.isFinite(Number(rawValue)) ? Math.trunc(Number(rawValue)) : null;
+        if (normalized === 0) {
+          this.mantItemTiers[id] = 0;
+          continue;
         }
-      }
-      if (needsMigration) {
-        if (this.mantTierCount < 2) this.mantTierCount = 2;
-        for (const id of ids) {
-          if (this.mantItemTiers[id] !== undefined && this.mantItemTiers[id] < 1) {
-            this.mantItemTiers[id] = this.mantTierCount;
-          }
-        }
-      }
-      for (const id of ids) {
-        if (this.mantItemTiers[id] === undefined || this.mantItemTiers[id] < 1) {
+        if (normalized === null || normalized < 1) {
           this.mantItemTiers[id] = this.mantTierCount;
+          continue;
         }
-        if (this.mantItemTiers[id] > this.mantTierCount) {
+        if (normalized > this.mantTierCount) {
           this.mantItemTiers[id] = this.mantTierCount;
+          continue;
         }
+        this.mantItemTiers[id] = normalized;
       }
     },
     mantAddTier() {
@@ -4095,7 +4114,7 @@ export default {
         this.aoharuTeamNameSelection = 4;
       }
       if ('mant_config' in this.presetsUse && this.presetsUse.mant_config.item_tiers) {
-        this.mantItemTiers = this.presetsUse.mant_config.item_tiers;
+        this.mantItemTiers = { ...this.presetsUse.mant_config.item_tiers };
         this.mantTierCount = this.presetsUse.mant_config.tier_count || 8;
         this.mantNormalizeTiers();
         this.mantWhistleThreshold = this.presetsUse.mant_config.whistle_threshold ?? 20;
@@ -4335,7 +4354,7 @@ export default {
         this.aoharuTeamNameSelection = data.aoharu_config.aoharuTeamNameSelection || 4;
       }
       if (data.mant_config && data.mant_config.item_tiers) {
-        this.mantItemTiers = data.mant_config.item_tiers;
+        this.mantItemTiers = { ...data.mant_config.item_tiers };
         this.mantTierCount = data.mant_config.tier_count || 8;
         this.mantNormalizeTiers();
         this.mantWhistleThreshold = data.mant_config.whistle_threshold ?? 20;
@@ -6806,6 +6825,18 @@ export default {
   border-right: 2px solid rgba(59,130,246,.3);
   flex-direction: column;
   gap: 4px;
+}
+.mant-tier-label--disabled {
+  background: rgba(239,68,68,.14);
+  color: #fca5a5;
+  border-right: 2px solid rgba(239,68,68,.28);
+  flex-direction: column;
+  gap: 2px;
+}
+.mant-tier-subtitle {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(252,165,165,.82);
 }
 .mant-coin-label {
   font-size: 11px;

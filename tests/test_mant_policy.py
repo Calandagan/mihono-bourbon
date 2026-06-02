@@ -123,12 +123,14 @@ class MantPolicyTests(unittest.TestCase):
             {"Headache": "Rich Hand Cream"},
             "Miracle Cure",
             {"Rich Hand Cream": 15, "Miracle Cure": 40},
+            mant_cfg=None,
+            display_to_slug=lambda name: name.lower().replace(" ", "_"),
         )
         self.assertEqual(targets, ["Rich Hand Cream"])
         self.assertEqual(bought, {"Rich Hand Cream"})
         self.assertEqual(budget, 85)
 
-    def test_pick_training_recovery_item_prefers_vitas_before_juice(self):
+    def test_pick_training_recovery_item_prefers_kale_before_vitas(self):
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(
                 mant_owned_items=[
@@ -138,17 +140,29 @@ class MantPolicyTests(unittest.TestCase):
                 ]
             )
         )
-        self.assertEqual(policy.pick_training_recovery_item(ctx), "Vita 20")
+        self.assertEqual(policy.pick_training_recovery_item(ctx), "Royal Kale Juice")
 
-    def test_pick_training_recovery_item_falls_back_to_juice_last(self):
+    def test_pick_training_recovery_item_uses_vita20_after_kale(self):
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(
                 mant_owned_items=[
-                    ("Royal Kale Juice", 2),
+                    ("Vita 20", 2),
+                    ("Vita 40", 1),
                 ]
             )
         )
-        self.assertEqual(policy.pick_training_recovery_item(ctx), "Royal Kale Juice")
+        self.assertEqual(policy.pick_training_recovery_item(ctx), "Vita 20")
+
+    def test_pick_training_recovery_item_falls_back_to_vita40_then_vita65(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Vita 40", 1),
+                    ("Vita 65", 3),
+                ]
+            )
+        )
+        self.assertEqual(policy.pick_training_recovery_item(ctx), "Vita 40")
 
     def test_should_prefer_training_recovery_over_rest_when_low_energy_and_charm_available(self):
         ctx = types.SimpleNamespace(
@@ -212,6 +226,48 @@ class MantPolicyTests(unittest.TestCase):
         self.assertEqual(action, "charm")
         self.assertEqual(item_name, "Good-Luck Charm")
 
+    def test_choose_training_failure_recovery_action_prefers_kale_before_vitas_when_no_charm(self):
+        training_info = types.SimpleNamespace(
+            support_card_info_list=[],
+            failure_rate=18,
+            speed_incr=8,
+            stamina_incr=0,
+            power_incr=0,
+            will_incr=0,
+            intelligence_incr=0,
+            skill_point_incr=0,
+        )
+        ctx = types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(
+                        mant_config=types.SimpleNamespace(charm_failure_rate=30)
+                    )
+                )
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[
+                    ("Royal Kale Juice", 1),
+                    ("Vita 20", 5),
+                ],
+                mant_failed_use_turn=None,
+                mant_failed_use_items=set(),
+                mant_item_use_error_pending=False,
+                turn_info=types.SimpleNamespace(
+                    date=20,
+                    energy_item_used_this_turn=False,
+                    cached_original_scores=[1.0, 0.1, 0.1, 0.1, 0.1],
+                    training_info_list=[training_info] * 5,
+                    set_item_trace=lambda **kwargs: None,
+                    append_trace=lambda *args, **kwargs: None,
+                ),
+            ),
+        )
+
+        action, item_name = training_recovery.choose_training_failure_recovery_action(ctx)
+        self.assertEqual(action, "energy_item")
+        self.assertEqual(item_name, "Royal Kale Juice")
+
     def test_compute_bbq_purchase_state_rewards_non_rainbow_pressure(self):
         cfg = types.SimpleNamespace(
             item_tiers={"grilled_carrots": 3},
@@ -235,6 +291,8 @@ class MantPolicyTests(unittest.TestCase):
             {"Rich Hand Cream": 15, "Miracle Cure": 40, "Unknown Cure": 30},
             existing_targets=[],
             bought_this_cycle=set(),
+            mant_cfg=None,
+            display_to_slug=lambda name: name.lower().replace(" ", "_"),
         )
         self.assertEqual(targets, ["Rich Hand Cream", "Miracle Cure"])
         self.assertEqual(bought, {"Rich Hand Cream", "Miracle Cure"})
@@ -243,6 +301,7 @@ class MantPolicyTests(unittest.TestCase):
     def test_should_skip_shop_item_enforces_stock_caps(self):
         skipped = shop_policy.should_skip_shop_item(
             "Motivating Megaphone",
+            mant_cfg=None,
             priority_set=set(),
             one_time_buff_items=set(),
             used_buffs=set(),
@@ -260,6 +319,7 @@ class MantPolicyTests(unittest.TestCase):
     def test_should_skip_shop_item_treats_cleats_as_contextual_only(self):
         skipped = shop_policy.should_skip_shop_item(
             "Master Cleat Hammer",
+            mant_cfg=None,
             priority_set=set(),
             one_time_buff_items=set(),
             used_buffs=set(),
@@ -277,6 +337,7 @@ class MantPolicyTests(unittest.TestCase):
     def test_should_skip_shop_item_does_not_reject_training_items_when_deck_info_is_unknown(self):
         skipped = shop_policy.should_skip_shop_item(
             "Speed Ankle Weights",
+            mant_cfg=None,
             priority_set=set(),
             one_time_buff_items=set(),
             used_buffs=set(),
@@ -294,6 +355,7 @@ class MantPolicyTests(unittest.TestCase):
     def test_specific_cure_is_not_blocked_just_because_miracle_exists(self):
         skipped = shop_policy.should_skip_shop_item(
             "Rich Hand Cream",
+            mant_cfg=None,
             priority_set=set(),
             one_time_buff_items=set(),
             used_buffs=set(),
@@ -323,6 +385,108 @@ class MantPolicyTests(unittest.TestCase):
             ],
             mant_cfg=cfg,
             owned_map={"Motivating Megaphone": 3},
+            deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
+            used_buffs=set(),
+            one_time_buff_items=set(),
+            ignore_grilled_carrots=False,
+            shop_item_costs={"Motivating Megaphone": 55, "Grilled Carrots": 40},
+            slug_to_display={"motivating_megaphone": "Motivating Megaphone", "grilled_carrots": "Grilled Carrots"},
+            display_to_slug=lambda name: {
+                "Motivating Megaphone": "motivating_megaphone",
+                "Grilled Carrots": "grilled_carrots",
+            }[name],
+            detected_portraits_log={"a": {"is_npc": False, "favor": 1}},
+            ailment_cure_map={},
+            ailment_cure_all="Miracle Cure",
+        )
+        self.assertEqual(targets, ["Grilled Carrots"])
+
+    def test_collect_emergency_cure_targets_skips_disabled_cure(self):
+        cfg = types.SimpleNamespace(item_tiers={"rich_hand_cream": 0, "miracle_cure": 1})
+        targets, bought, budget = shop_policy.collect_emergency_cure_targets(
+            ["Headache"],
+            {},
+            {"Rich Hand Cream", "Miracle Cure"},
+            100,
+            {"Headache": "Rich Hand Cream"},
+            "Miracle Cure",
+            {"Rich Hand Cream": 15, "Miracle Cure": 40},
+            existing_targets=[],
+            bought_this_cycle=set(),
+            mant_cfg=cfg,
+            display_to_slug=lambda name: {
+                "Rich Hand Cream": "rich_hand_cream",
+                "Miracle Cure": "miracle_cure",
+            }[name],
+        )
+        self.assertEqual(targets, ["Miracle Cure"])
+        self.assertEqual(bought, {"Miracle Cure"})
+        self.assertEqual(budget, 60)
+
+    def test_collect_priority_cure_targets_respects_disabled_items(self):
+        cfg = types.SimpleNamespace(item_tiers={"rich_hand_cream": 0, "miracle_cure": 1})
+        targets, bought, budget = shop_policy.collect_priority_cure_targets(
+            ["Headache"],
+            {},
+            {"Rich Hand Cream", "Miracle Cure"},
+            100,
+            {"Headache": "Rich Hand Cream"},
+            "Miracle Cure",
+            {"Rich Hand Cream": 15, "Miracle Cure": 40},
+            mant_cfg=cfg,
+            display_to_slug=lambda name: {
+                "Rich Hand Cream": "rich_hand_cream",
+                "Miracle Cure": "miracle_cure",
+            }[name],
+        )
+        self.assertEqual(targets, ["Miracle Cure"])
+        self.assertEqual(bought, {"Miracle Cure"})
+        self.assertEqual(budget, 60)
+
+    def test_should_skip_shop_item_respects_disabled_ui_bucket(self):
+        cfg = types.SimpleNamespace(item_tiers={"grilled_carrots": 0}, tier_count=8)
+        skipped = shop_policy.should_skip_shop_item(
+            "Grilled Carrots",
+            mant_cfg=cfg,
+            priority_set=set(),
+            one_time_buff_items=set(),
+            used_buffs=set(),
+            ignore_cat=False,
+            ignore_carrots=False,
+            display_to_slug=lambda name: {"Grilled Carrots": "grilled_carrots"}[name],
+            all_cures={"Rich Hand Cream"},
+            has_miracle_cure=False,
+            owned_map={},
+            ailment_cure_all="Miracle Cure",
+            deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
+        )
+        self.assertTrue(skipped)
+
+    def test_is_shop_item_disabled_detects_disabled_cleat(self):
+        cfg = types.SimpleNamespace(item_tiers={"master_cleat_hammer": 0}, tier_count=8)
+        self.assertTrue(
+            shop_policy.is_shop_item_disabled(
+                cfg,
+                display_name="Master Cleat Hammer",
+                display_to_slug=lambda name: {"Master Cleat Hammer": "master_cleat_hammer"}[name],
+            )
+        )
+
+    def test_build_emergency_expiring_targets_skips_disabled_items(self):
+        cfg = types.SimpleNamespace(
+            tier_count=4,
+            item_tiers={"motivating_megaphone": 0, "grilled_carrots": 2},
+            tier_thresholds={2: 0},
+        )
+        targets, _budget = shop_policy.build_emergency_expiring_targets(
+            current_date=40,
+            budget=200,
+            shop_items=[
+                ("Motivating Megaphone", 1.0, 10, 1, True),
+                ("Grilled Carrots", 1.0, 20, 1, True),
+            ],
+            mant_cfg=cfg,
+            owned_map={},
             deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
             used_buffs=set(),
             one_time_buff_items=set(),
