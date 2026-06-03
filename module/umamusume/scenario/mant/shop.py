@@ -74,7 +74,6 @@ def is_track(r, g, b):
 
 def find_thumb(img_rgb):
     top = bot = None
-    # Search in a small range around SB_X to be more robust
     for x in range(SB_X - 2, SB_X + 3):
         for y in range(TRACK_TOP, TRACK_BOT + 1):
             r, g, b = int(img_rgb[y, x, 0]), int(img_rgb[y, x, 1]), int(img_rgb[y, x, 2])
@@ -155,7 +154,6 @@ def scroll_to_top(ctx):
         thumb = find_thumb(img_rgb)
         if thumb is None:
             continue
-        # Drag thumb to the very top track limit
         sb_drag(ctx, (thumb[0] + thumb[1]) // 2, TRACK_TOP)
     
     ctx.ctrl.click_by_point(ESCAPE)
@@ -537,7 +535,6 @@ def scan_mant_shop(ctx):
 
     first_item_gy = items_list[0][2] if items_list else 0
 
-    # Leave the shop in a deterministic state for the buy phase.
     scroll_to_top(ctx)
     time.sleep(0.15)
 
@@ -717,8 +714,7 @@ def scan_exchange_complete(ctx):
             if prev_cursor >= 0 and abs(cursor - prev_cursor) < 5:
                 stall_count += 1
                 if stall_count >= 3:
-                    break
-                target = INV_TRACK_BOT
+                    target = INV_TRACK_BOT
             else:
                 stall_count = 0
             prev_cursor = cursor
@@ -746,6 +742,8 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
     if not target_names:
         return False, {"result": "skip", "reason": "no_targets"}
 
+    log.info(f"[BUY] target_names={target_names}")
+
     remaining = Counter(target_names)
 
     original_targets = list(target_names)
@@ -766,7 +764,9 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         results, _ = classify_items_in_frame(frame)
         name_candidates = defaultdict(list)
         for item_name, _, abs_y, turns, buyable in results:
-            if not is_unbuyable(frame, abs_y) and remaining.get(item_name, 0) > 0:
+            if item_name not in remaining:
+                continue
+            if not is_unbuyable(frame, abs_y):
                 name_candidates[item_name].append((turns, abs_y))
         for lst in name_candidates.values():
             lst.sort()
@@ -850,20 +850,7 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
     time.sleep(1)
     unresolved = [name for name, count in remaining.items() for _ in range(max(0, count))]
     if not exchange_ready:
-        failed_snapshot.update(selected_names or unresolved)
-        ctx.cultivate_detail.mant_failed_shop_names_snapshot = failed_snapshot
-        result = {
-            "result": "failed",
-            "reason": "exchange_not_confirmed",
-            "original_targets": original_targets,
-            "selected": list(selected_names),
-            "unresolved": unresolved,
-            "failed_snapshot": sorted(failed_snapshot),
-        }
-        try:
-            ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in selected_names], result=result)
-        except Exception:
-            pass
+        log.warning(f"[BUY] Failed — selected={selected_names}, remaining={dict(remaining)}")
         return False, result
 
     ctx.cultivate_detail.mant_failed_shop_names_snapshot = set()
@@ -878,4 +865,5 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in selected_names], result=result)
     except Exception:
         pass
+    log.info(f"[BUY] Done — selected={selected_names}, remaining={dict(remaining)}")
     return True, result

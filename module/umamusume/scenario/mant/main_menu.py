@@ -286,6 +286,7 @@ def handle_mant_shop_scan(ctx, current_date):
             mant_cfg=mant_cfg,
             display_to_slug=display_to_slug,
         )
+        log.info(f"[SHOP] priority_targets (cures)={priority_targets}, budget={budget}")
         if bought_cures:
             ctx.cultivate_detail._mant_bought_cures_this_cycle = bought_cures
 
@@ -383,6 +384,8 @@ def handle_mant_shop_scan(ctx, current_date):
                     tier_targets.append(display)
                     target_sources.setdefault(display, "tier_policy")
                     target_ui_tiers.setdefault(display, tier)
+
+        log.info(f"[SHOP] tier_targets built={tier_targets}, budget_remaining={budget}")
 
         targets = priority_targets + tier_targets
         log.info(f"[SHOP] targets to buy={targets}")
