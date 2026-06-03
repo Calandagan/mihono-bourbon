@@ -533,14 +533,11 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
     if not emergency_targets:
         return False
 
-    scan_result = scan_mant_shop(ctx)
-    if scan_result is None:
-        ctx.ctrl.trigger_decision_reset = True
-        return True
-
     ctx.cultivate_detail.turn_info.mant_emergency_shop_done = True
-    items_list, ratio, drag_ratio, first_item_gy = scan_result
-    ctx.cultivate_detail.mant_shop_items = items_list
+    items_list = getattr(ctx.cultivate_detail, 'mant_shop_items', [])
+    ratio = getattr(ctx.cultivate_detail, 'mant_shop_ratio', 14.0)
+    drag_ratio = getattr(ctx.cultivate_detail, 'mant_shop_drag_ratio', 1.1)
+    first_item_gy = getattr(ctx.cultivate_detail, 'mant_shop_first_gy', 0)
 
     fresh_available = {name for name, _, _, _, buyable in items_list if buyable}
     final_targets = [

@@ -766,7 +766,7 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         results, _ = classify_items_in_frame(frame)
         name_candidates = defaultdict(list)
         for item_name, _, abs_y, turns, buyable in results:
-            if buyable and not is_unbuyable(frame, abs_y) and remaining.get(item_name, 0) > 0:
+            if not is_unbuyable(frame, abs_y) and remaining.get(item_name, 0) > 0:
                 name_candidates[item_name].append((turns, abs_y))
         for lst in name_candidates.values():
             lst.sort()
@@ -797,9 +797,9 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         if thumb is None:
             break
         cursor = (thumb[0] + thumb[1]) // 2
-        th = thumb[1] - thumb[0]
-        next_y = min(TRACK_BOT, cursor + max(th // 2, 10))
-        if next_y <= cursor:
+        step = max(thumb[1] - thumb[0], 80)
+        next_y = min(TRACK_BOT, cursor + step)
+        if next_y <= cursor + 3:
             break
         sb_drag(ctx, cursor, next_y)
 
