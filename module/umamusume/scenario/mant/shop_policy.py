@@ -350,8 +350,6 @@ def build_emergency_expiring_targets(
                 continue
             if display in cure_names or display == ailment_cure_all:
                 continue
-            if is_contextual_shop_override_item(display):
-                continue
             if display in one_time_buff_items and display in used_buffs:
                 continue
             if ignore_grilled_carrots and slug == "grilled_carrots":
@@ -406,8 +404,6 @@ def should_skip_shop_item(
     if display_name in priority_set:
         return True
     if is_shop_item_disabled(mant_cfg, display_name=display_name, display_to_slug=display_to_slug):
-        return True
-    if is_contextual_shop_override_item(display_name):
         return True
     if display_name in one_time_buff_items and display_name in used_buffs:
         return True
