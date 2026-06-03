@@ -5,7 +5,7 @@ from module.umamusume.scenario.mant.actions import use_item_and_update_inventory
 from module.umamusume.scenario.mant.policy import get_chain_position
 
 MANT_CLIMAX_RACE_TURNS = _inventory.MANT_CLIMAX_RACE_TURNS
-CLIMAX_CLEAT_RESERVE = 2
+CLIMAX_CLEAT_RESERVE = 1
 
 
 def remaining_climax_races(date):
@@ -96,11 +96,14 @@ def handle_glow_sticks_before_race(ctx):
 
 def handle_cleat_before_race(ctx, race_id, is_climax_override=False):
     if getattr(ctx.cultivate_detail, 'mant_cleat_used', False):
+        _inventory.log.info(f"[CLEAT] Skipping — already used this turn")
         return False
 
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
     date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    state = get_cleat_state(owned_map)
+    _inventory.log.info(f"[CLEAT] Checking — race_id={race_id} date={date} is_climax={is_climax_override} owned={state}")
     selected = choose_cleat_for_race(
         date,
         race_id,
@@ -108,10 +111,15 @@ def handle_cleat_before_race(ctx, race_id, is_climax_override=False):
         is_climax_override=is_climax_override,
     )
     if not selected:
+        _inventory.log.info(f"[CLEAT] No cleat selected — total={state['total']} spare_artisan={state['spare_artisan']} spare_master={state['spare_master']}")
         return False
+    _inventory.log.info(f"[CLEAT] Using {selected}")
     result = use_item_and_update_inventory(ctx, selected)
     if result:
         ctx.cultivate_detail.mant_cleat_used = True
+        _inventory.log.info(f"[CLEAT] Successfully used {selected}")
+    else:
+        _inventory.log.warning(f"[CLEAT] Failed to use {selected}")
     return result
 
 
