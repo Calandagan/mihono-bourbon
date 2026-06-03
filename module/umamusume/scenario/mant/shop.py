@@ -743,34 +743,12 @@ def scan_exchange_complete(ctx):
 
 
 def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_gy):
-    snapshot_key = tuple((name, int(turns or 0), int(bool(buyable))) for name, _, _, turns, buyable in items_list)
-    if getattr(ctx.cultivate_detail, 'mant_shop_snapshot_key', None) != snapshot_key:
-        ctx.cultivate_detail.mant_shop_snapshot_key = snapshot_key
-        ctx.cultivate_detail.mant_failed_shop_names_snapshot = set()
-    failed_snapshot = set(getattr(ctx.cultivate_detail, 'mant_failed_shop_names_snapshot', set()))
+    if not target_names:
+        return False, {"result": "skip", "reason": "no_targets"}
+
+    remaining = Counter(target_names)
 
     original_targets = list(target_names)
-    remaining = Counter(name for name in target_names if name not in failed_snapshot)
-    if not remaining:
-        result = {
-            "result": "skip",
-            "reason": "no_targets_after_snapshot_failures",
-            "original_targets": original_targets,
-            "failed_snapshot": sorted(failed_snapshot),
-            "selected": [],
-            "unresolved": [],
-        }
-        try:
-            ctx.cultivate_detail.turn_info.set_shop_trace(
-                selected=[],
-                result=result,
-            )
-        except Exception:
-            pass
-        ctx.ctrl.click(BACK_BTN_X, BACK_BTN_Y)
-        time.sleep(1)
-        return False, result
-
     selected = 0
     selected_names = []
 
@@ -788,10 +766,6 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         results, _ = classify_items_in_frame(frame)
         name_candidates = defaultdict(list)
         for item_name, _, abs_y, turns, buyable in results:
-            # buyable: checkmark template present (item available, not purchased/selected)
-            # not is_unbuyable: checkbox area is bright (not already selected or sold out)
-            # CHECKBOX_FILL_THRESHOLD=232 intentionally catches already-selected items
-            # (their checked checkbox drops below 232) preventing double-clicks.
             if buyable and not is_unbuyable(frame, abs_y) and remaining.get(item_name, 0) > 0:
                 name_candidates[item_name].append((turns, abs_y))
         for lst in name_candidates.values():
@@ -831,15 +805,12 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
 
     if selected == 0:
         unresolved = [name for name, count in remaining.items() for _ in range(max(0, count))]
-        failed_snapshot.update(unresolved)
-        ctx.cultivate_detail.mant_failed_shop_names_snapshot = failed_snapshot
         result = {
             "result": "failed",
             "reason": "nothing_selected",
             "original_targets": original_targets,
             "selected": [],
             "unresolved": unresolved,
-            "failed_snapshot": sorted(failed_snapshot),
         }
         try:
             ctx.cultivate_detail.turn_info.set_shop_trace(selected=[], result=result)

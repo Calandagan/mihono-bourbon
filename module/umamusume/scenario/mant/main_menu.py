@@ -333,8 +333,9 @@ def handle_mant_shop_scan(ctx, current_date):
             if max_stock is not None:
                 option_meta[name]["max_stock"] = max_stock
 
-        # Buy aggressively across every enabled tier. We still respect hard
-        # caps/disabled items, but we no longer hold coins back with tier floors.
+        # Buy all selected items regardless of coin cost. The game will reject
+        # any checkbox that can't be clicked at confirmation time. Sort by user-
+        # configured ui_tier first, then by turns remaining for urgency.
         for tier in range(1, mant_cfg.tier_count + 1):
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
@@ -342,7 +343,11 @@ def handle_mant_shop_scan(ctx, current_date):
                     continue
                 tier_items.append(slug)
 
-            tier_items.sort(key=lambda s: shop_turns.get(SLUG_TO_DISPLAY.get(s), 99))
+            tier_items.sort(key=lambda s, tier=t: (
+                tier,
+                shop_turns.get(SLUG_TO_DISPLAY.get(s), 99),
+                SHOP_ITEM_COSTS.get(SLUG_TO_DISPLAY.get(s, ''), 9999),
+            ))
 
             for slug in tier_items:
                 display = SLUG_TO_DISPLAY.get(slug)
@@ -375,16 +380,9 @@ def handle_mant_shop_scan(ctx, current_date):
 
                 actual_copies = 1 if display in all_cures or display == AILMENT_CURE_ALL else copies
                 for _i in range(actual_copies):
-                    remaining_after = budget - cost
-                    if remaining_after < 0:
-                        skip_overrides.setdefault(display, "budget_exhausted")
-                        break
                     tier_targets.append(display)
                     target_sources.setdefault(display, "tier_policy")
                     target_ui_tiers.setdefault(display, tier)
-                    budget -= cost
-            if budget <= 0:
-                break
 
         targets = priority_targets + tier_targets
         log.info(f"[SHOP] targets to buy={targets}")
@@ -775,21 +773,15 @@ def _execute_cleat_buy(ctx, cleat_name, cost, *, source="cleat_override", debug=
 
 
 def handle_mant_coin_triggered_buy(ctx, current_date):
-    """Buy shop items when coins exceed threshold, bypassing the regular chunk schedule.
-
-    Before Summer Camp 2 (date <= 64): triggers when coins >= 250, max once per 3-turn window.
-    After Summer Camp 2 (date > 64):   triggers when coins >= 150, max once per 2-turn window.
-    This ensures leftover coins are spent aggressively in the final stretch of the run.
+    """When coins exceed threshold, trigger emergency buy logic against the
+    already-scanned shop items so leftover coins are spent without re-scanning.
     """
     if getattr(ctx.cultivate_detail.turn_info, 'mant_coin_buy_done', False):
-        return False
-    if ctx.cultivate_detail.mant_shop_scanned_this_turn:
         return False
 
     from module.umamusume.constants.game_constants import SUMMER_CAMP_2_END
     post_summer = current_date > SUMMER_CAMP_2_END
 
-    # Differentiated threshold and window based on game phase
     coin_threshold = 150 if post_summer else 250
     chunk_size = 2 if post_summer else 3
 
@@ -808,17 +800,12 @@ def handle_mant_coin_triggered_buy(ctx, current_date):
     ctx.cultivate_detail.turn_info.mant_coin_buy_done = True
     log.info(
         f"[COIN-BUY] coins={ctx.cultivate_detail.mant_coins} >= {coin_threshold} "
-        f"(post_summer={post_summer}) — triggering extra shop scan (coin_chunk={coin_chunk})"
+        f"(post_summer={post_summer}) — triggering emergency buy on already-scanned items"
     )
 
-    saved_last_chunk = getattr(ctx.cultivate_detail, 'mant_shop_last_chunk', -1)
-    ctx.cultivate_detail.mant_shop_last_chunk = -1
-    result = handle_mant_shop_scan(ctx, current_date)
-    if result:
-        ctx.cultivate_detail.mant_coin_buy_last_chunk = coin_chunk
-    else:
-        ctx.cultivate_detail.mant_shop_last_chunk = saved_last_chunk
-    return result
+    ctx.cultivate_detail.turn_info.mant_emergency_shop_done = False
+    ctx.cultivate_detail.turn_info.mant_coin_buy_last_chunk = coin_chunk
+    return handle_mant_emergency_shop_buys(ctx, current_date)
 
 
 def handle_mant_main_menu(ctx, img, current_date):
