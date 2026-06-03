@@ -578,6 +578,7 @@ def handle_megaphone(ctx):
 
     date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     if date >= _inventory.MANT_CLIMAX_START and date not in _inventory.MANT_CLIMAX_TRAINING_TURNS:
+        log.info(f"[MEGAPHONE] Skipping — climax non-training turn (date={date})")
         return False
 
     owned_map = _owned_map(ctx)
@@ -585,7 +586,27 @@ def handle_megaphone(ctx):
     active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
     options, selected, choice = _build_megaphone_targets(ctx)
     best_mega, best_tier = choice
+    
+    # Log detailed decision info
+    snapshot = _best_training_snapshot(ctx)
+    if snapshot:
+        opportunity_score = (
+            snapshot["stat_gain"] * 2.0
+            + max(0.0, snapshot["score"]) * 12.0
+            + snapshot["support_count"] * 6.0
+            + snapshot["high_favor_count"] * 10.0
+            + snapshot["hint_count"] * 8.0
+        )
+        log.info(
+            f"[MEGAPHONE] opportunity_score={opportunity_score:.1f} "
+            f"best_training={snapshot['name']} stat_gain={snapshot['stat_gain']:.1f} "
+            f"score={snapshot['score']:.1f} supports={snapshot['support_count']} "
+            f"active_tier={active_tier} active_turns={active_turns} "
+            f"owned={ {n: int(owned_map.get(n, 0) or 0) for n in MEGAPHONE_TIERS} }"
+        )
+    
     if best_mega is None:
+        log.info(f"[MEGAPHONE] No megaphone selected — skipping")
         _record_item_trace(
             ctx,
             options=options,
@@ -595,6 +616,7 @@ def handle_megaphone(ctx):
         return False
 
     _, duration = MEGAPHONE_TIERS[best_mega]
+    log.info(f"[MEGAPHONE] Using {best_mega} (tier {best_tier}, {duration} turns)")
     ok = use_item_and_update_inventory(ctx, best_mega)
     if ok:
         ctx.cultivate_detail.mant_megaphone_tier = best_tier
@@ -603,8 +625,10 @@ def handle_megaphone(ctx):
 
         save_megaphone_state(best_tier, duration)
         _clear_item_failed(ctx, best_mega)
+        log.info(f"[MEGAPHONE] Successfully used {best_mega}")
     else:
         _mark_item_failed(ctx, best_mega)
+        log.warning(f"[MEGAPHONE] Failed to use {best_mega}")
     _record_item_trace(
         ctx,
         options=options,
@@ -622,6 +646,7 @@ def handle_anklet(ctx):
     percentile = get_stat_only_percentile(ctx)
     owned_map = _owned_map(ctx)
     if percentile is None:
+        log.info(f"[ANKLET] Skipping — no percentile data")
         _record_item_trace(
             ctx,
             options=[{
@@ -638,6 +663,7 @@ def handle_anklet(ctx):
 
     threshold = getattr(mant_cfg, 'training_weights_threshold', 40)
     if percentile < threshold:
+        log.info(f"[ANKLET] Skipping — percentile={percentile:.1f} < threshold={threshold}")
         _record_item_trace(
             ctx,
             options=[{
@@ -655,16 +681,28 @@ def handle_anklet(ctx):
     turn_info = getattr(ctx.cultivate_detail, 'turn_info', None)
     op = getattr(turn_info, 'turn_operation', None) if turn_info else None
     if op is None:
+        log.info(f"[ANKLET] Skipping — no turn operation")
         return False
     training_type = getattr(op, 'training_type', None)
     if training_type is None:
+        log.info(f"[ANKLET] Skipping — no training type")
         return False
     training_val = training_type.value if hasattr(training_type, 'value') else int(training_type)
 
     anklet_name = TRAINING_TYPE_ANKLET.get(training_val)
     if anklet_name is None:
+        log.info(f"[ANKLET] Skipping — no anklet for training type {training_val}")
         return False
-    if owned_map.get(anklet_name, 0) <= 0:
+    
+    anklet_qty = int(owned_map.get(anklet_name, 0) or 0)
+    log.info(
+        f"[ANKLET] percentile={percentile:.1f} threshold={threshold} "
+        f"training_type={training_val} anklet={anklet_name} qty={anklet_qty} "
+        f"owned={ {n: int(owned_map.get(n, 0) or 0) for n in TRAINING_TYPE_ANKLET.values()} }"
+    )
+    
+    if anklet_qty <= 0:
+        log.info(f"[ANKLET] Skipping — no {anklet_name} in inventory")
         _record_item_trace(
             ctx,
             options=[{
@@ -679,11 +717,14 @@ def handle_anklet(ctx):
         )
         return False
 
+    log.info(f"[ANKLET] Using {anklet_name}")
     ok = use_item_and_update_inventory(ctx, anklet_name)
     if ok:
         _clear_item_failed(ctx, anklet_name)
+        log.info(f"[ANKLET] Successfully used {anklet_name}")
     else:
         _mark_item_failed(ctx, anklet_name)
+        log.warning(f"[ANKLET] Failed to use {anklet_name}")
     _record_item_trace(
         ctx,
         options=[{
