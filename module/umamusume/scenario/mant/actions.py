@@ -97,14 +97,11 @@ def handle_instant_use_items(ctx):
                 fully_searched_missing.append(item_name)
 
     if fully_searched_missing:
-        owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-        owned_map = {n: q for n, q in owned}
-        for missing in fully_searched_missing:
-            if owned_map.get(missing, 0) > 0:
-                owned_map.pop(missing, None)
-        ctx.cultivate_detail.mant_owned_items = [(n, q) for n, q in owned_map.items() if q > 0]
-        from module.umamusume.persistence import save_inventory
-        save_inventory(ctx.cultivate_detail.mant_owned_items)
+        ctx.cultivate_detail.mant_inventory_rescan_pending = True
+        _inventory.log.warning(
+            f"[INSTANT-USE] Full search missed items {fully_searched_missing}; "
+            "keeping local inventory unchanged and scheduling a rescan"
+        )
 
     if not selected:
         _inventory.close_items_panel(ctx)

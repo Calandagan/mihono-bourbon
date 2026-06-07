@@ -705,13 +705,12 @@ def use_training_item(ctx, item_name, quantity=1):
         found, search_complete = try_click_item_plus_once(ctx, item_name)
         if not found:
             close_items_panel(ctx)
-            owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
-            owned_map = {n: q for n, q in owned}
-            if search_complete and owned_map.get(item_name, 0) > 0:
-                owned_map.pop(item_name, None)
-                ctx.cultivate_detail.mant_owned_items = [(n, q) for n, q in owned_map.items() if q > 0]
-                from module.umamusume.persistence import save_inventory
-                save_inventory(ctx.cultivate_detail.mant_owned_items)
+            if search_complete:
+                setattr(ctx.cultivate_detail, 'mant_inventory_rescan_pending', True)
+                log.warning(
+                    f"[INVENTORY] '{item_name}' was not found after a full search; "
+                    "keeping local inventory unchanged and scheduling a rescan"
+                )
             return False
         time.sleep(0.15)
 

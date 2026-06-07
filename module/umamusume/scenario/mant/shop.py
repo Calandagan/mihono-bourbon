@@ -467,13 +467,13 @@ def scan_mant_shop(ctx):
                 break
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
-            step = max(int(thumb_h * 0.9), 28)
+            step = max(int(thumb_h * 1.1), 40)
             target_y = min(TRACK_BOT, cursor + step)
             if target_y <= cursor + 3:
                 reached_bottom = True
                 break
 
-            seg_dur = max(500, min(1200, int(abs(target_y - cursor) * 8)))
+            seg_dur = random.randint(600, 1100)
             scan_x_end = _gauss_scan_x()
             proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
 
@@ -490,7 +490,7 @@ def scan_mant_shop(ctx):
                 prev_frame = curr
                 frame_idx += 1
 
-            time.sleep(0.12)
+            time.sleep(random.uniform(0.3, 0.7))
             settled = ctx.ctrl.get_screen()
             if settled is not None and not content_same(prev_frame, settled):
                 captured_frames[frame_idx] = settled.copy()
