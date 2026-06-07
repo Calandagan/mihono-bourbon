@@ -245,9 +245,9 @@ def _build_megaphone_targets(ctx):
     )
 
     thresholds = {
-        1: float(getattr(mant_cfg, 'mega_small_threshold', 60)),
-        2: float(getattr(mant_cfg, 'mega_medium_threshold', 70)),
-        3: float(getattr(mant_cfg, 'mega_large_threshold', 80)),
+        1: float(getattr(mant_cfg, 'mega_small_threshold', 50)),
+        2: float(getattr(mant_cfg, 'mega_medium_threshold', 50)),
+        3: float(getattr(mant_cfg, 'mega_large_threshold', 50)),
     }
 
     options = []
