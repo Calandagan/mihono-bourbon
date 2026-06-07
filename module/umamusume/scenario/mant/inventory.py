@@ -499,8 +499,8 @@ def scan_inventory(ctx, stop_when_found=None):
         if target_y <= cursor + 10:
             break
             
-        # Use a faster duration to avoid sendevent lag (was 600-1200)
-        seg_dur = random.randint(250, 450)
+        # Use a slightly longer duration for segmented "human" drags
+        seg_dur = random.randint(600, 1200)
         scan_x_end = _gauss_scan_x()
         
         # Start an async swipe for this segment to capture frames while moving
