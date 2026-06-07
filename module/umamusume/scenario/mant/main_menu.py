@@ -20,6 +20,61 @@ RIVAL_COLOR_2 = (0x30, 0xAD, 0xEB)
 RIVAL_TOLERANCE = 5
 
 
+def _owned_items_to_map(owned_items):
+    if isinstance(owned_items, dict):
+        return {str(name): int(qty or 0) for name, qty in owned_items.items() if int(qty or 0) > 0}
+    mapped = {}
+    for name, qty in owned_items or []:
+        qty_val = int(qty or 0)
+        if qty_val > 0:
+            mapped[str(name)] = qty_val
+    return mapped
+
+
+def _save_owned_items_map(ctx, owned_map):
+    updated = sorted(
+        [(name, int(qty)) for name, qty in owned_map.items() if int(qty or 0) > 0],
+        key=lambda row: row[0],
+    )
+    ctx.cultivate_detail.mant_owned_items = updated
+    from module.umamusume.persistence import save_inventory
+    save_inventory(updated)
+    from module.umamusume.context import log_detected_items
+    log_detected_items(updated)
+    return updated
+
+
+def _merge_scanned_inventory_with_local(ctx, scanned_items):
+    merged = _owned_items_to_map(getattr(ctx.cultivate_detail, "mant_owned_items", []))
+    for name, qty in scanned_items or []:
+        qty_val = int(qty or 0)
+        if qty_val > 0:
+            merged[name] = max(qty_val, merged.get(name, 0))
+    return _save_owned_items_map(ctx, merged)
+
+
+def _apply_shop_purchase_to_local_inventory(ctx, selected_items):
+    selected_items = [name for name in (selected_items or []) if name]
+    if not selected_items:
+        return []
+    owned_map = _owned_items_to_map(getattr(ctx.cultivate_detail, "mant_owned_items", []))
+    for item_name in selected_items:
+        owned_map[item_name] = owned_map.get(item_name, 0) + 1
+    return _save_owned_items_map(ctx, owned_map)
+
+
+def _mark_bought_shop_rows(items_list, bought_items):
+    bought_counts = Counter(bought_items or [])
+    updated_rows = []
+    for name, conf, gy, turns, buyable in items_list:
+        row_buyable = buyable
+        if row_buyable and bought_counts.get(name, 0) > 0:
+            row_buyable = False
+            bought_counts[name] -= 1
+        updated_rows.append((name, conf, gy, turns, row_buyable))
+    return updated_rows
+
+
 def _set_item_trace(ctx, *, options=None, selected=None, result=None):
     turn_info = getattr(ctx.cultivate_detail, "turn_info", None)
     if turn_info is None:
@@ -128,7 +183,6 @@ def handle_mant_inventory_scan(ctx, current_date):
         return False
 
     from module.umamusume.scenario.mant.scan import scan_inventory, open_items_panel, close_items_panel
-    from module.umamusume.context import log_detected_items
 
     opened = open_items_panel(ctx)
     if not opened:
@@ -136,11 +190,8 @@ def handle_mant_inventory_scan(ctx, current_date):
         return True
 
     owned = scan_inventory(ctx)
-    ctx.cultivate_detail.mant_owned_items = owned
-    from module.umamusume.persistence import save_inventory
-    save_inventory(ctx.cultivate_detail.mant_owned_items)
+    _merge_scanned_inventory_with_local(ctx, owned)
     ctx.cultivate_detail.mant_inventory_scanned = True
-    log_detected_items(owned)
 
     close_items_panel(ctx)
     ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
@@ -153,7 +204,6 @@ def handle_mant_inventory_rescan_if_pending(ctx, current_date):
         return False
 
     from module.umamusume.scenario.mant.scan import scan_inventory, open_items_panel, close_items_panel
-    from module.umamusume.context import log_detected_items
 
     opened = open_items_panel(ctx)
     if not opened:
@@ -161,12 +211,9 @@ def handle_mant_inventory_rescan_if_pending(ctx, current_date):
         return True
 
     owned = scan_inventory(ctx)
-    ctx.cultivate_detail.mant_owned_items = owned
-    from module.umamusume.persistence import save_inventory
-    save_inventory(ctx.cultivate_detail.mant_owned_items)
+    _merge_scanned_inventory_with_local(ctx, owned)
     ctx.cultivate_detail.mant_inventory_scanned = True
     ctx.cultivate_detail.mant_inventory_rescan_pending = False
-    log_detected_items(owned)
     close_items_panel(ctx)
     ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
     return True
@@ -422,15 +469,14 @@ def handle_mant_shop_scan(ctx, current_date):
         if targets:
             bought, held_items = buy_shop_items(ctx, targets, items_list)
             if bought:
+                selected_items = list((held_items or {}).get("selected") or [])
                 ctx.cultivate_detail.mant_inventory_rescan_pending = True
-                total_spent = sum(SHOP_ITEM_COSTS.get(t, 0) for t in targets)
+                _apply_shop_purchase_to_local_inventory(ctx, selected_items)
+                total_spent = sum(SHOP_ITEM_COSTS.get(t, 0) for t in selected_items)
                 budget_end = max(0, ctx.cultivate_detail.mant_coins - total_spent)
                 ctx.cultivate_detail.mant_coins = budget_end
-                bought_set = set(targets)
-                ctx.cultivate_detail.mant_shop_items = [
-                    (name, conf, gy, turns, buyable and (name not in bought_set))
-                    for name, conf, gy, turns, buyable in items_list
-                ]
+                ctx.cultivate_detail.mant_shop_items = _mark_bought_shop_rows(items_list, selected_items)
+                bought_set = set(selected_items)
                 remaining = [(name, turns, buyable) for name, _, _, turns, buyable in items_list
                              if buyable and name not in bought_set]
                 log_detected_shop_items(remaining)
@@ -462,7 +508,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
         return False
 
     from module.umamusume.scenario.mant.shop import (
-        is_shop_scan_turn, scan_mant_shop, buy_shop_items,
+        is_shop_scan_turn, open_mant_shop, buy_shop_items,
         SHOP_ITEM_COSTS, SLUG_TO_DISPLAY, display_to_slug,
         BACK_BTN_X, BACK_BTN_Y,
     )
@@ -570,19 +616,21 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
         _t.sleep(1)
         return True
 
-    bought, _ = buy_shop_items(ctx, final_targets, items_list)
+    if not open_mant_shop(ctx):
+        ctx.ctrl.trigger_decision_reset = True
+        return True
+
+    bought, buy_result = buy_shop_items(ctx, final_targets, items_list)
     if bought:
+        selected_items = list((buy_result or {}).get("selected") or [])
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
-        spent = sum(SHOP_ITEM_COSTS.get(tgt, 0) for tgt in final_targets)
+        _apply_shop_purchase_to_local_inventory(ctx, selected_items)
+        spent = sum(SHOP_ITEM_COSTS.get(tgt, 0) for tgt in selected_items)
         budget_end = max(0, ctx.cultivate_detail.mant_coins - spent)
-        
         ctx.cultivate_detail.mant_coins = budget_end
-        bought_set = set(final_targets)
-        ctx.cultivate_detail.mant_shop_items = [
-            (name, conf, gy, turns, buyable and (name not in bought_set))
-            for name, conf, gy, turns, buyable in items_list
-        ]
+        ctx.cultivate_detail.mant_shop_items = _mark_bought_shop_rows(items_list, selected_items)
         from module.umamusume.context import log_detected_shop_items
+        bought_set = set(selected_items)
         remaining = [(name, turns, buyable)
                      for name, _, _, turns, buyable in items_list
                      if buyable and name not in bought_set]
@@ -736,22 +784,17 @@ def _execute_cleat_buy(ctx, cleat_name, cost, *, source="cleat_override", debug=
         _t.sleep(1)
         return True
 
-    bought, _ = buy_shop_items(ctx, [cleat_name], items_list)
+    bought, buy_result = buy_shop_items(ctx, [cleat_name], items_list)
     if bought:
+        selected_items = list((buy_result or {}).get("selected") or [])
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
-        ctx.cultivate_detail.mant_coins = max(0, ctx.cultivate_detail.mant_coins - cost)
-        owned = dict(getattr(ctx.cultivate_detail, 'mant_owned_items', {}))
-        owned[cleat_name] = owned.get(cleat_name, 0) + 1
-        ctx.cultivate_detail.mant_owned_items = list(owned.items())
-        from module.umamusume.persistence import save_inventory
-        save_inventory(ctx.cultivate_detail.mant_owned_items)
-        ctx.cultivate_detail.mant_shop_items = [
-            (n, c, g, t, buyable and n != cleat_name)
-            for n, c, g, t, buyable in items_list
-        ]
+        _apply_shop_purchase_to_local_inventory(ctx, selected_items)
+        spent = sum(cost for item_name in selected_items if item_name == cleat_name)
+        ctx.cultivate_detail.mant_coins = max(0, ctx.cultivate_detail.mant_coins - spent)
+        ctx.cultivate_detail.mant_shop_items = _mark_bought_shop_rows(items_list, selected_items)
         from module.umamusume.context import log_detected_shop_items
         log_detected_shop_items(
-            [(n, t, buyable) for n, _, _, t, buyable in items_list if buyable and n != cleat_name]
+            [(n, t, buyable) for n, _, _, t, buyable in items_list if buyable and n not in set(selected_items)]
         )
     else:
         ctx.cultivate_detail.turn_info.append_trace(
@@ -797,7 +840,7 @@ def handle_mant_coin_triggered_buy(ctx, current_date):
     )
 
     ctx.cultivate_detail.turn_info.mant_emergency_shop_done = False
-    ctx.cultivate_detail.turn_info.mant_coin_buy_last_chunk = coin_chunk
+    ctx.cultivate_detail.mant_coin_buy_last_chunk = coin_chunk
     return handle_mant_emergency_shop_buys(ctx, current_date)
 
 

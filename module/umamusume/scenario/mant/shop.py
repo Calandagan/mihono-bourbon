@@ -400,7 +400,7 @@ def detect_mant_shop_coins(img):
     return -1
 
 
-def scan_mant_shop(ctx):
+def open_mant_shop(ctx):
     from module.umamusume.constants.game_constants import is_summer_camp_period
 
     current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
@@ -414,9 +414,13 @@ def scan_mant_shop(ctx):
     while time.time() < deadline:
         img_check = ctx.ctrl.get_screen(to_gray=True)
         if image_match(img_check, REF_SHOP_MANT_CHECK).find_match:
-            break
+            return True
         time.sleep(0.17)
-    else:
+    return False
+
+
+def scan_mant_shop(ctx):
+    if not open_mant_shop(ctx):
         return None
 
     scroll_to_top(ctx)
@@ -818,6 +822,13 @@ def buy_shop_items(ctx, target_names, items_list):
     time.sleep(1)
     unresolved = [name for name, count in remaining.items() for _ in range(max(0, count))]
     if not exchange_ready:
+        result = {
+            "result": "failed",
+            "reason": "exchange_complete_not_detected",
+            "original_targets": original_targets,
+            "selected": list(selected_names),
+            "unresolved": unresolved,
+        }
         log.warning(f"[BUY] Failed — selected={selected_names}, remaining={dict(remaining)}")
         return False, result
 
