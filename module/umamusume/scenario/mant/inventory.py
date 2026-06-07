@@ -525,6 +525,8 @@ def scan_inventory(ctx, stop_when_found=None):
         # Pause briefly between segments as if the user is looking at the screen
         time.sleep(random.uniform(0.3, 0.7))
 
+    log.info(f"[INVENTORY] Scan complete — found {len(item_qtys)} items: {dict(item_qtys)}")
+
     # Final cleanup swipe if not at bottom
     for _ in range(5):
         frame = ctx.ctrl.get_screen()
@@ -597,7 +599,8 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
     scroll_to_top(ctx)
     prev_cursor = -1
     stall_count = 0
-    for _ in range(60):
+    found_names = []
+    for iteration in range(60):
         time.sleep(0.18)
         frame = ctx.ctrl.get_screen()
         if frame is None:
@@ -608,6 +611,8 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
             if name == item_name:
                 target_y = abs_y
                 break
+            if name not in found_names:
+                found_names.append(name)
         if target_y is not None and 130 < target_y < 1030:
             plus_buttons = find_plus_buttons(frame)
             if not plus_buttons:
@@ -640,6 +645,7 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         thumb = inv_find_thumb(img_rgb)
         if thumb is None:
+            log.info(f"[INVENTORY] No thumb found at iteration {iteration}, stopping scroll")
             break
 
         cursor = (thumb[0] + thumb[1]) // 2
@@ -647,6 +653,7 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
         if prev_cursor >= 0 and abs(cursor - prev_cursor) < 5:
             stall_count += 1
             if stall_count >= 3:
+                log.info(f"[INVENTORY] Scroll stalled at iteration {iteration} (cursor={cursor}), stopping")
                 break
         else:
             stall_count = 0
@@ -655,9 +662,11 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
         step = max(th, 30)
         target = min(INV_TRACK_BOT, cursor + step)
         if target <= cursor + 3:
+            log.info(f"[INVENTORY] Reached bottom at iteration {iteration} (cursor={cursor}), stopping")
             break
         sb_drag(ctx, cursor, target)
 
+    log.info(f"[INVENTORY] Could not find '{item_name}' after scrolling. Items seen: {found_names}")
     return False
 
 
