@@ -90,7 +90,7 @@ def find_thumb(img_rgb):
 def at_bottom(img_rgb):
     thumb = find_thumb(img_rgb)
     if thumb is None:
-        return True
+        return False
     for y in range(thumb[1] + 1, TRACK_BOT + 1):
         r, g, b = int(img_rgb[y, SB_X, 0]), int(img_rgb[y, SB_X, 1]), int(img_rgb[y, SB_X, 2])
         if is_track(r, g, b):
@@ -176,6 +176,25 @@ def _gauss_scan_x():
         x = int(round(v))
         if 10 <= x <= SCREEN_WIDTH - 10:
             return x
+
+
+def capture_shop_scroll_state(ctx, *, attempts=3, delay=0.12):
+    last_frame = None
+    last_rgb = None
+    last_thumb = None
+    for attempt in range(attempts):
+        frame = ctx.ctrl.get_screen()
+        if frame is None:
+            time.sleep(delay)
+            continue
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        thumb = find_thumb(frame_rgb)
+        last_frame, last_rgb, last_thumb = frame, frame_rgb, thumb
+        if thumb is not None:
+            break
+        if attempt < attempts - 1:
+            time.sleep(delay)
+    return last_frame, last_rgb, last_thumb
 
 
 def is_effect_text(text):
@@ -424,9 +443,9 @@ def scan_mant_shop(ctx):
         return None
 
     scroll_to_top(ctx)
-    time.sleep(0.2)
+    time.sleep(random.uniform(0.22, 0.4))
 
-    img = ctx.ctrl.get_screen()
+    img, img_rgb, _thumb = capture_shop_scroll_state(ctx, attempts=4)
     if img is None:
         return None
 
@@ -443,14 +462,14 @@ def scan_mant_shop(ctx):
     with ThreadPoolExecutor(max_workers=1) as pool:
         futures = []
         reached_bottom = False
+        missing_thumb_streak = 0
 
-        for _segment in range(36):
+        for _segment in range(28):
             if not ctx.task.running():
                 break
-            frame = ctx.ctrl.get_screen()
+            frame, frame_rgb, thumb = capture_shop_scroll_state(ctx, attempts=3)
             if frame is None:
                 break
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if at_bottom(frame_rgb):
                 reached_bottom = True
                 if not content_same(prev_frame, frame):
@@ -462,36 +481,31 @@ def scan_mant_shop(ctx):
                     prev_frame = frame
                     frame_idx += 1
                 break
-            thumb = find_thumb(frame_rgb)
             if thumb is None:
-                break
+                missing_thumb_streak += 1
+                if missing_thumb_streak >= 3:
+                    log.warning("[SHOP] Scrollbar missing during scan; stopping early with current detections")
+                    break
+                time.sleep(0.15)
+                continue
+            missing_thumb_streak = 0
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
-            step = max(int(thumb_h * 1.1), 40)
+            step = max(int(thumb_h * 1.25), 48)
             target_y = min(TRACK_BOT, cursor + step)
             if target_y <= cursor + 3:
                 reached_bottom = True
                 break
 
-            seg_dur = random.randint(600, 1100)
+            seg_dur = random.randint(650, 950)
             scan_x_end = _gauss_scan_x()
             proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
 
             while proc.is_alive():
-                time.sleep(0.08)
-                curr = ctx.ctrl.get_screen()
-                if curr is None or content_same(prev_frame, curr):
-                    continue
-                captured_frames[frame_idx] = curr.copy()
-                if len(captured_frames) > max_kept_frames:
-                    oldest = min(captured_frames)
-                    del captured_frames[oldest]
-                futures.append((frame_idx, pool.submit(classify_items_in_frame, curr)))
-                prev_frame = curr
-                frame_idx += 1
+                time.sleep(0.1)
 
-            time.sleep(random.uniform(0.3, 0.7))
-            settled = ctx.ctrl.get_screen()
+            time.sleep(random.uniform(0.18, 0.35))
+            settled, settled_rgb, settled_thumb = capture_shop_scroll_state(ctx, attempts=3)
             if settled is not None and not content_same(prev_frame, settled):
                 captured_frames[frame_idx] = settled.copy()
                 if len(captured_frames) > max_kept_frames:
@@ -500,6 +514,9 @@ def scan_mant_shop(ctx):
                 futures.append((frame_idx, pool.submit(classify_items_in_frame, settled)))
                 prev_frame = settled
                 frame_idx += 1
+            if settled_rgb is not None and at_bottom(settled_rgb):
+                reached_bottom = True
+                break
 
         for fi, f in futures:
             hits, _ = f.result()
@@ -722,13 +739,15 @@ def buy_shop_items(ctx, target_names, items_list):
     selected_names = []
 
     scroll_to_top(ctx)
+    time.sleep(random.uniform(0.22, 0.4))
     log.info(f"[BUY] Starting — targets={dict(remaining)}")
+    missing_thumb_streak = 0
 
     for _ in range(60):
         if not any(v > 0 for v in remaining.values()):
             break
 
-        frame = ctx.ctrl.get_screen()
+        frame, frame_rgb, thumb = capture_shop_scroll_state(ctx, attempts=3)
         if frame is None or frame.size == 0:
             continue
 
@@ -759,17 +778,22 @@ def buy_shop_items(ctx, target_names, items_list):
         if clicked_any:
             continue
 
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        if at_bottom(img_rgb):
+        if thumb is None:
+            missing_thumb_streak += 1
+            if missing_thumb_streak >= 3:
+                log.warning("[BUY] Scrollbar missing repeatedly while unresolved targets remain")
+                break
+            time.sleep(0.15)
+            continue
+        missing_thumb_streak = 0
+
+        if at_bottom(frame_rgb):
             log.info("[BUY] Reached bottom of shop list")
             break
 
-        thumb = find_thumb(img_rgb)
-        if thumb is None:
-            break
         cursor = (thumb[0] + thumb[1]) // 2
         th = thumb[1] - thumb[0]
-        step = max(int(th * 0.85), 24)
+        step = max(int(th * 1.1), 36)
         next_y = min(TRACK_BOT, cursor + step)
         if next_y <= cursor + 3:
             break
