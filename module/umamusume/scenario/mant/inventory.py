@@ -412,6 +412,15 @@ def dedup_names(all_detections, captured_frames):
     return items_list
 
 
+def _accumulate_inventory_items(item_qtys, frame):
+    if frame is None:
+        return item_qtys
+    for name, score, y, qty in classify_with_qty(frame):
+        if 130 < y < 1030:
+            item_qtys[name] = max(qty, item_qtys.get(name, 0))
+    return item_qtys
+
+
 def scan_inventory(ctx, stop_when_found=None):
     scroll_to_top(ctx)
     time.sleep(0.3)
@@ -435,10 +444,7 @@ def scan_inventory(ctx, stop_when_found=None):
     
     # Initial scan of the top view
     frame = ctx.ctrl.get_screen()
-    if frame is not None:
-        for name, score, y, qty in classify_with_qty(frame):
-            if 130 < y < 1030:
-                item_qtys[name] = max(qty, item_qtys.get(name, 0))
+    item_qtys = _accumulate_inventory_items(item_qtys, frame)
 
     reached_bottom = False
 
@@ -452,6 +458,7 @@ def scan_inventory(ctx, stop_when_found=None):
             break
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if inv_at_bottom(img_rgb):
+            item_qtys = _accumulate_inventory_items(item_qtys, img)
             reached_bottom = True
             break
             
@@ -479,14 +486,16 @@ def scan_inventory(ctx, stop_when_found=None):
         while proc.is_alive() and time.time() < segment_end_time:
             time.sleep(0.1)
             frame = ctx.ctrl.get_screen()
-            if frame is not None:
-                for name, score, y, qty in classify_with_qty(frame):
-                    if 130 < y < 1030:
-                        item_qtys[name] = max(qty, item_qtys.get(name, 0))
+            item_qtys = _accumulate_inventory_items(item_qtys, frame)
             
             if stop_when_found and stop_when_found in item_qtys:
                 break
         
+        if stop_when_found and stop_when_found in item_qtys:
+            break
+
+        settled = ctx.ctrl.get_screen()
+        item_qtys = _accumulate_inventory_items(item_qtys, settled)
         if stop_when_found and stop_when_found in item_qtys:
             break
             
