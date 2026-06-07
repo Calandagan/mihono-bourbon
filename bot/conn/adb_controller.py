@@ -82,26 +82,23 @@ class AdbController(AndroidController):
         tid = self._next_tid()
         pressure = random.randint(40, 65)
         major = random.randint(4, 9)
-        # Extreme optimization: 1 step every 150ms to minimize shell overhead
-        steps = max(1, duration_ms // 150)
+        steps = max(4, duration_ms // 20)
 
-        # Start touch
         events = [
             (3, 47, 0), (3, 57, tid),
             (3, 53, x1), (3, 54, y1),
             (3, 58, pressure), (3, 48, major),
             (1, 330, 1), (0, 0, 0),
         ]
-        
         for i in range(1, steps + 1):
             t = i / steps
-            jx, jy = random.randint(-1, 1), random.randint(-1, 1)
-            # Re-adding (3, 47, 0) - some kernels require slot info on every sync
-            events += [(3, 47, 0), (3, 53, int(x1 + (x2 - x1) * t) + jx),
-                       (3, 54, int(y1 + (y2 - y1) * t) + jy), (0, 0, 0)]
-        
-        # Release
-        events += [(3, 57, 4294967295), (1, 330, 0), (0, 0, 0)]
+            # Add human-like jitter to intermediate points
+            jitter_x = int(random.gauss(0, 1.2))
+            jitter_y = int(random.gauss(0, 1.2))
+            events += [(3, 47, 0), (3, 53, int(x1 + (x2 - x1) * t) + jitter_x),
+                       (3, 54, int(y1 + (y2 - y1) * t) + jitter_y), (0, 0, 0)]
+        events += [(3, 47, 0), (3, 57, 4294967295), (1, 330, 0), (0, 0, 0)]
+
         self.client.shell(self._se(events), sync=True)
 
     def init_env(self) -> None:

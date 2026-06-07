@@ -138,9 +138,10 @@ def content_same(before, after):
 
 def sb_drag(ctx, from_y, to_y):
     sx = random.randint(SB_X_MIN, SB_X_MAX)
-    from_y, to_y = max(120, from_y), max(120, to_y)
-    dur = random.randint(166, 211) / 1000
-    ctx.ctrl.swipe(sx, from_y, sx, to_y, duration=dur)
+    ex = random.randint(SB_X_MIN, SB_X_MAX)
+    dur = random.randint(166, 211)
+    from_y, to_y = max(110, from_y), max(110, to_y)
+    ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
     time.sleep(0.15)
 
 
@@ -427,8 +428,29 @@ def scan_mant_shop(ctx):
         thumb = find_thumb(img_rgb)
         thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2
 
-    ratio = 14.0
+    before_cal = img
+    cal_px = 30
+    sb_drag(ctx, thumb_center, thumb_center + cal_px)
+    after_cal = ctx.ctrl.get_screen()
+    shift_cal, conf_cal = find_content_shift(before_cal, after_cal)
+    ratio = shift_cal / cal_px if (shift_cal > 0 and conf_cal > 0.85) else 14.0
+
+    img_dr = ctx.ctrl.get_screen()
+    img_dr_rgb = cv2.cvtColor(img_dr, cv2.COLOR_BGR2RGB)
+    thumb_cal = find_thumb(img_dr_rgb)
     drag_ratio = 1.1
+    if thumb_cal:
+        cal_from = (thumb_cal[0] + thumb_cal[1]) // 2
+        cal_dist = 30
+        sb_drag(ctx, cal_from, cal_from + cal_dist)
+        img_dr2 = ctx.ctrl.get_screen()
+        img_dr2_rgb = cv2.cvtColor(img_dr2, cv2.COLOR_BGR2RGB)
+        thumb_cal2 = find_thumb(img_dr2_rgb)
+        if thumb_cal2:
+            cal_to = (thumb_cal2[0] + thumb_cal2[1]) // 2
+            actual_move = cal_to - cal_from
+            if actual_move > 3:
+                drag_ratio = cal_dist / actual_move
 
     scroll_to_top(ctx)
     img = ctx.ctrl.get_screen()
@@ -442,7 +464,7 @@ def scan_mant_shop(ctx):
     desired_overlap = 160
     desired_shift = content_h - desired_overlap
     est_frames = total_content / desired_shift
-    swipe_dur = max(3500, min(12000, int(est_frames * 350)))
+    swipe_dur = max(5000, min(25000, int(est_frames * 600)))
 
     first_results, _ = classify_items_in_frame(img)
     all_detections = []
@@ -797,9 +819,9 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
         if thumb is None:
             break
         cursor = (thumb[0] + thumb[1]) // 2
-        step = max(thumb[1] - thumb[0], 80)
-        next_y = min(TRACK_BOT, cursor + step)
-        if next_y <= cursor + 3:
+        th = thumb[1] - thumb[0]
+        next_y = min(TRACK_BOT, cursor + max(th // 2, 10))
+        if next_y <= cursor:
             break
         sb_drag(ctx, cursor, next_y)
 
