@@ -232,11 +232,8 @@ def handle_mant_shop_scan(ctx, current_date):
         ctx.ctrl.trigger_decision_reset = True
         return True
 
-    items_list, ratio, drag_ratio, first_item_gy = scan_result
+    items_list = scan_result
     ctx.cultivate_detail.mant_shop_items = items_list
-    ctx.cultivate_detail.mant_shop_ratio = ratio
-    ctx.cultivate_detail.mant_shop_drag_ratio = drag_ratio
-    ctx.cultivate_detail.mant_shop_first_gy = first_item_gy
     ctx.cultivate_detail.mant_shop_scanned_this_turn = True
     ctx.cultivate_detail.mant_shop_last_chunk = chunk
 
@@ -423,7 +420,7 @@ def handle_mant_shop_scan(ctx, current_date):
             },
         )
         if targets:
-            bought, held_items = buy_shop_items(ctx, targets, items_list, ratio, drag_ratio, first_item_gy)
+            bought, held_items = buy_shop_items(ctx, targets, items_list)
             if bought:
                 ctx.cultivate_detail.mant_inventory_rescan_pending = True
                 total_spent = sum(SHOP_ITEM_COSTS.get(t, 0) for t in targets)
@@ -538,10 +535,6 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
 
     ctx.cultivate_detail.turn_info.mant_emergency_shop_done = True
     items_list = getattr(ctx.cultivate_detail, 'mant_shop_items', [])
-    ratio = getattr(ctx.cultivate_detail, 'mant_shop_ratio', 14.0)
-    drag_ratio = getattr(ctx.cultivate_detail, 'mant_shop_drag_ratio', 1.1)
-    first_item_gy = getattr(ctx.cultivate_detail, 'mant_shop_first_gy', 0)
-
     fresh_available = {name for name, _, _, _, buyable in items_list if buyable}
     final_targets = [
         tgt for tgt in emergency_targets
@@ -577,7 +570,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
         _t.sleep(1)
         return True
 
-    bought, _ = buy_shop_items(ctx, final_targets, items_list, ratio, drag_ratio, first_item_gy)
+    bought, _ = buy_shop_items(ctx, final_targets, items_list)
     if bought:
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
         spent = sum(SHOP_ITEM_COSTS.get(tgt, 0) for tgt in final_targets)
@@ -719,7 +712,7 @@ def _execute_cleat_buy(ctx, cleat_name, cost, *, source="cleat_override", debug=
         return True
 
     ctx.cultivate_detail.turn_info.mant_cleat_shop_done = True
-    items_list, ratio, drag_ratio, first_item_gy = scan_result
+    items_list = scan_result
     ctx.cultivate_detail.mant_shop_items = items_list
     shop_options, selected_rows = _build_shop_trace_options(
         items_list,
@@ -743,7 +736,7 @@ def _execute_cleat_buy(ctx, cleat_name, cost, *, source="cleat_override", debug=
         _t.sleep(1)
         return True
 
-    bought, _ = buy_shop_items(ctx, [cleat_name], items_list, ratio, drag_ratio, first_item_gy)
+    bought, _ = buy_shop_items(ctx, [cleat_name], items_list)
     if bought:
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
         ctx.cultivate_detail.mant_coins = max(0, ctx.cultivate_detail.mant_coins - cost)

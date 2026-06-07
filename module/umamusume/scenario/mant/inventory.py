@@ -429,41 +429,6 @@ def scan_inventory(ctx, stop_when_found=None):
         owned.sort(key=lambda x: x[0])
         return owned
 
-    thumb_h = thumb[1] - thumb[0]
-    start_y = (thumb[0] + thumb[1]) // 2
-
-    if thumb[0] > INV_TRACK_TOP:
-        sb_drag(ctx, start_y, INV_TRACK_TOP)
-        img = ctx.ctrl.get_screen()
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        thumb = inv_find_thumb(img_rgb)
-        start_y = (thumb[0] + thumb[1]) // 2 if thumb else INV_TRACK_TOP + thumb_h // 2
-
-    before_cal = img
-    cal_px = 30
-    sb_drag(ctx, start_y, start_y + cal_px)
-    after_cal = ctx.ctrl.get_screen()
-    shift_cal, conf_cal = inv_find_content_shift(before_cal, after_cal)
-    ratio = shift_cal / cal_px if (shift_cal > 0 and conf_cal > 0.85) else 14.0
-
-    img_dr = ctx.ctrl.get_screen()
-    img_dr_rgb = cv2.cvtColor(img_dr, cv2.COLOR_BGR2RGB)
-    thumb_cal = inv_find_thumb(img_dr_rgb)
-    drag_ratio = 1.1
-    if thumb_cal:
-        cal_from = (thumb_cal[0] + thumb_cal[1]) // 2
-        cal_dist = 30
-        sb_drag(ctx, cal_from, cal_from + cal_dist)
-        img_dr2 = ctx.ctrl.get_screen()
-        img_dr2_rgb = cv2.cvtColor(img_dr2, cv2.COLOR_BGR2RGB)
-        thumb_cal2 = inv_find_thumb(img_dr2_rgb)
-        if thumb_cal2:
-            cal_to = (thumb_cal2[0] + thumb_cal2[1]) // 2
-            actual_move = cal_to - cal_from
-            if actual_move > 3:
-                drag_ratio = cal_dist / actual_move
-
-    scroll_to_top(ctx)
     time.sleep(random.uniform(0.2, 0.4))
     
     item_qtys = {}
@@ -475,15 +440,19 @@ def scan_inventory(ctx, stop_when_found=None):
             if 130 < y < 1030:
                 item_qtys[name] = max(qty, item_qtys.get(name, 0))
 
+    reached_bottom = False
+
     # Segmented scroll loop
-    max_segments = random.randint(3, 5)
-    for segment in range(max_segments):
+    for _segment in range(36):
         if not ctx.task.running():
             break
             
         img = ctx.ctrl.get_screen()
+        if img is None:
+            break
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if inv_at_bottom(img_rgb):
+            reached_bottom = True
             break
             
         thumb = inv_find_thumb(img_rgb)
@@ -491,16 +460,15 @@ def scan_inventory(ctx, stop_when_found=None):
             break
             
         cursor = (thumb[0] + thumb[1]) // 2
-        # Determine a random step size for this segment (200 to 450 pixels of thumb movement)
-        # We want to overlap, so we don't jump too far.
-        step = random.randint(180, 320)
+        thumb_h = thumb[1] - thumb[0]
+        step = max(int(thumb_h * 1.1), 40)
         target_y = min(INV_TRACK_BOT, cursor + step)
         
         if target_y <= cursor + 10:
+            reached_bottom = True
             break
             
-        # Use a slightly longer duration for segmented "human" drags
-        seg_dur = random.randint(600, 1200)
+        seg_dur = random.randint(600, 1100)
         scan_x_end = _gauss_scan_x()
         
         # Start an async swipe for this segment to capture frames while moving
@@ -527,26 +495,8 @@ def scan_inventory(ctx, stop_when_found=None):
 
     log.info(f"[INVENTORY] Scan complete — found {len(item_qtys)} items: {dict(item_qtys)}")
 
-    # Final cleanup swipe if not at bottom
-    for _ in range(5):
-        frame = ctx.ctrl.get_screen()
-        if frame is None: break
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        if inv_at_bottom(img_rgb): break
-        
-        thumb = inv_find_thumb(img_rgb)
-        if thumb is None: break
-        cursor = (thumb[0] + thumb[1]) // 2
-        step = max(thumb[1] - thumb[0], 40)
-        target = min(INV_TRACK_BOT, cursor + step)
-        sb_drag(ctx, cursor, target)
-        
-        # Scan after correction swipe
-        frame = ctx.ctrl.get_screen()
-        if frame is not None:
-            for name, score, y, qty in classify_with_qty(frame):
-                if 130 < y < 1030:
-                    item_qtys[name] = max(qty, item_qtys.get(name, 0))
+    if not stop_when_found and not reached_bottom:
+        log.warning("[INVENTORY] Scan ended before confirming bottom of inventory list")
 
     owned = [(name, qty) for name, qty in item_qtys.items()]
 
@@ -595,11 +545,12 @@ def find_plus_buttons(frame):
     return buttons
 
 
-def try_click_item_plus_once(ctx, item_name: str) -> bool:
+def try_click_item_plus_once(ctx, item_name: str) -> tuple[bool, bool]:
     scroll_to_top(ctx)
     prev_cursor = -1
     stall_count = 0
     found_names = []
+    reached_bottom = False
     for iteration in range(60):
         time.sleep(0.18)
         frame = ctx.ctrl.get_screen()
@@ -621,7 +572,7 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
                 plus_y = int(round(target_y + 48))
                 ctx.ctrl.click(plus_x, plus_y, name="item plus button fallback")
                 time.sleep(0.25)
-                return True
+                return True, True
             best_button = None
             best_dy = float('inf')
             for bx, by in plus_buttons:
@@ -633,16 +584,19 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
                 log.info(f"Clicking + for '{item_name}' at ({best_button[0]}, {best_button[1]}), dy={best_dy:.1f}")
                 ctx.ctrl.click(best_button[0], best_button[1], name="exchange item button")
                 time.sleep(0.25)
-                return True
+                return True, True
             else:
                 log.warning(f"No + button found near '{item_name}' (y={target_y:.1f}), best dy={best_dy:.1f}")
                 plus_x = 648
                 plus_y = int(round(target_y + 48))
                 ctx.ctrl.click(plus_x, plus_y, name="item plus button fallback")
                 time.sleep(0.25)
-                return True
+                return True, True
 
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        if inv_at_bottom(img_rgb):
+            reached_bottom = True
+            break
         thumb = inv_find_thumb(img_rgb)
         if thumb is None:
             log.info(f"[INVENTORY] No thumb found at iteration {iteration}, stopping scroll")
@@ -659,15 +613,16 @@ def try_click_item_plus_once(ctx, item_name: str) -> bool:
             stall_count = 0
         prev_cursor = cursor
 
-        step = max(th, 30)
+        step = max(int(th * 1.1), 40)
         target = min(INV_TRACK_BOT, cursor + step)
         if target <= cursor + 3:
             log.info(f"[INVENTORY] Reached bottom at iteration {iteration} (cursor={cursor}), stopping")
+            reached_bottom = True
             break
         sb_drag(ctx, cursor, target)
 
     log.info(f"[INVENTORY] Could not find '{item_name}' after scrolling. Items seen: {found_names}")
-    return False
+    return False, reached_bottom
 
 
 def is_on_training_screen(frame):
@@ -747,11 +702,12 @@ def use_training_item(ctx, item_name, quantity=1):
         return False
 
     for _ in range(quantity):
-        if not try_click_item_plus_once(ctx, item_name):
+        found, search_complete = try_click_item_plus_once(ctx, item_name)
+        if not found:
             close_items_panel(ctx)
             owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
             owned_map = {n: q for n, q in owned}
-            if owned_map.get(item_name, 0) > 0:
+            if search_complete and owned_map.get(item_name, 0) > 0:
                 owned_map.pop(item_name, None)
                 ctx.cultivate_detail.mant_owned_items = [(n, q) for n, q in owned_map.items() if q > 0]
                 from module.umamusume.persistence import save_inventory

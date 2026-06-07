@@ -405,6 +405,8 @@ def should_skip_shop_item(
         return True
     if is_shop_item_disabled(mant_cfg, display_name=display_name, display_to_slug=display_to_slug):
         return True
+    if is_contextual_shop_override_item(display_name):
+        return True
     if display_name in one_time_buff_items and display_name in used_buffs:
         return True
     if ignore_cat and display_name == "Yummy Cat Food":

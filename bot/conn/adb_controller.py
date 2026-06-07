@@ -101,6 +101,20 @@ class AdbController(AndroidController):
 
         self.client.shell(self._se(events), sync=True)
 
+    def _is_vertical_swipe(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+        return abs(y2 - y1) >= abs(x2 - x1)
+
+    def _input_swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int) -> None:
+        duration_ms = int(max(60, duration_ms))
+        cmd = f"input swipe {x1} {y1} {x2} {y2} {duration_ms}"
+        self.execute_adb_shell(cmd, True)
+
+    def _perform_swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int) -> None:
+        if self._is_vertical_swipe(x1, y1, x2, y2):
+            self._input_swipe(x1, y1, x2, y2, duration_ms)
+        else:
+            self._sendevent_swipe(x1, y1, x2, y2, duration_ms)
+
     def init_env(self) -> None:
         for attempt in range(3):
             try:
@@ -304,7 +318,7 @@ class AdbController(AndroidController):
             x1, y1 = max(1, min(719, x1)), max(1, min(1279, y1))
             x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))
             d = int(duration * 1000 * random.uniform(0.94, 1.06))
-            self._sendevent_swipe(x1, y1, x2, y2, d)
+            self._perform_swipe(x1, y1, x2, y2, d)
             time.sleep(CONFIG.bot.auto.adb.delay)
 
     def start_app(self, package, activity=None):
@@ -367,12 +381,9 @@ class AdbController(AndroidController):
             
             sw_d = int(swipe_duration * random.uniform(0.94, 1.06))
             ho_d = int(hold_duration * random.uniform(0.94, 1.06))
-            rev_y = y2 - 28 if y2 > y1 else y2 + 28
-            rev_y = max(1, min(1279, rev_y))
-
-            self._sendevent_swipe(x1, y1, x2, y2, sw_d)
+            self._input_swipe(x1, y1, x2, y2, sw_d)
             time.sleep(0.05)
-            self._sendevent_swipe(x2, y2, x2, rev_y, ho_d)
+            self._input_swipe(x2, y2, x2, y2, ho_d)
             time.sleep(CONFIG.bot.auto.adb.delay)
 
     def swipe_async(self, x1, y1, x2, y2, duration_ms, name=""):
@@ -380,7 +391,8 @@ class AdbController(AndroidController):
         x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))
         def _run():
             with self.input_lock:
-                self._sendevent_swipe(x1, y1, x2, y2, duration_ms)
+                self._perform_swipe(x1, y1, x2, y2, duration_ms)
+                time.sleep(CONFIG.bot.auto.adb.delay)
         t = threading.Thread(target=_run, daemon=True)
         t.start()
         return t

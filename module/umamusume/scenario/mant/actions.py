@@ -85,17 +85,21 @@ def handle_instant_use_items(ctx):
 
     selected = []
     not_found = []
+    fully_searched_missing = []
     for item_name in items_to_use:
-        if _inventory.try_click_item_plus_once(ctx, item_name):
+        found, search_complete = _inventory.try_click_item_plus_once(ctx, item_name)
+        if found:
             selected.append(item_name)
             time.sleep(0.15)
         else:
             not_found.append(item_name)
+            if search_complete:
+                fully_searched_missing.append(item_name)
 
-    if not_found:
+    if fully_searched_missing:
         owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
         owned_map = {n: q for n, q in owned}
-        for missing in not_found:
+        for missing in fully_searched_missing:
             if owned_map.get(missing, 0) > 0:
                 owned_map.pop(missing, None)
         ctx.cultivate_detail.mant_owned_items = [(n, q) for n, q in owned_map.items() if q > 0]

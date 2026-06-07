@@ -139,10 +139,14 @@ def content_same(before, after):
 def sb_drag(ctx, from_y, to_y):
     sx = random.randint(SB_X_MIN, SB_X_MAX)
     ex = random.randint(SB_X_MIN, SB_X_MAX)
-    dur = random.randint(166, 211)
+    dist = abs(to_y - from_y)
+    base_dur = max(180, min(700, int(dist * 0.85)))
+    dur = random.randint(base_dur, base_dur + 80)
     from_y, to_y = max(110, from_y), max(110, to_y)
+    if random.random() < 0.15:
+        time.sleep(random.uniform(0.04, 0.1))
     ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
-    time.sleep(0.15)
+    time.sleep(random.uniform(0.14, 0.28))
 
 
 def scroll_to_top(ctx):
@@ -416,55 +420,11 @@ def scan_mant_shop(ctx):
         return None
 
     scroll_to_top(ctx)
+    time.sleep(0.2)
+
     img = ctx.ctrl.get_screen()
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    thumb = find_thumb(img_rgb)
-    thumb_h = thumb[1] - thumb[0] if thumb is not None else 30
-    thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2
-    if thumb is not None and thumb[0] > TRACK_TOP:
-        sb_drag(ctx, thumb_center, TRACK_TOP)
-        img = ctx.ctrl.get_screen()
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        thumb = find_thumb(img_rgb)
-        thumb_center = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2
-
-    before_cal = img
-    cal_px = 30
-    sb_drag(ctx, thumb_center, thumb_center + cal_px)
-    after_cal = ctx.ctrl.get_screen()
-    shift_cal, conf_cal = find_content_shift(before_cal, after_cal)
-    ratio = shift_cal / cal_px if (shift_cal > 0 and conf_cal > 0.85) else 14.0
-
-    img_dr = ctx.ctrl.get_screen()
-    img_dr_rgb = cv2.cvtColor(img_dr, cv2.COLOR_BGR2RGB)
-    thumb_cal = find_thumb(img_dr_rgb)
-    drag_ratio = 1.1
-    if thumb_cal:
-        cal_from = (thumb_cal[0] + thumb_cal[1]) // 2
-        cal_dist = 30
-        sb_drag(ctx, cal_from, cal_from + cal_dist)
-        img_dr2 = ctx.ctrl.get_screen()
-        img_dr2_rgb = cv2.cvtColor(img_dr2, cv2.COLOR_BGR2RGB)
-        thumb_cal2 = find_thumb(img_dr2_rgb)
-        if thumb_cal2:
-            cal_to = (thumb_cal2[0] + thumb_cal2[1]) // 2
-            actual_move = cal_to - cal_from
-            if actual_move > 3:
-                drag_ratio = cal_dist / actual_move
-
-    scroll_to_top(ctx)
-    img = ctx.ctrl.get_screen()
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    thumb = find_thumb(img_rgb)
-    start_y = (thumb[0] + thumb[1]) // 2 if thumb else TRACK_TOP + thumb_h // 2 + 5
-
-    content_h = CONTENT_BOT - CONTENT_TOP
-    track_len = TRACK_BOT - TRACK_TOP
-    total_content = track_len * ratio + content_h
-    desired_overlap = 160
-    desired_shift = content_h - desired_overlap
-    est_frames = total_content / desired_shift
-    swipe_dur = max(5000, min(25000, int(est_frames * 600)))
+    if img is None:
+        return None
 
     first_results, _ = classify_items_in_frame(img)
     all_detections = []
@@ -473,94 +433,79 @@ def scan_mant_shop(ctx):
     for key, conf, abs_y, turns, buyable in first_results:
         all_detections.append((key, conf, 0, abs_y, turns, buyable))
 
-    scan_x_end = _gauss_scan_x()
-    proc = ctx.ctrl.swipe_async(SB_X, start_y, scan_x_end, TRACK_BOT, swipe_dur)
-
-    time.sleep(0.3)
     prev_frame = img
-    scan_deadline = time.time() + 30
     frame_idx = 1
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         futures = []
+        reached_bottom = False
 
-        while ctx.task.running() and time.time() < scan_deadline:
-            time.sleep(0.068)
-            curr = ctx.ctrl.get_screen()
-            if curr is not None and not content_same(prev_frame, curr):
+        for _segment in range(36):
+            if not ctx.task.running():
+                break
+            frame = ctx.ctrl.get_screen()
+            if frame is None:
+                break
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            if at_bottom(frame_rgb):
+                reached_bottom = True
+                if not content_same(prev_frame, frame):
+                    captured_frames[frame_idx] = frame.copy()
+                    if len(captured_frames) > max_kept_frames:
+                        oldest = min(captured_frames)
+                        del captured_frames[oldest]
+                    futures.append((frame_idx, pool.submit(classify_items_in_frame, frame)))
+                    prev_frame = frame
+                    frame_idx += 1
+                break
+            thumb = find_thumb(frame_rgb)
+            if thumb is None:
+                break
+            cursor = (thumb[0] + thumb[1]) // 2
+            thumb_h = thumb[1] - thumb[0]
+            step = max(int(thumb_h * 0.9), 28)
+            target_y = min(TRACK_BOT, cursor + step)
+            if target_y <= cursor + 3:
+                reached_bottom = True
+                break
+
+            seg_dur = max(500, min(1200, int(abs(target_y - cursor) * 8)))
+            scan_x_end = _gauss_scan_x()
+            proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
+
+            while proc.is_alive():
+                time.sleep(0.08)
+                curr = ctx.ctrl.get_screen()
+                if curr is None or content_same(prev_frame, curr):
+                    continue
                 captured_frames[frame_idx] = curr.copy()
                 if len(captured_frames) > max_kept_frames:
                     oldest = min(captured_frames)
                     del captured_frames[oldest]
-                f = pool.submit(classify_items_in_frame, curr)
-                futures.append((frame_idx, f))
+                futures.append((frame_idx, pool.submit(classify_items_in_frame, curr)))
                 prev_frame = curr
                 frame_idx += 1
-            if not proc.is_alive():
-                break
 
-        time.sleep(0.15)
-        final = ctx.ctrl.get_screen()
-        if final is not None and not content_same(prev_frame, final):
-            captured_frames[frame_idx] = final.copy()
-            if len(captured_frames) > max_kept_frames:
-                oldest = min(captured_frames)
-                del captured_frames[oldest]
-            f = pool.submit(classify_items_in_frame, final)
-            futures.append((frame_idx, f))
+            time.sleep(0.12)
+            settled = ctx.ctrl.get_screen()
+            if settled is not None and not content_same(prev_frame, settled):
+                captured_frames[frame_idx] = settled.copy()
+                if len(captured_frames) > max_kept_frames:
+                    oldest = min(captured_frames)
+                    del captured_frames[oldest]
+                futures.append((frame_idx, pool.submit(classify_items_in_frame, settled)))
+                prev_frame = settled
+                frame_idx += 1
 
         for fi, f in futures:
             hits, _ = f.result()
             for key, conf, abs_y, turns, buyable in hits:
                 all_detections.append((key, conf, fi, abs_y, turns, buyable))
-
-    time.sleep(0.2)
-    for _extra_pass in range(20):
-        extra_img = ctx.ctrl.get_screen()
-        if extra_img is None:
-            break
-        extra_rgb = cv2.cvtColor(extra_img, cv2.COLOR_BGR2RGB)
-        if at_bottom(extra_rgb):
-            if not content_same(prev_frame, extra_img):
-                captured_frames[frame_idx] = extra_img.copy()
-                if len(captured_frames) > max_kept_frames:
-                    oldest = min(captured_frames)
-                    del captured_frames[oldest]
-                hits, _ = classify_items_in_frame(extra_img)
-                for key, conf, abs_y, turns, buyable in hits:
-                    all_detections.append((key, conf, frame_idx, abs_y, turns, buyable))
-                frame_idx += 1
-            break
-        extra_thumb = find_thumb(extra_rgb)
-        if extra_thumb is None:
-            break
-        cursor = (extra_thumb[0] + extra_thumb[1]) // 2
-        step = max(extra_thumb[1] - extra_thumb[0], 30)
-        next_y = min(TRACK_BOT, cursor + step)
-        if next_y <= cursor + 3:
-            break
-        sb_drag(ctx, cursor, next_y)
-        time.sleep(0.15)
-        after_extra = ctx.ctrl.get_screen()
-        if after_extra is not None and not content_same(prev_frame, after_extra):
-            captured_frames[frame_idx] = after_extra.copy()
-            if len(captured_frames) > max_kept_frames:
-                oldest = min(captured_frames)
-                del captured_frames[oldest]
-            hits, _ = classify_items_in_frame(after_extra)
-            for key, conf, abs_y, turns, buyable in hits:
-                all_detections.append((key, conf, frame_idx, abs_y, turns, buyable))
-            prev_frame = after_extra
-            frame_idx += 1
+        if not reached_bottom:
+            log.warning("[SHOP] Scan ended before confirming bottom of shop list")
 
     items_list = dedup_detections(all_detections, captured_frames)
-
-    first_item_gy = items_list[0][2] if items_list else 0
-
-    scroll_to_top(ctx)
-    time.sleep(0.15)
-
-    return items_list, ratio, drag_ratio, first_item_gy
+    return items_list
 
 
 EXCHANGE_OCR_Y1 = 170
@@ -760,7 +705,7 @@ def scan_exchange_complete(ctx):
     return detected_items
 
 
-def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_gy):
+def buy_shop_items(ctx, target_names, items_list):
     if not target_names:
         return False, {"result": "skip", "reason": "no_targets"}
 
@@ -820,8 +765,9 @@ def buy_shop_items(ctx, target_names, items_list, ratio, drag_ratio, first_item_
             break
         cursor = (thumb[0] + thumb[1]) // 2
         th = thumb[1] - thumb[0]
-        next_y = min(TRACK_BOT, cursor + max(th // 2, 10))
-        if next_y <= cursor:
+        step = max(int(th * 0.85), 24)
+        next_y = min(TRACK_BOT, cursor + step)
+        if next_y <= cursor + 3:
             break
         sb_drag(ctx, cursor, next_y)
 
