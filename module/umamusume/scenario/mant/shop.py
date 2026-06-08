@@ -533,7 +533,7 @@ def scan_mant_shop(ctx):
             fallback_scrolls = 0
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
-            step = max(int(thumb_h * 0.68), 26)
+            step = max(int(thumb_h * 0.5), 26)
             target_y = min(TRACK_BOT, cursor + step)
             if target_y <= cursor + 3:
                 reached_bottom = True
@@ -789,8 +789,10 @@ def buy_shop_items(ctx, target_names, items_list):
     log.info(f"[BUY] Starting — targets={dict(remaining)}")
     missing_thumb_streak = 0
     fallback_scrolls = 0
+    sweep_retries = 0
+    max_sweep_retries = 2
 
-    for _ in range(60):
+    for _ in range(150):
         if not any(v > 0 for v in remaining.values()):
             break
 
@@ -837,14 +839,26 @@ def buy_shop_items(ctx, target_names, items_list):
         fallback_scrolls = 0
 
         if at_bottom(frame_rgb):
+            if any(v > 0 for v in remaining.values()) and sweep_retries < max_sweep_retries:
+                sweep_retries += 1
+                log.info(f"[BUY] Bottom reached with unresolved {dict(remaining)} — retry sweep {sweep_retries}/{max_sweep_retries}")
+                scroll_to_top(ctx)
+                time.sleep(random.uniform(0.22, 0.4))
+                continue
             log.info("[BUY] Reached bottom of shop list")
             break
 
         cursor = (thumb[0] + thumb[1]) // 2
         th = thumb[1] - thumb[0]
-        step = max(int(th * 1.1), 36)
+        step = max(int(th * 0.68), 30)
         next_y = min(TRACK_BOT, cursor + step)
         if next_y <= cursor + 3:
+            if any(v > 0 for v in remaining.values()) and sweep_retries < max_sweep_retries:
+                sweep_retries += 1
+                log.info(f"[BUY] Scroll exhausted with unresolved {dict(remaining)} — retry sweep {sweep_retries}/{max_sweep_retries}")
+                scroll_to_top(ctx)
+                time.sleep(random.uniform(0.22, 0.4))
+                continue
             break
         sb_drag(ctx, cursor, next_y)
 

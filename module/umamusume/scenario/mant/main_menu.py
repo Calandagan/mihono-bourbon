@@ -260,7 +260,6 @@ def handle_mant_shop_scan(ctx, current_date):
         get_mant_coin_reserve,
     )
     from module.umamusume.scenario.mant.shop_policy import (
-        collect_shop_copy_counts,
         collect_shop_turns,
         collect_priority_cure_targets,
         get_deck_type_counts,
@@ -302,11 +301,19 @@ def handle_mant_shop_scan(ctx, current_date):
         coin_cap = get_mant_coin_cap(current_date, mant_cfg)
         coin_reserve = get_mant_coin_reserve(current_date, start_budget, mant_cfg)
         shop_available = {name for name, _, _, _, buyable in items_list if buyable}
-        shop_slugs = {display_to_slug(n) for n in shop_available}
+        # Build buy targets from ALL detected allowed items, not only those whose
+        # checkmark was detected (the `buyable` flag is a flaky second OCR gate).
+        # buy_shop_items() still guards every click with is_unbuyable(), and the
+        # game rejects any checkbox that can't be clicked at confirm time, so a
+        # genuinely non-buyable item is filtered at execution, not pre-excluded here.
+        shop_detected = {name for name, _, _, _, _ in items_list}
+        shop_slugs = {display_to_slug(n) for n in shop_detected}
         log.info(
             f"[SHOP] Budget={budget} reserve_hint={coin_reserve} cap_hint={coin_cap} | shop_slugs={shop_slugs}"
         )
-        shop_copy_counts = collect_shop_copy_counts(items_list)
+        shop_copy_counts = {}
+        for name, _conf, _gy, _turns, _buyable in items_list:
+            shop_copy_counts[name] = shop_copy_counts.get(name, 0) + 1
 
         img = ctx.ctrl.get_screen()
         if img is not None:
