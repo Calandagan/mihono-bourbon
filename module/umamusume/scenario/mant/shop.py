@@ -476,7 +476,7 @@ def scan_mant_shop(ctx):
 
     first_results, _ = classify_items_in_frame(img)
     all_detections = []
-    max_kept_frames = 10
+    max_kept_frames = 14
     captured_frames = {0: img.copy()}
     for key, conf, abs_y, turns, buyable in first_results:
         all_detections.append((key, conf, 0, abs_y, turns, buyable))
@@ -490,7 +490,7 @@ def scan_mant_shop(ctx):
         missing_thumb_streak = 0
         fallback_scrolls = 0
 
-        for _segment in range(36):
+        for _segment in range(52):
             if not ctx.task.running():
                 break
             frame, frame_rgb, thumb = capture_shop_scroll_state(ctx, attempts=3)
@@ -533,7 +533,7 @@ def scan_mant_shop(ctx):
             fallback_scrolls = 0
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
-            step = max(int(thumb_h * 0.9), 32)
+            step = max(int(thumb_h * 0.68), 26)
             target_y = min(TRACK_BOT, cursor + step)
             if target_y <= cursor + 3:
                 reached_bottom = True
@@ -563,6 +563,11 @@ def scan_mant_shop(ctx):
             log.warning("[SHOP] Scan ended before confirming bottom of shop list")
 
     items_list = dedup_detections(all_detections, captured_frames)
+    if reached_bottom and len(captured_frames) < 6:
+        log.warning(
+            f"[SHOP] Low sample coverage during scan: samples={len(captured_frames)} "
+            f"deduped={len(items_list)}"
+        )
     log.info(
         f"[SHOP] Scan samples={len(captured_frames)} raw_detections={len(all_detections)} "
         f"deduped={len(items_list)} reached_bottom={'yes' if reached_bottom else 'no'}"
