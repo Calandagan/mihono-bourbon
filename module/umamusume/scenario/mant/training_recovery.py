@@ -754,17 +754,38 @@ def tick_megaphone(ctx):
 
 
 def item_loop(ctx):
+    execute_training_commitment_actions(ctx, planned_actions=["megaphone", "anklet"])
+
+
+def execute_training_commitment_actions(ctx, planned_actions=None, current_op=None):
     start_date = getattr(ctx.cultivate_detail.turn_info, 'date', None)
     if has_whistle(ctx) and whistle_loop(ctx, start_date):
-        return
+        return True
 
-    used_mega = handle_megaphone(ctx)
-    used_anklet = handle_anklet(ctx)
-    if not used_mega and not used_anklet:
+    actions = [action for action in (planned_actions or []) if action in ("megaphone", "anklet")]
+    if not actions:
+        actions = ["megaphone", "anklet"]
+
+    used_any = False
+
+    if "megaphone" in actions:
+        ctx.cultivate_detail.turn_info.pre_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
+        ctx.cultivate_detail.turn_info.pre_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
+        used_mega = handle_megaphone(ctx)
+        used_any = used_any or used_mega
+        if used_mega and current_op is not None:
+            megaphone_reevaluate(ctx, current_op)
+
+    if "anklet" in actions:
+        used_anklet = handle_anklet(ctx)
+        used_any = used_any or used_anklet
+
+    if not used_any:
         _record_item_trace(
             ctx,
             result={"phase": "training_commitment", "result": "no_item_used"},
         )
+    return used_any
 
 
 __all__ = [
@@ -779,4 +800,5 @@ __all__ = [
     "handle_megaphone",
     "handle_anklet",
     "item_loop",
+    "execute_training_commitment_actions",
 ]

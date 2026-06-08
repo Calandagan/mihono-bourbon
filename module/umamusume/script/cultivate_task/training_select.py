@@ -1264,17 +1264,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                                 rescan_training(ctx)
                                 return
 
-                ctx.cultivate_detail.turn_info.pre_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-                ctx.cultivate_detail.turn_info.pre_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-
-                from module.umamusume.scenario.mant.training_recovery import item_loop
-                item_loop(ctx)
-
-                try:
-                    from module.umamusume.scenario.mant.training_recovery import megaphone_reevaluate
-                    megaphone_reevaluate(ctx, op)
-                except Exception:
-                    pass
+                from module.umamusume.scenario.mant.training_recovery import execute_training_commitment_actions
+                execute_training_commitment_actions(
+                    ctx,
+                    planned_actions=[action for action in pre_actions if action in ("megaphone", "anklet")],
+                    current_op=op,
+                )
 
                 if getattr(ctx.cultivate_detail.turn_info, 'post_item_rescan_needed', False):
                     from module.umamusume.scenario.mant.training_recovery import rescan_training
@@ -1283,7 +1278,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     rescan_training(ctx)
                     return
         except Exception:
-            pass
+            log.exception("MANT training pre-actions failed")
 
         if op.training_type == TrainingType.TRAINING_TYPE_UNKNOWN:
             op.training_type = local_training_type

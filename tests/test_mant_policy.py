@@ -4,6 +4,7 @@ import types
 import unittest
 import importlib.util
 from pathlib import Path
+from unittest.mock import patch
 
 
 if "colorlog" not in sys.modules:
@@ -676,6 +677,52 @@ class MantPolicyTests(unittest.TestCase):
             {"Master Cleat Hammer": 2, "Artisan Cleat Hammer": 0},
         )
         self.assertTrue(useful)
+
+    def test_execute_training_commitment_actions_reevaluates_before_anklet(self):
+        calls = []
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_megaphone_tier=1,
+                mant_megaphone_turns=2,
+                turn_info=types.SimpleNamespace(date=40),
+            )
+        )
+        current_op = types.SimpleNamespace(training_type="power")
+
+        with patch.object(training_recovery, "has_whistle", return_value=False), \
+             patch.object(training_recovery, "handle_megaphone", side_effect=lambda _ctx: calls.append("megaphone") or True), \
+             patch.object(training_recovery, "megaphone_reevaluate", side_effect=lambda _ctx, _op: calls.append("reevaluate") or True), \
+             patch.object(training_recovery, "handle_anklet", side_effect=lambda _ctx: calls.append("anklet") or True):
+            used_any = training_recovery.execute_training_commitment_actions(
+                ctx,
+                planned_actions=["megaphone", "anklet"],
+                current_op=current_op,
+            )
+
+        self.assertTrue(used_any)
+        self.assertEqual(calls, ["megaphone", "reevaluate", "anklet"])
+
+    def test_execute_training_commitment_actions_records_no_item_when_nothing_used(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_megaphone_tier=0,
+                mant_megaphone_turns=0,
+                turn_info=types.SimpleNamespace(date=40),
+            )
+        )
+
+        with patch.object(training_recovery, "has_whistle", return_value=False), \
+             patch.object(training_recovery, "handle_megaphone", return_value=False), \
+             patch.object(training_recovery, "handle_anklet", return_value=False), \
+             patch.object(training_recovery, "_record_item_trace") as trace_mock:
+            used_any = training_recovery.execute_training_commitment_actions(
+                ctx,
+                planned_actions=["megaphone", "anklet"],
+                current_op=None,
+            )
+
+        self.assertFalse(used_any)
+        trace_mock.assert_called_once()
 
 
 if __name__ == "__main__":
