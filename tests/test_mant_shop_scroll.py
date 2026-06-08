@@ -85,6 +85,18 @@ class MantShopScrollTests(unittest.TestCase):
         with patch.object(shop, "find_thumb", return_value=None):
             self.assertFalse(shop.at_bottom(_DummyFrame()))
 
+    def test_dedup_detections_uses_majority_buyable_vote(self):
+        items = shop.dedup_detections(
+            [
+                ("Vita 20", 90, 0, 500, 4, False),
+                ("Vita 20", 91, 1, 505, 4, False),
+                ("Vita 20", 92, 2, 510, 4, True),
+            ],
+            {0: _DummyFrame(), 1: _DummyFrame(), 2: _DummyFrame()},
+        )
+        self.assertEqual(len(items), 1)
+        self.assertFalse(items[0][4])
+
     def test_buy_shop_items_does_not_treat_missing_thumb_as_bottom(self):
         frame_missing = _DummyFrame()
         frame_ready = _DummyFrame()

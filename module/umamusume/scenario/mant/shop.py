@@ -207,6 +207,19 @@ def capture_shop_scroll_state(ctx, *, attempts=3, delay=0.12):
     return last_frame, last_rgb, last_thumb
 
 
+def _record_scan_frame(captured_frames, futures, pool, frame_idx, prev_frame, frame, max_kept_frames):
+    if frame is None:
+        return prev_frame, frame_idx, False
+    if prev_frame is not None and content_same(prev_frame, frame):
+        return prev_frame, frame_idx, False
+    captured_frames[frame_idx] = frame.copy()
+    if len(captured_frames) > max_kept_frames:
+        oldest = min(captured_frames)
+        del captured_frames[oldest]
+    futures.append((frame_idx, pool.submit(classify_items_in_frame, frame)))
+    return frame, frame_idx + 1, True
+
+
 def is_effect_text(text):
     lower = text.lower()
     return any(lower.startswith(p) for p in EFFECT_PREFIXES)
@@ -402,15 +415,17 @@ def dedup_detections(all_detections, captured_frames):
         name_counts = Counter()
         name_best_conf = {}
         turn_counts = Counter()
+        buyable_votes = Counter()
         for k, c, fi, gy, turns, buyable in cluster:
             name_counts[k] += 1
             if k not in name_best_conf or c > name_best_conf[k]:
                 name_best_conf[k] = c
             if turns != 99:
                 turn_counts[turns] += 1
+            buyable_votes[buyable] += 1
         winner = max(name_counts.keys(), key=lambda n: (name_counts[n], name_best_conf[n]))
         winner_turns = turn_counts.most_common(1)[0][0] if turn_counts else 99
-        winner_buyable = any(buyable for k, _, _fi, _gy, _t, buyable in cluster if k == winner)
+        winner_buyable = buyable_votes.most_common(1)[0][0]
         avg_gy = sum(d[3] for d in cluster) / len(cluster)
         items_list.append((winner, name_best_conf[winner], avg_gy, winner_turns, winner_buyable))
 
@@ -461,7 +476,7 @@ def scan_mant_shop(ctx):
 
     first_results, _ = classify_items_in_frame(img)
     all_detections = []
-    max_kept_frames = 6
+    max_kept_frames = 10
     captured_frames = {0: img.copy()}
     for key, conf, abs_y, turns, buyable in first_results:
         all_detections.append((key, conf, 0, abs_y, turns, buyable))
@@ -518,7 +533,7 @@ def scan_mant_shop(ctx):
             fallback_scrolls = 0
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
-            step = max(int(thumb_h * 1.25), 48)
+            step = max(int(thumb_h * 1.05), 36)
             target_y = min(TRACK_BOT, cursor + step)
             if target_y <= cursor + 3:
                 reached_bottom = True
@@ -528,19 +543,35 @@ def scan_mant_shop(ctx):
             scan_x_end = _gauss_scan_x()
             proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
 
+            moving_samples = 0
             while proc.is_alive():
-                time.sleep(0.1)
+                time.sleep(0.09)
+                if moving_samples >= 2:
+                    continue
+                moving = ctx.ctrl.get_screen()
+                prev_frame, frame_idx, recorded = _record_scan_frame(
+                    captured_frames,
+                    futures,
+                    pool,
+                    frame_idx,
+                    prev_frame,
+                    moving,
+                    max_kept_frames,
+                )
+                if recorded:
+                    moving_samples += 1
 
             time.sleep(random.uniform(0.18, 0.35))
             settled, settled_rgb, settled_thumb = capture_shop_scroll_state(ctx, attempts=3)
-            if settled is not None and not content_same(prev_frame, settled):
-                captured_frames[frame_idx] = settled.copy()
-                if len(captured_frames) > max_kept_frames:
-                    oldest = min(captured_frames)
-                    del captured_frames[oldest]
-                futures.append((frame_idx, pool.submit(classify_items_in_frame, settled)))
-                prev_frame = settled
-                frame_idx += 1
+            prev_frame, frame_idx, _ = _record_scan_frame(
+                captured_frames,
+                futures,
+                pool,
+                frame_idx,
+                prev_frame,
+                settled,
+                max_kept_frames,
+            )
             if settled_rgb is not None and at_bottom(settled_rgb):
                 reached_bottom = True
                 break
@@ -553,6 +584,10 @@ def scan_mant_shop(ctx):
             log.warning("[SHOP] Scan ended before confirming bottom of shop list")
 
     items_list = dedup_detections(all_detections, captured_frames)
+    log.info(
+        f"[SHOP] Scan samples={len(captured_frames)} raw_detections={len(all_detections)} "
+        f"deduped={len(items_list)} reached_bottom={'yes' if reached_bottom else 'no'}"
+    )
     return items_list
 
 
