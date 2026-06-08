@@ -380,7 +380,7 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertTrue(skipped)
 
-    def test_should_skip_shop_item_treats_cleats_as_contextual_only(self):
+    def test_should_skip_shop_item_allows_cleats_when_enabled_by_tier_policy(self):
         skipped = shop_policy.should_skip_shop_item(
             "Master Cleat Hammer",
             mant_cfg=None,
@@ -396,7 +396,7 @@ class MantPolicyTests(unittest.TestCase):
             ailment_cure_all="Miracle Cure",
             deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
         )
-        self.assertTrue(skipped)
+        self.assertFalse(skipped)
 
     def test_should_skip_shop_item_does_not_reject_training_items_when_deck_info_is_unknown(self):
         skipped = shop_policy.should_skip_shop_item(
@@ -613,7 +613,7 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertEqual(targets, ["Grilled Carrots"])
 
-    def test_build_emergency_expiring_targets_skips_contextual_only_cleats(self):
+    def test_build_emergency_expiring_targets_allows_enabled_cleats(self):
         cfg = types.SimpleNamespace(
             tier_count=4,
             item_tiers={
@@ -655,7 +655,7 @@ class MantPolicyTests(unittest.TestCase):
             ailment_cure_map={},
             ailment_cure_all="Miracle Cure",
         )
-        self.assertEqual(targets, ["Power Scroll"])
+        self.assertEqual(targets, ["Artisan Cleat Hammer", "Master Cleat Hammer", "Power Scroll"])
 
     def test_choose_cleat_for_race_prefers_master_on_climax_turn(self):
         selected = race_prep.choose_cleat_for_race(

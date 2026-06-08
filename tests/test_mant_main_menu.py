@@ -242,6 +242,116 @@ class MantMainMenuTests(unittest.TestCase):
         self.assertEqual(calls, ["open", ("buy", ["Artisan Cleat Hammer"])])
         self.assertEqual(dict(ctx.cultivate_detail.mant_owned_items).get("Artisan Cleat Hammer"), 1)
 
+    def test_shop_scan_targets_only_affordable_items_after_priority_cures(self):
+        captured_targets = []
+
+        def _buy_shop_items(_ctx, targets, _items):
+            captured_targets.extend(targets)
+            return True, {"selected": list(targets)}
+
+        mant_cfg = types.SimpleNamespace(
+            item_tiers={
+                "speed_manual": 1,
+                "vita_20": 1,
+                "grilled_carrots": 1,
+            },
+            tier_count=1,
+        )
+        turn_info = types.SimpleNamespace(
+            set_shop_trace=lambda **_k: None,
+            append_trace=lambda *_a, **_k: None,
+            parse_main_menu_finish=True,
+        )
+        ctx = types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(mant_config=mant_cfg),
+                    pal_card_store={},
+                )
+            ),
+            ctrl=types.SimpleNamespace(get_screen=lambda **_k: None, trigger_decision_reset=False),
+            cultivate_detail=types.SimpleNamespace(
+                mant_shop_scanned_this_turn=False,
+                mant_shop_last_chunk=-1,
+                mant_coins=112,
+                mant_owned_items=[],
+                mant_inventory_rescan_pending=False,
+                mant_afflictions=[],
+                turn_info=turn_info,
+            ),
+        )
+        items_list = [
+            ("Miracle Cure", 1.0, 500, 6, True),
+            ("Speed Manual", 1.0, 620, 6, True),
+            ("Vita 20", 1.0, 700, 6, True),
+            ("Grilled Carrots", 1.0, 780, 6, True),
+        ]
+        shop_stub = types.SimpleNamespace(
+            is_shop_scan_turn=lambda date: True,
+            scan_mant_shop=lambda _ctx: items_list,
+            buy_shop_items=_buy_shop_items,
+            SHOP_ITEM_COSTS={
+                "Miracle Cure": 40,
+                "Speed Manual": 15,
+                "Vita 20": 35,
+                "Grilled Carrots": 40,
+            },
+            SLUG_TO_DISPLAY={
+                "speed_manual": "Speed Manual",
+                "vita_20": "Vita 20",
+                "grilled_carrots": "Grilled Carrots",
+            },
+            display_to_slug=lambda name: {
+                "Miracle Cure": "miracle_cure",
+                "Speed Manual": "speed_manual",
+                "Vita 20": "vita_20",
+                "Grilled Carrots": "grilled_carrots",
+            }[name],
+            current_shop_chunk=lambda date: 6,
+        )
+        constants_stub = types.SimpleNamespace(AILMENT_CURE_MAP={}, AILMENT_CURE_ALL="Miracle Cure")
+        shop_policy_stub = types.SimpleNamespace(
+            collect_shop_turns=lambda items: {name: turns for name, _c, _g, turns, _b in items},
+            collect_priority_cure_targets=lambda *args, **kwargs: (["Miracle Cure"], {"Miracle Cure"}, 72),
+            get_deck_type_counts=lambda _store: {},
+            get_shop_item_ui_tier=lambda _cfg, _slug, default=None: 1,
+            get_shop_stock_state=lambda _name, _owned: (0, None),
+            is_shop_item_disabled=lambda *args, **kwargs: False,
+            should_skip_shop_item=lambda *args, **kwargs: False,
+        )
+        policy_stub = types.SimpleNamespace(
+            get_mant_coin_cap=lambda *_a, **_k: 260,
+            get_mant_coin_reserve=lambda *_a, **_k: 180,
+        )
+        context_stub = types.SimpleNamespace(
+            log_detected_items=lambda *_a, **_k: None,
+            log_detected_shop_items=lambda *_a, **_k: None,
+        )
+        persistence_stub = types.SimpleNamespace(
+            get_used_buffs=lambda: set(),
+            get_ignore_cat_food=lambda: False,
+            get_ignore_grilled_carrots=lambda: False,
+            save_inventory=lambda *_a, **_k: None,
+        )
+        actions_stub = types.SimpleNamespace(ONE_TIME_BUFF_ITEMS=set())
+
+        with patch.dict(
+            sys.modules,
+            {
+                "module.umamusume.scenario.mant.shop": shop_stub,
+                "module.umamusume.scenario.mant.constants": constants_stub,
+                "module.umamusume.scenario.mant.policy": policy_stub,
+                "module.umamusume.scenario.mant.shop_policy": shop_policy_stub,
+                "module.umamusume.context": context_stub,
+                "module.umamusume.persistence": persistence_stub,
+                "module.umamusume.scenario.mant.actions": actions_stub,
+            },
+        ):
+            result = main_menu.handle_mant_shop_scan(ctx, 37)
+
+        self.assertTrue(result)
+        self.assertEqual(captured_targets, ["Miracle Cure", "Speed Manual", "Vita 20"])
+
 
 if __name__ == "__main__":
     unittest.main()

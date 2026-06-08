@@ -301,19 +301,17 @@ def handle_mant_shop_scan(ctx, current_date):
         coin_cap = get_mant_coin_cap(current_date, mant_cfg)
         coin_reserve = get_mant_coin_reserve(current_date, start_budget, mant_cfg)
         shop_available = {name for name, _, _, _, buyable in items_list if buyable}
-        # Build buy targets from ALL detected allowed items, not only those whose
-        # checkmark was detected (the `buyable` flag is a flaky second OCR gate).
-        # buy_shop_items() still guards every click with is_unbuyable(), and the
-        # game rejects any checkbox that can't be clicked at confirm time, so a
-        # genuinely non-buyable item is filtered at execution, not pre-excluded here.
         shop_detected = {name for name, _, _, _, _ in items_list}
-        shop_slugs = {display_to_slug(n) for n in shop_detected}
+        shop_slugs = {display_to_slug(n) for n in shop_available}
+        detected_slugs = {display_to_slug(n) for n in shop_detected}
         log.info(
-            f"[SHOP] Budget={budget} reserve_hint={coin_reserve} cap_hint={coin_cap} | shop_slugs={shop_slugs}"
+            f"[SHOP] Budget={budget} reserve_hint={coin_reserve} cap_hint={coin_cap} "
+            f"| shop_slugs={detected_slugs}"
         )
         shop_copy_counts = {}
-        for name, _conf, _gy, _turns, _buyable in items_list:
-            shop_copy_counts[name] = shop_copy_counts.get(name, 0) + 1
+        for name, _conf, _gy, _turns, buyable in items_list:
+            if buyable:
+                shop_copy_counts[name] = shop_copy_counts.get(name, 0) + 1
 
         img = ctx.ctrl.get_screen()
         if img is not None:
@@ -389,9 +387,8 @@ def handle_mant_shop_scan(ctx, current_date):
             if max_stock is not None:
                 option_meta[name]["max_stock"] = max_stock
 
-        # Buy all selected items regardless of coin cost. The game will reject
-        # any checkbox that can't be clicked at confirmation time. Sort by user-
-        # configured ui_tier first, then by turns remaining for urgency.
+        # Spend aggressively, but never plan more checkboxes than the current
+        # coin budget can physically pay for. "Clicked" is not a purchase.
         for tier in range(1, mant_cfg.tier_count + 1):
             tier_items = []
             for slug, t in mant_cfg.item_tiers.items():
@@ -436,9 +433,13 @@ def handle_mant_shop_scan(ctx, current_date):
 
                 actual_copies = 1 if display in all_cures or display == AILMENT_CURE_ALL else copies
                 for _i in range(actual_copies):
+                    if cost > budget:
+                        skip_overrides.setdefault(display, "insufficient_coins")
+                        break
                     tier_targets.append(display)
                     target_sources.setdefault(display, "tier_policy")
                     target_ui_tiers.setdefault(display, tier)
+                    budget -= cost
 
         log.info(f"[SHOP] tier_targets built={tier_targets}, budget_remaining={budget}")
 

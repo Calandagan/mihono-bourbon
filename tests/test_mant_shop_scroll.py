@@ -138,6 +138,7 @@ class MantShopScrollTests(unittest.TestCase):
                  ],
              ), \
              patch.object(shop, "is_unbuyable", return_value=False), \
+             patch.object(shop, "scan_exchange_complete", return_value={"Vita 20": 1}), \
              patch.object(shop, "time", types.SimpleNamespace(sleep=lambda *_a, **_k: None)), \
              patch.dict(
                  sys.modules,
@@ -159,6 +160,55 @@ class MantShopScrollTests(unittest.TestCase):
         self.assertEqual(result["selected"], ["Vita 20"])
         self.assertTrue(any(x == shop.CHECKBOX_X for x, _y, _name in clicks))
         self.assertEqual(len(fallback_calls), 1)
+
+    def test_buy_shop_items_drops_clicked_items_missing_from_exchange_confirmation(self):
+        clicks = []
+        ctx = types.SimpleNamespace(
+            ctrl=types.SimpleNamespace(
+                click=lambda x, y, name=None: clicks.append((x, y, name)),
+                get_screen=lambda **_kwargs: _DummyFrame(),
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                turn_info=types.SimpleNamespace(set_shop_trace=lambda **_k: None),
+                mant_failed_shop_names_snapshot=set(),
+            ),
+        )
+        image_match_result = types.SimpleNamespace(
+            find_match=True,
+            matched_area=((0, 10), (10, 20)),
+        )
+
+        with patch.object(shop, "scroll_to_top", return_value=None), \
+             patch.object(shop, "capture_shop_scroll_state", side_effect=[
+                 (_DummyFrame(), _DummyFrame(), (500, 540)),
+                 (_DummyFrame(), _DummyFrame(), (900, 936)),
+             ]), \
+             patch.object(shop, "classify_items_in_frame", side_effect=[
+                 ([("Vita 20", 0.95, 620, 6, True), ("Grilled Carrots", 0.95, 700, 6, True)], False),
+             ]), \
+             patch.object(shop, "is_unbuyable", return_value=False), \
+             patch.object(shop, "scan_exchange_complete", return_value={"Vita 20": 1}), \
+             patch.object(shop, "at_bottom", return_value=True), \
+             patch.object(shop, "time", types.SimpleNamespace(sleep=lambda *_a, **_k: None)), \
+             patch.dict(
+                 sys.modules,
+                 {
+                     "bot.recog.image_matcher": types.SimpleNamespace(image_match=lambda *_a, **_k: image_match_result),
+                     "module.umamusume.asset.template": types.SimpleNamespace(UI_INFO=object()),
+                     "module.umamusume.script.cultivate_task.info": types.SimpleNamespace(
+                         find_similar_text=lambda text, *_a, **_k: text
+                     ),
+                     "bot.recog.ocr": types.SimpleNamespace(
+                         ocr=lambda *_a, **_k: [],
+                         ocr_line=lambda *_a, **_k: "Exchange Complete",
+                     ),
+                 },
+             ):
+            bought, result = shop.buy_shop_items(ctx, ["Vita 20", "Grilled Carrots"], [])
+
+        self.assertTrue(bought)
+        self.assertEqual(result["clicked"], ["Vita 20", "Grilled Carrots"])
+        self.assertEqual(result["selected"], ["Vita 20"])
 
     def test_scan_mant_shop_uses_content_fallback_when_scrollbar_is_missing(self):
         frame_initial = _DummyFrame()

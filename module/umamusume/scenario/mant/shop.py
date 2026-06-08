@@ -899,6 +899,7 @@ def buy_shop_items(ctx, target_names, items_list):
     from module.umamusume.script.cultivate_task.info import find_similar_text
 
     exchange_ready = False
+    confirmed_selected = None
     for _ in range(40):
         time.sleep(0.3)
         screen = ctx.ctrl.get_screen(to_gray=True)
@@ -912,6 +913,32 @@ def buy_shop_items(ctx, target_names, items_list):
             title_text = find_similar_text(title_text, ["Exchange Complete"], 0.7)
             if title_text == "Exchange Complete":
                 exchange_ready = True
+                try:
+                    confirmed = scan_exchange_complete(ctx)
+                except Exception:
+                    log.exception("[BUY] Failed to scan Exchange Complete contents")
+                    confirmed = {}
+                if confirmed:
+                    confirmed_counts = Counter(confirmed)
+                    desired_counts = Counter(selected_names)
+                    confirmed_selected = []
+                    for name in selected_names:
+                        if desired_counts.get(name, 0) <= 0:
+                            continue
+                        if confirmed_counts.get(name, 0) <= 0:
+                            continue
+                        confirmed_selected.append(name)
+                        confirmed_counts[name] -= 1
+                        desired_counts[name] -= 1
+                    dropped = [
+                        name for name, count in Counter(selected_names).items()
+                        for _ in range(max(0, count - Counter(confirmed_selected).get(name, 0)))
+                    ]
+                    if dropped:
+                        log.warning(f"[BUY] Clicked but not confirmed by exchange popup: {dropped}")
+                else:
+                    confirmed_selected = []
+                    log.warning("[BUY] Exchange Complete detected but no purchased items were OCR-confirmed")
                 break
 
     ctx.ctrl.click(EXCHANGE_CLOSE_X, EXCHANGE_CLOSE_Y)
@@ -932,16 +959,18 @@ def buy_shop_items(ctx, target_names, items_list):
         return False, result
 
     ctx.cultivate_detail.mant_failed_shop_names_snapshot = set()
+    final_selected_names = list(confirmed_selected) if confirmed_selected is not None else list(selected_names)
     result = {
         "result": "ok",
         "original_targets": original_targets,
-        "selected": list(selected_names),
+        "selected": final_selected_names,
+        "clicked": list(selected_names),
         "unresolved": unresolved,
         "failed_snapshot": [],
     }
     try:
-        ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in selected_names], result=result)
+        ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in final_selected_names], result=result)
     except Exception:
         pass
-    log.info(f"[BUY] Done — selected={selected_names}, remaining={dict(remaining)}")
+    log.info(f"[BUY] Done — selected={final_selected_names}, clicked={selected_names}, remaining={dict(remaining)}")
     return True, result

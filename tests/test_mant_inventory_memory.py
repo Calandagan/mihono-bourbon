@@ -132,7 +132,7 @@ class MantInventoryMemoryTests(unittest.TestCase):
         )
         self.assertTrue(ctx.cultivate_detail.mant_inventory_rescan_pending)
 
-    def test_instant_use_full_search_miss_keeps_local_inventory(self):
+    def test_instant_use_full_search_miss_removes_stale_local_inventory(self):
         ctx = types.SimpleNamespace(
             ctrl=types.SimpleNamespace(),
             cultivate_detail=types.SimpleNamespace(
@@ -150,11 +150,22 @@ class MantInventoryMemoryTests(unittest.TestCase):
 
         with patch.object(actions._inventory, "open_items_panel", return_value=True), \
              patch.object(actions._inventory, "try_click_item_plus_once", return_value=(False, True)), \
-             patch.object(actions._inventory, "close_items_panel", return_value=None):
+             patch.object(actions._inventory, "close_items_panel", return_value=None), \
+             patch.dict(
+                 sys.modules,
+                 {
+                     "module.umamusume.persistence": types.SimpleNamespace(
+                         save_inventory=lambda *_a, **_k: None,
+                         mark_buff_used=lambda *_a, **_k: None,
+                         is_buff_used=lambda *_a, **_k: False,
+                     ),
+                     "module.umamusume.context": types.SimpleNamespace(log_detected_items=lambda *_a, **_k: None),
+                 },
+             ):
             ok = actions.handle_instant_use_items(ctx)
 
         self.assertFalse(ok)
-        self.assertEqual(ctx.cultivate_detail.mant_owned_items, [("Pretty Mirror", 1)])
+        self.assertEqual(ctx.cultivate_detail.mant_owned_items, [])
         self.assertTrue(ctx.cultivate_detail.mant_inventory_rescan_pending)
 
 

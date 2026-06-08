@@ -24,6 +24,27 @@ def _set_item_trace(ctx, *, options=None, selected=None, result=None):
         )
 
 
+def _remove_stale_local_items(ctx, item_names):
+    stale = {name for name in (item_names or []) if name}
+    if not stale:
+        return []
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    changed = False
+    for item_name in stale:
+        if owned_map.pop(item_name, None) is not None:
+            changed = True
+    if not changed:
+        return owned
+    updated = [(n, q) for n, q in owned_map.items() if q > 0]
+    ctx.cultivate_detail.mant_owned_items = updated
+    from module.umamusume.persistence import save_inventory
+    save_inventory(updated)
+    from module.umamusume.context import log_detected_items
+    log_detected_items(updated)
+    return updated
+
+
 def use_item_and_update_inventory(ctx, item_name):
     ok = _inventory.use_training_item(ctx, item_name, 1)
     if not ok:
@@ -98,9 +119,10 @@ def handle_instant_use_items(ctx):
 
     if fully_searched_missing:
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
+        _remove_stale_local_items(ctx, fully_searched_missing)
         _inventory.log.warning(
             f"[INSTANT-USE] Full search missed items {fully_searched_missing}; "
-            "keeping local inventory unchanged and scheduling a rescan"
+            "removing stale local entries and scheduling a rescan"
         )
 
     if not selected:
