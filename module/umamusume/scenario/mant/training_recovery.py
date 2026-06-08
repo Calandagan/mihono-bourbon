@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 import numpy as np
+import bot.base.log as logger
 
 from module.umamusume.scenario.mant import inventory as _inventory
 from module.umamusume.scenario.mant.actions import use_item_and_update_inventory
@@ -18,6 +19,8 @@ from module.umamusume.scenario.mant.policy import (
     pick_training_recovery_item,
     remaining_training_turns_real,
 )
+
+log = logger.get_logger(__name__)
 
 MEGAPHONE_TIERS = _inventory.MEGAPHONE_TIERS
 MEGAPHONE_CONFIG_KEYS = _inventory.MEGAPHONE_CONFIG_KEYS
