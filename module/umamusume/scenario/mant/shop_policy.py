@@ -17,10 +17,11 @@ SHOP_STOCK_CAPS = {
     "Guts Ankle Weights": 3,
 }
 
-CONTEXTUAL_ONLY_SHOP_ITEMS = {
-    "Artisan Cleat Hammer",
-    "Master Cleat Hammer",
-}
+# Cleats are now bought like any other allowed item through the normal tier
+# policy (honouring the user's WebUI priority), not only contextually before
+# races. The dedicated cleat handler still runs afterwards as a just-in-time
+# backstop on race turns. Left empty so the override mechanism stays available.
+CONTEXTUAL_ONLY_SHOP_ITEMS: set[str] = set()
 
 
 def get_shop_item_ui_tier(mant_cfg, slug, default=0) -> int:
