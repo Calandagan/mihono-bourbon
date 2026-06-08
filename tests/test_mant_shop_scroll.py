@@ -196,6 +196,45 @@ class MantShopScrollTests(unittest.TestCase):
         self.assertEqual(items, [("Vita 20", 0.95, 620, 6, True)])
         self.assertEqual(len(fallback_calls), 1)
 
+    def test_scan_mant_shop_uses_segmented_drag_not_async_sampling(self):
+        frame_initial = _DummyFrame()
+        frame_next = _DummyFrame()
+        drags = []
+
+        ctrl = types.SimpleNamespace(
+            get_screen=lambda **_kwargs: _DummyFrame(),
+            swipe_async=lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("swipe_async should not be used")),
+        )
+        ctx = types.SimpleNamespace(
+            ctrl=ctrl,
+            task=types.SimpleNamespace(running=lambda: True),
+        )
+
+        with patch.object(shop, "open_mant_shop", return_value=True), \
+             patch.object(shop, "scroll_to_top", return_value=None), \
+             patch.object(
+                 shop,
+                 "capture_shop_scroll_state",
+                 side_effect=[
+                     (frame_initial, frame_initial, (500, 540)),
+                     (frame_initial, frame_initial, (500, 540)),
+                     (frame_next, frame_next, (900, 936)),
+                 ],
+             ), \
+             patch.object(shop, "classify_items_in_frame", side_effect=[
+                 ([("Vita 20", 0.95, 620, 6, True)], False),
+                 ([("Vita 20", 0.95, 700, 6, True)], False),
+             ]), \
+             patch.object(shop, "content_same", return_value=False), \
+             patch.object(shop, "sb_drag", side_effect=lambda *_a, **_k: drags.append(True)), \
+             patch.object(shop, "dedup_detections", return_value=[("Vita 20", 0.95, 620, 6, True)]), \
+             patch.object(shop, "at_bottom", side_effect=[False, True]), \
+             patch.object(shop, "time", types.SimpleNamespace(sleep=lambda *_a, **_k: None)):
+            items = shop.scan_mant_shop(ctx)
+
+        self.assertEqual(items, [("Vita 20", 0.95, 620, 6, True)])
+        self.assertEqual(len(drags), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

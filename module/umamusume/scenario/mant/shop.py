@@ -490,7 +490,7 @@ def scan_mant_shop(ctx):
         missing_thumb_streak = 0
         fallback_scrolls = 0
 
-        for _segment in range(28):
+        for _segment in range(36):
             if not ctx.task.running():
                 break
             frame, frame_rgb, thumb = capture_shop_scroll_state(ctx, attempts=3)
@@ -533,35 +533,14 @@ def scan_mant_shop(ctx):
             fallback_scrolls = 0
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
-            step = max(int(thumb_h * 1.05), 36)
+            step = max(int(thumb_h * 0.9), 32)
             target_y = min(TRACK_BOT, cursor + step)
             if target_y <= cursor + 3:
                 reached_bottom = True
                 break
 
-            seg_dur = random.randint(650, 950)
-            scan_x_end = _gauss_scan_x()
-            proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
-
-            moving_samples = 0
-            while proc.is_alive():
-                time.sleep(0.09)
-                if moving_samples >= 2:
-                    continue
-                moving = ctx.ctrl.get_screen()
-                prev_frame, frame_idx, recorded = _record_scan_frame(
-                    captured_frames,
-                    futures,
-                    pool,
-                    frame_idx,
-                    prev_frame,
-                    moving,
-                    max_kept_frames,
-                )
-                if recorded:
-                    moving_samples += 1
-
-            time.sleep(random.uniform(0.18, 0.35))
+            sb_drag(ctx, cursor, target_y)
+            time.sleep(random.uniform(0.16, 0.28))
             settled, settled_rgb, settled_thumb = capture_shop_scroll_state(ctx, attempts=3)
             prev_frame, frame_idx, _ = _record_scan_frame(
                 captured_frames,
