@@ -236,6 +236,9 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
             ctx.cultivate_detail.pal_event_stage = 0
             if hasattr(ctx.cultivate_detail, 'pal_last_detection_date'):
                 delattr(ctx.cultivate_detail, 'pal_last_detection_date')
+        if is_mant(ctx):
+            from module.umamusume.scenario.mant.main_menu import handle_mant_turn_start
+            handle_mant_turn_start(ctx, current_date)
     else:
         ctx.cultivate_detail.turn_info.date = current_date
 

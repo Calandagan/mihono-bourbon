@@ -613,6 +613,50 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertEqual(targets, ["Grilled Carrots"])
 
+    def test_build_emergency_expiring_targets_skips_contextual_only_cleats(self):
+        cfg = types.SimpleNamespace(
+            tier_count=4,
+            item_tiers={
+                "artisan_cleat_hammer": 1,
+                "master_cleat_hammer": 1,
+                "power_scroll": 2,
+            },
+        )
+        targets, _budget = shop_policy.build_emergency_expiring_targets(
+            current_date=21,
+            budget=300,
+            shop_items=[
+                ("Artisan Cleat Hammer", 1.0, 10, 1, True),
+                ("Master Cleat Hammer", 1.0, 20, 1, True),
+                ("Power Scroll", 1.0, 30, 1, True),
+            ],
+            mant_cfg=cfg,
+            owned_map={},
+            deck_counts={1: 1, 2: 1, 3: 1, 4: 1, 5: 1},
+            used_buffs=set(),
+            one_time_buff_items=set(),
+            ignore_grilled_carrots=False,
+            shop_item_costs={
+                "Artisan Cleat Hammer": 25,
+                "Master Cleat Hammer": 40,
+                "Power Scroll": 35,
+            },
+            slug_to_display={
+                "artisan_cleat_hammer": "Artisan Cleat Hammer",
+                "master_cleat_hammer": "Master Cleat Hammer",
+                "power_scroll": "Power Scroll",
+            },
+            display_to_slug=lambda name: {
+                "Artisan Cleat Hammer": "artisan_cleat_hammer",
+                "Master Cleat Hammer": "master_cleat_hammer",
+                "Power Scroll": "power_scroll",
+            }[name],
+            detected_portraits_log={},
+            ailment_cure_map={},
+            ailment_cure_all="Miracle Cure",
+        )
+        self.assertEqual(targets, ["Power Scroll"])
+
     def test_choose_cleat_for_race_prefers_master_on_climax_turn(self):
         selected = race_prep.choose_cleat_for_race(
             74,

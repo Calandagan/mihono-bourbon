@@ -348,6 +348,8 @@ def build_emergency_expiring_targets(
             display = slug_to_display.get(slug)
             if not display or display not in expiring:
                 continue
+            if is_contextual_shop_override_item(display):
+                continue
             if display in cure_names or display == ailment_cure_all:
                 continue
             if display in one_time_buff_items and display in used_buffs:

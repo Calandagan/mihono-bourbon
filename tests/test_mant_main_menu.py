@@ -56,6 +56,33 @@ with patch.dict(
 
 
 class MantMainMenuTests(unittest.TestCase):
+    def test_handle_mant_turn_start_decrements_shop_turns_only_once_per_date(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_shop_last_chunk=2,
+                mant_shop_items=[("Artisan Cleat Hammer", 1.0, 10, 4, True)],
+            )
+        )
+
+        shop_stub = types.SimpleNamespace(
+            is_shop_scan_turn=lambda date: True,
+            current_shop_chunk=lambda date: 2,
+        )
+        context_stub = types.SimpleNamespace(log_detected_shop_items=lambda *_: None)
+
+        with patch.dict(
+            sys.modules,
+            {
+                "module.umamusume.scenario.mant.shop": shop_stub,
+                "module.umamusume.context": context_stub,
+            },
+        ):
+            main_menu.handle_mant_turn_start(ctx, 21)
+            self.assertEqual(ctx.cultivate_detail.mant_shop_items[0][3], 3)
+            main_menu.handle_mant_turn_start(ctx, 21)
+
+        self.assertEqual(ctx.cultivate_detail.mant_shop_items[0][3], 3)
+
     def test_merge_scanned_inventory_preserves_unseen_local_items(self):
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(

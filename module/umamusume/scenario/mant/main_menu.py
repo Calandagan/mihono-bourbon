@@ -223,6 +223,10 @@ def handle_mant_turn_start(ctx, current_date):
     from module.umamusume.scenario.mant.shop import is_shop_scan_turn, current_shop_chunk
     if not is_shop_scan_turn(current_date):
         return
+    processed_date = getattr(ctx.cultivate_detail, 'mant_shop_turn_start_date', None)
+    if processed_date == current_date:
+        return
+    ctx.cultivate_detail.mant_shop_turn_start_date = current_date
 
     chunk = current_shop_chunk(current_date)
     last_chunk = getattr(ctx.cultivate_detail, 'mant_shop_last_chunk', -1)
