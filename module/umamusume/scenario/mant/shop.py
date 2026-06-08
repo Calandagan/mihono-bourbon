@@ -168,6 +168,16 @@ def scroll_to_top(ctx):
     ctx.ctrl.trigger_decision_reset = True
 
 
+def content_scroll_down(ctx, distance_px=260):
+    start_x = random.randint(CONTENT_X1 + 260, CONTENT_X2 - 40)
+    end_x = start_x + random.randint(-18, 18)
+    start_y = min(CONTENT_BOT - 26, CONTENT_TOP + distance_px + 80)
+    end_y = max(CONTENT_TOP + 26, start_y - distance_px)
+    duration = random.uniform(0.42, 0.68)
+    ctx.ctrl.swipe(start_x, start_y, end_x, end_y, duration=duration)
+    time.sleep(random.uniform(0.16, 0.28))
+
+
 def _gauss_scan_x():
     mu = SCREEN_WIDTH * 0.667
     sigma = SCREEN_WIDTH * 0.194
@@ -463,6 +473,7 @@ def scan_mant_shop(ctx):
         futures = []
         reached_bottom = False
         missing_thumb_streak = 0
+        fallback_scrolls = 0
 
         for _segment in range(28):
             if not ctx.task.running():
@@ -483,12 +494,28 @@ def scan_mant_shop(ctx):
                 break
             if thumb is None:
                 missing_thumb_streak += 1
-                if missing_thumb_streak >= 3:
+                fallback_scrolls += 1
+                if fallback_scrolls >= 4:
                     log.warning("[SHOP] Scrollbar missing during scan; stopping early with current detections")
                     break
-                time.sleep(0.15)
+                content_scroll_down(ctx)
+                settled, settled_rgb, settled_thumb = capture_shop_scroll_state(ctx, attempts=4, delay=0.16)
+                if settled is not None and not content_same(prev_frame, settled):
+                    captured_frames[frame_idx] = settled.copy()
+                    if len(captured_frames) > max_kept_frames:
+                        oldest = min(captured_frames)
+                        del captured_frames[oldest]
+                    futures.append((frame_idx, pool.submit(classify_items_in_frame, settled)))
+                    prev_frame = settled
+                    frame_idx += 1
+                if settled_rgb is not None and at_bottom(settled_rgb):
+                    reached_bottom = True
+                    break
+                if settled_thumb is not None:
+                    missing_thumb_streak = 0
                 continue
             missing_thumb_streak = 0
+            fallback_scrolls = 0
             cursor = (thumb[0] + thumb[1]) // 2
             thumb_h = thumb[1] - thumb[0]
             step = max(int(thumb_h * 1.25), 48)
@@ -742,6 +769,7 @@ def buy_shop_items(ctx, target_names, items_list):
     time.sleep(random.uniform(0.22, 0.4))
     log.info(f"[BUY] Starting — targets={dict(remaining)}")
     missing_thumb_streak = 0
+    fallback_scrolls = 0
 
     for _ in range(60):
         if not any(v > 0 for v in remaining.values()):
@@ -780,12 +808,14 @@ def buy_shop_items(ctx, target_names, items_list):
 
         if thumb is None:
             missing_thumb_streak += 1
-            if missing_thumb_streak >= 3:
+            fallback_scrolls += 1
+            if fallback_scrolls >= 4:
                 log.warning("[BUY] Scrollbar missing repeatedly while unresolved targets remain")
                 break
-            time.sleep(0.15)
+            content_scroll_down(ctx, distance_px=220)
             continue
         missing_thumb_streak = 0
+        fallback_scrolls = 0
 
         if at_bottom(frame_rgb):
             log.info("[BUY] Reached bottom of shop list")

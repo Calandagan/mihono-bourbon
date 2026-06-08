@@ -304,7 +304,7 @@ def handle_mant_shop_scan(ctx, current_date):
         shop_available = {name for name, _, _, _, buyable in items_list if buyable}
         shop_slugs = {display_to_slug(n) for n in shop_available}
         log.info(
-            f"[SHOP] Budget={budget} reserve={coin_reserve} cap={coin_cap} | shop_slugs={shop_slugs}"
+            f"[SHOP] Budget={budget} reserve_hint={coin_reserve} cap_hint={coin_cap} | shop_slugs={shop_slugs}"
         )
         shop_copy_counts = collect_shop_copy_counts(items_list)
 

@@ -89,6 +89,7 @@ class MantShopScrollTests(unittest.TestCase):
         frame_missing = _DummyFrame()
         frame_ready = _DummyFrame()
         clicks = []
+        fallback_calls = []
 
         ctx = types.SimpleNamespace(
             ctrl=types.SimpleNamespace(
@@ -115,6 +116,7 @@ class MantShopScrollTests(unittest.TestCase):
                      (frame_ready, frame_ready, (500, 540)),
                  ],
              ), \
+             patch.object(shop, "content_scroll_down", side_effect=lambda *_a, **_k: fallback_calls.append(True)), \
              patch.object(
                  shop,
                  "classify_items_in_frame",
@@ -144,6 +146,43 @@ class MantShopScrollTests(unittest.TestCase):
         self.assertTrue(bought)
         self.assertEqual(result["selected"], ["Vita 20"])
         self.assertTrue(any(x == shop.CHECKBOX_X for x, _y, _name in clicks))
+        self.assertEqual(len(fallback_calls), 1)
+
+    def test_scan_mant_shop_uses_content_fallback_when_scrollbar_is_missing(self):
+        frame_initial = _DummyFrame()
+        frame_missing = _DummyFrame()
+        frame_settled = _DummyFrame()
+        fallback_calls = []
+
+        ctx = types.SimpleNamespace(
+            ctrl=types.SimpleNamespace(get_screen=lambda **_kwargs: _DummyFrame()),
+            task=types.SimpleNamespace(running=lambda: True),
+        )
+
+        with patch.object(shop, "open_mant_shop", return_value=True), \
+             patch.object(shop, "scroll_to_top", return_value=None), \
+             patch.object(
+                 shop,
+                 "capture_shop_scroll_state",
+                 side_effect=[
+                     (frame_initial, frame_initial, (500, 540)),
+                     (frame_missing, frame_missing, None),
+                     (frame_settled, frame_settled, (700, 740)),
+                 ],
+             ), \
+             patch.object(shop, "classify_items_in_frame", side_effect=[
+                 ([("Vita 20", 0.95, 620, 6, True)], False),
+                 ([("Vita 20", 0.95, 700, 6, True)], False),
+             ]), \
+             patch.object(shop, "content_same", return_value=False), \
+             patch.object(shop, "content_scroll_down", side_effect=lambda *_a, **_k: fallback_calls.append(True)), \
+             patch.object(shop, "dedup_detections", return_value=[("Vita 20", 0.95, 620, 6, True)]), \
+             patch.object(shop, "at_bottom", side_effect=[False, True]), \
+             patch.object(shop, "time", types.SimpleNamespace(sleep=lambda *_a, **_k: None)):
+            items = shop.scan_mant_shop(ctx)
+
+        self.assertEqual(items, [("Vita 20", 0.95, 620, 6, True)])
+        self.assertEqual(len(fallback_calls), 1)
 
 
 if __name__ == "__main__":
