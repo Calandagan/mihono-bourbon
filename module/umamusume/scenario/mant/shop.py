@@ -791,6 +791,25 @@ def buy_shop_items(ctx, target_names, items_list):
     fallback_scrolls = 0
     sweep_retries = 0
     max_sweep_retries = 2
+    seen_this_sweep = set()
+
+    def _end_of_list_decision():
+        # Targets we actually saw this sweep but couldn't click are genuinely
+        # not buyable (maxed/sold out); drop them so we don't waste retry sweeps
+        # chasing them. Only retry for targets we never saw (possible scroll miss).
+        nonlocal sweep_retries, seen_this_sweep
+        for n in [x for x, v in remaining.items() if v > 0 and x in seen_this_sweep]:
+            log.info(f"[BUY] '{n}' seen but not buyable — dropping (no retry)")
+            remaining[n] = 0
+        missed = [x for x, v in remaining.items() if v > 0]
+        if missed and sweep_retries < max_sweep_retries:
+            sweep_retries += 1
+            log.info(f"[BUY] End of list, missed {missed} — retry sweep {sweep_retries}/{max_sweep_retries}")
+            scroll_to_top(ctx)
+            seen_this_sweep = set()
+            time.sleep(random.uniform(0.22, 0.4))
+            return True
+        return False
 
     for _ in range(150):
         if not any(v > 0 for v in remaining.values()):
@@ -805,6 +824,7 @@ def buy_shop_items(ctx, target_names, items_list):
         for item_name, _, abs_y, turns, buyable in results:
             if item_name not in remaining:
                 continue
+            seen_this_sweep.add(item_name)
             if not is_unbuyable(frame, abs_y):
                 name_candidates[item_name].append((turns, abs_y))
         for lst in name_candidates.values():
@@ -839,11 +859,7 @@ def buy_shop_items(ctx, target_names, items_list):
         fallback_scrolls = 0
 
         if at_bottom(frame_rgb):
-            if any(v > 0 for v in remaining.values()) and sweep_retries < max_sweep_retries:
-                sweep_retries += 1
-                log.info(f"[BUY] Bottom reached with unresolved {dict(remaining)} — retry sweep {sweep_retries}/{max_sweep_retries}")
-                scroll_to_top(ctx)
-                time.sleep(random.uniform(0.22, 0.4))
+            if _end_of_list_decision():
                 continue
             log.info("[BUY] Reached bottom of shop list")
             break
@@ -853,11 +869,7 @@ def buy_shop_items(ctx, target_names, items_list):
         step = max(int(th * 0.68), 30)
         next_y = min(TRACK_BOT, cursor + step)
         if next_y <= cursor + 3:
-            if any(v > 0 for v in remaining.values()) and sweep_retries < max_sweep_retries:
-                sweep_retries += 1
-                log.info(f"[BUY] Scroll exhausted with unresolved {dict(remaining)} — retry sweep {sweep_retries}/{max_sweep_retries}")
-                scroll_to_top(ctx)
-                time.sleep(random.uniform(0.22, 0.4))
+            if _end_of_list_decision():
                 continue
             break
         sb_drag(ctx, cursor, next_y)
