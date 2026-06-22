@@ -6,8 +6,6 @@ This is an independent build based on the original **Sweepy** (the /vg/ UAT reha
 
 The whole point of this build is farming high-quality parents/grandparents. Expect roughly a **15–16k average** depending on your card setup. It can be used for fan farming too, but that isn't the focus.
 
-![Uma Musume Auto Trainer](docs/main.png)
-
 > Heads up: if this ever runs into the kind of situation Sweepy did (you know the one), public updates will stop and development continues privately.
 
 ---
@@ -75,7 +73,7 @@ MANT is where most of this work went. It's still being refined, but it's solid f
 ### Step 1: Clone the repository
 
 ```bash
-git clone https://github.com/ghostgunnat/mihono-bourbon
+git clone https://github.com/Calandagan/mihono-bourbon
 cd mihono-bourbon
 ```
 
@@ -154,9 +152,6 @@ Set the stat's target to the value you want, e.g. Speed `1040`. Once Speed reach
 
 It's a clean per-stat cutoff (no soft gradient). Leave a stat at 9999 to never cap it. There's no turn requirement, the cap kicks in the moment the stat reaches the value.
 
-![Default Stat Caps](docs/statCaps.png)
-![Speed Cap Example](docs/capSpeed.png)
-
 ---
 
 ## GPU Acceleration
@@ -215,8 +210,6 @@ Restart your machine.
 Install or reinstall the Visual C++ Redistributable:
 - [Download vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
-![Stats Display](https://github.com/user-attachments/assets/1f68af35-cf9d-41ce-9392-c26ecf83cc70)
-
 ---
 
 ## Disclaimer
@@ -238,8 +231,3 @@ This build wouldn't exist without the work it's based on:
 - **Sweepy** — the /vg/ UAT rehash this build started from.
 - **Original repository**: [UmamusumeAutoTrainer](https://github.com/shiokaze/UmamusumeAutoTrainer) by [Shiokaze](https://github.com/shiokaze)
 - **Global server port**: [UmamusumeAutoTrainer-Global](https://github.com/BrayAlter/UAT-Global-Server) by [BrayAlter](https://github.com/BrayAlter)
-
----
-
-![Uma Musume](docs/umabike.gif)
-![Uma Musume](docs/flower.gif)
