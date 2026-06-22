@@ -13,7 +13,7 @@ DIGITS_ONLY = re.compile(r"\D")
 
 from bot.base.task import TaskStatus, EndTaskReason
 from bot.recog.image_matcher import image_match, compare_color_equal
-from bot.recog.ocr import ocr_line, find_similar_text
+from bot.recog.ocr import ocr_line, ocr_batch, find_similar_text
 from module.umamusume.asset.race_data import RACE_LIST, UMAMUSUME_RACE_TEMPLATE_PATH
 from module.umamusume.context import UmamusumeContext
 from module.umamusume.types import SupportCardInfo
@@ -362,31 +362,16 @@ def parse_debut_race(ctx: UmamusumeContext, img):
 
 
 def parse_umamusume_basic_ability_value(ctx: UmamusumeContext, img):
-    sub_img_speed = img[855:885, 70:139]
-    sub_img_speed = cv2.copyMakeBorder(sub_img_speed, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
-    speed_text = ocr_line(sub_img_speed)
-
-    sub_img_stamina = img[855:885, 183:251]
-    sub_img_stamina = cv2.copyMakeBorder(sub_img_stamina, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
-    stamina_text = ocr_line(sub_img_stamina)
-
-    sub_img_power = img[855:885, 289:364]
-    sub_img_power = cv2.copyMakeBorder(sub_img_power, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
-    power_text = ocr_line(sub_img_power)
-
-    sub_img_will = img[855:885, 409:476]
-    sub_img_will = cv2.copyMakeBorder(sub_img_will, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
-    will_text = ocr_line(sub_img_will)
-
-    sub_img_intelligence = img[855:885, 521:588]
-    sub_img_intelligence = cv2.copyMakeBorder(sub_img_intelligence, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None,
-                                              (255, 255, 255))
-    intelligence_text = ocr_line(sub_img_intelligence)
-
-    sub_img_skill = img[855:902, 602:690]
-    sub_img_skill = cv2.copyMakeBorder(sub_img_skill, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None,
-                                       (255, 255, 255))
-    skill_point_text = ocr_line(sub_img_skill)
+    pad = lambda r: cv2.copyMakeBorder(r, 20, 20, 20, 20, cv2.BORDER_CONSTANT, None, (255, 255, 255))
+    rois = [
+        pad(img[855:885, 70:139]),    # speed
+        pad(img[855:885, 183:251]),   # stamina
+        pad(img[855:885, 289:364]),   # power
+        pad(img[855:885, 409:476]),   # will/guts
+        pad(img[855:885, 521:588]),   # intelligence/wit
+        pad(img[855:902, 602:690]),   # skill points
+    ]
+    speed_text, stamina_text, power_text, will_text, intelligence_text, skill_point_text = ocr_batch(rois)
 
     ctx.cultivate_detail.turn_info.uma_attribute.speed = trans_attribute_value(speed_text, ctx,
                                                                                TrainingType.TRAINING_TYPE_SPEED)

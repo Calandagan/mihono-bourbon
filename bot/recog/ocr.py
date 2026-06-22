@@ -276,6 +276,46 @@ def ocr(img, lang="en"):
 
 
 
+def ocr_batch(img_list, lang="en"):
+    """Run OCR on multiple small ROI images in a single GPU call.
+    Returns a list of text strings, one per input image (empty string on miss)."""
+    if not img_list:
+        return []
+    reset_timeout()
+    results = [None] * len(img_list)
+    uncached = []  # (original_index, cache_key, img)
+    for i, img in enumerate(img_list):
+        cache_key = _compute_ocr_cache_key(img, lang)
+        line_key = f"line:{cache_key}" if cache_key else None
+        if line_key:
+            cached = _ocr_result_cache.get(line_key)
+            if cached is not None:
+                results[i] = cached
+                continue
+        uncached.append((i, cache_key, img))
+    if uncached:
+        imgs_to_run = [entry[2] for entry in uncached]
+        try:
+            o = get_ocr(lang)
+            batch_raw = o.ocr(imgs_to_run, cls=False)
+        except Exception:
+            global ocr_broken
+            ocr_broken = True
+            batch_raw = [[] for _ in imgs_to_run]
+        else:
+            ocr_broken = False
+        if _USE_GPU:
+            gpu_utils.clear_gpu_cache()
+        for j, (orig_idx, cache_key, _) in enumerate(uncached):
+            raw = batch_raw[j] if j < len(batch_raw) else []
+            items = parse_text_items(raw)
+            text = "".join(c for c, _ in (items or []))
+            results[orig_idx] = text
+            if cache_key:
+                _ocr_result_cache.set(f"line:{cache_key}", text)
+    return [r if r is not None else "" for r in results]
+
+
 def normalize_ocr_result(result):
     if not result:
         return []

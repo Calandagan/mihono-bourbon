@@ -1,5 +1,4 @@
 import time
-import random
 import cv2
 
 import bot.base.log as logger
@@ -190,21 +189,32 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
             stall_count = 0
             
             search_deadline = time.time() + 45.0
+            # The race list can still be sliding in right after it opens, so an
+            # immediate scan can miss a race at the top (position 1-2) and kick
+            # off a needless full scroll. Give the initial view a few fresh
+            # re-reads before allowing the first scroll.
+            initial_scans = 0
             while time.time() < search_deadline:
                 if not ctx.task.running():
                     break
                     
-                img = ctx.ctrl.get_screen()
+                img = ctx.ctrl.get_screen(force=(initial_scans < 4))
                 ctx.current_screen = img
-                
+
                 # Try to find the race in the current view
                 selected = find_race(ctx, img, target_race_id)
                 if selected:
                     log.info(f"Found race ID: {target_race_id}")
                     try_use_cleat(ctx, target_race_id)
-                    time.sleep(random.uniform(0.5, 0.7))
+                    time.sleep(0.35)
                     ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
                     return
+
+                # Let the list finish rendering before committing to a scroll.
+                if initial_scans < 4:
+                    initial_scans += 1
+                    time.sleep(0.1)
+                    continue
 
                 # Check scrollbar to detect limits robustly
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

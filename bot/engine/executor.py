@@ -454,10 +454,13 @@ class Executor:
                 else:
                     break
                 try:
-                    sleep_ms = int(os.getenv("UAT_EXECUTOR_LOOP_SLEEP_MS", "80"))
+                    # Main decision-loop cadence. Lower = the bot reacts/clicks
+                    # through screens faster; higher = gentler on CPU. Tunable via
+                    # UAT_EXECUTOR_LOOP_SLEEP_MS (floored at 50ms for safety).
+                    sleep_ms = int(os.getenv("UAT_EXECUTOR_LOOP_SLEEP_MS", "60"))
                     time.sleep(max(0.05, sleep_ms / 1000.0))
                 except Exception:
-                    time.sleep(0.08)
+                    time.sleep(0.06)
         except Exception:
             task.end_task(TaskStatus.TASK_STATUS_FAILED, EndTaskReason.SYSTEM_ERROR)
             tb = traceback.format_exc()
