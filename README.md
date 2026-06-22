@@ -1,5 +1,7 @@
 # Mihono-Bourbon
 
+### 👉 [Join the official Discord](https://discord.gg/QJcnuXDKxv) — community, support and updates.
+
 An Uma Musume bot that handles training, races, events, skill purchasing and full-run automation.
 
 This is an independent build based on the original **Sweepy** (the /vg/ UAT rehash a lot of people already run). It started from that codebase, and the decision-making, race handling, shop, item usage and input were reworked to be faster, more aggressive where it matters, and more reliable. If you've used Sweepy this will feel familiar, it just behaves noticeably better, especially in MANT.
