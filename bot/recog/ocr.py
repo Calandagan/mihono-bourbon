@@ -298,7 +298,7 @@ def ocr_batch(img_list, lang="en"):
         imgs_to_run = [entry[2] for entry in uncached]
         try:
             o = get_ocr(lang)
-            batch_raw = o.ocr(imgs_to_run, cls=False)
+            batch_raw = o.ocr(imgs_to_run, det=False, cls=False)
             ocr_broken = False
         except Exception:
             ocr_broken = True
@@ -306,9 +306,15 @@ def ocr_batch(img_list, lang="en"):
         if _USE_GPU:
             gpu_utils.clear_gpu_cache()
         for j, (orig_idx, cache_key, _) in enumerate(uncached):
+            # det=False format: list of (text, confidence) tuples per image
             raw = batch_raw[j] if j < len(batch_raw) else []
-            items = parse_text_items(raw)
-            text = "".join(c for c, _ in (items or []))
+            text = ""
+            for item in (raw or []):
+                try:
+                    if isinstance(item, (list, tuple)) and len(item) >= 1 and isinstance(item[0], str):
+                        text += item[0]
+                except Exception:
+                    continue
             results[orig_idx] = text
             if cache_key:
                 _ocr_result_cache.set(f"line:{cache_key}", text)
