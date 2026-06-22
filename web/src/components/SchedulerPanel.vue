@@ -4,7 +4,11 @@
       <auto-status-panel></auto-status-panel>
     </div>
     <div class="mb-3">
-      <running-task-panel :running-task="runningTask" @edit-task="handleEditTask"></running-task-panel>
+      <running-task-panel
+        :running-task="runningTask"
+        :elapsed-label="runningElapsedLabel"
+        @edit-task="handleEditTask"
+      ></running-task-panel>
     </div>
     <div class="mb-3">
       <waiting-task-list :waiting-task-list="waitingTaskList"></waiting-task-list>
@@ -53,7 +57,7 @@ import imageBgUrl1 from "../../assets/cunny.png";
 export default {
   name: "SchedulerPanel",
   components: { CronJobList, HistoryTaskList, TaskEditModal, WaitingTaskList, AutoStatusPanel, RunningTaskPanel, DetectedSkillsPanel, DetectedPortraitsPanel, DetectedItemsPanel, DetectedShopPanel },
-  props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits", "detectedItems", "detectedShopItems"],
+  props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits", "detectedItems", "detectedShopItems", "runningElapsedLabel"],
   data(){
     return {
       imageBg: imageBgUrl1

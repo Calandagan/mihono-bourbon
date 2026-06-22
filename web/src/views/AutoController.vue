@@ -77,7 +77,9 @@
              <div class="status-pill"><span class="dot running"></span><span>Running</span></div>
             <div class="spot-text">
               <div class="spot-title">{{ runningTask.task_desc || 'Active Task' }}</div>
-              <div class="spot-meta">Task ID: {{ runningTask.task_id || '-' }} • Scenario: {{ runningTask.attachment_data?.scenario || '-' }}</div>
+              <div class="spot-meta">
+                Task ID: {{ runningTask.task_id || '-' }} • Scenario: {{ runningTask.attachment_data?.scenario || '-' }} • Elapsed: {{ runningElapsedLabel }}
+              </div>
             </div>
           </div>
           <div class="spot-actions">
@@ -98,6 +100,7 @@
           :detected-portraits="detectedPortraits"
           :detected-items="detectedItems"
           :detected-shop-items="detectedShopItems"
+          :running-elapsed-label="runningElapsedLabel"
         />
       </div>
       <div class="col-8">
@@ -145,7 +148,9 @@ export default {
        shopItemsTimer: null,
        detectedItemsTimer: null,
        detectedSkillsTimer: null,
-       detectedPortraitsTimer: null
+       detectedPortraitsTimer: null,
+       elapsedTimer: null,
+       elapsedNow: Date.now()
      }
    },
   computed: {
@@ -153,6 +158,9 @@ export default {
       if (this.currentDate === null) return '—';
       if (this.currentDate >= 73) return 'Finale';
       return `Day ${this.currentDate}`;
+    },
+    runningElapsedLabel(){
+      return this.elapsedForTask(this.runningTask);
     }
    },
    mounted(){
@@ -168,10 +176,11 @@ export default {
       this.runtimeStateTimer = setInterval(this.pollRuntimeState, 2000);
       this.shopItemsTimer = setInterval(this.pollDetectedShopItems, 5000);
       this.taskLogTimer = setInterval(this.getTaskLog, 1000);
-      this.detectedItemsTimer = setInterval(this.pollDetectedItems, 3000);
-      this.detectedSkillsTimer = setInterval(this.pollDetectedSkills, 3000);
-      this.detectedPortraitsTimer = setInterval(this.pollDetectedPortraits, 3000);
-      this.pollDetectedItems();
+     this.detectedItemsTimer = setInterval(this.pollDetectedItems, 3000);
+     this.detectedSkillsTimer = setInterval(this.pollDetectedSkills, 3000);
+     this.detectedPortraitsTimer = setInterval(this.pollDetectedPortraits, 3000);
+     this.elapsedTimer = setInterval(() => { this.elapsedNow = Date.now() }, 1000);
+     this.pollDetectedItems();
       this.pollDetectedSkills();
       this.pollDetectedPortraits();
    },
@@ -193,9 +202,38 @@ export default {
          this.currentDate = null;
        });
      },
-     scrollToLogs(){
+    scrollToLogs(){
       const el = document.getElementById('scroll_text');
       if (el) el.focus();
+    },
+    parseTaskTime(value){
+      if (!value) return null;
+      if (typeof value === 'number') {
+        const ms = value > 100000000000 ? value : value * 1000;
+        return Number.isFinite(ms) ? ms : null;
+      }
+      const text = String(value).trim();
+      const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+      if (match) {
+        const [, y, mo, d, h, mi, s] = match;
+        return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)).getTime();
+      }
+      const parsed = Date.parse(text);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    formatDuration(ms){
+      if (!Number.isFinite(ms) || ms < 0) return '00:00:00';
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+    },
+    elapsedForTask(task){
+      if (!task || !task.task_start_time) return '00:00:00';
+      const start = this.parseTaskTime(task.task_start_time);
+      if (start === null) return '00:00:00';
+      return this.formatDuration(this.elapsedNow - start);
     },
     getTaskList(){
       this.axios.get("/task").then(res=>{
@@ -291,6 +329,7 @@ export default {
      if (this.detectedItemsTimer) clearInterval(this.detectedItemsTimer);
      if (this.detectedSkillsTimer) clearInterval(this.detectedSkillsTimer);
      if (this.detectedPortraitsTimer) clearInterval(this.detectedPortraitsTimer);
+     if (this.elapsedTimer) clearInterval(this.elapsedTimer);
    }
  }
 </script>
