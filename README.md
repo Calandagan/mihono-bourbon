@@ -4,6 +4,8 @@ An Uma Musume bot that handles training, races, events, skill purchasing and ful
 
 This is an independent build based on the original **Sweepy** (the /vg/ UAT rehash a lot of people already run). It started from that codebase, and the decision-making, race handling, shop, item usage and input were reworked to be faster, more aggressive where it matters, and more reliable. If you've used Sweepy this will feel familiar, it just behaves noticeably better, especially in MANT.
 
+The whole point of this build is farming high-quality parents/grandparents. Expect roughly a **15–16k average** depending on your card setup. It can be used for fan farming too, but that isn't the focus.
+
 ![Uma Musume Auto Trainer](docs/main.png)
 
 > Heads up: if this ever runs into the kind of situation Sweepy did (you know the one), public updates will stop and development continues privately.
