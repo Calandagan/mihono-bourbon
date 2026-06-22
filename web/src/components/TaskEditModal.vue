@@ -422,7 +422,7 @@
                   spellcheck="false"></textarea>
               </div>
               <div class="form-group">
-                <div>Target Attributes (Try adjust your deck/slightly tweaking training weight [0.1 to -0.1] instead of adjusting this)</div>
+                <div>Target Attributes (per-stat cap — leave at 9999 to disable; set a value and the bot stops prioritizing that stat once reached, while still taking off-type trainings that help other stats)</div>
               </div>
               <div class="row">
                 <div class="col">
