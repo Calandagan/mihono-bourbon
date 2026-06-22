@@ -181,68 +181,56 @@ def handle_instant_use_items(ctx):
 
 def handle_cupcake_use(ctx):
     from bot.conn.fetch import read_mood
-    from module.umamusume.scenario.mant.constants import get_incoming_mood
-    from module.umamusume.scenario.mant.policy import get_chain_position
 
     cached_mood = getattr(ctx.cultivate_detail.turn_info, 'cached_mood', None)
-    if cached_mood is not None:
-        mood = cached_mood
-    else:
-        mood = read_mood(ctx.current_screen)
-    options = []
-    if mood is None or mood >= 5:
+    mood = cached_mood if cached_mood is not None else read_mood(ctx.current_screen)
+
+    # Goal: keep mood at Good (4) as a minimum. Only act when mood is below Good.
+    # This intentionally runs even during race chains (mood can drop there too).
+    # It does NOT touch the recreation/outing logic; by raising mood early it just
+    # makes that path less likely to trigger.
+    if mood is None or mood >= 4:
         _set_item_trace(
             ctx,
             options=[],
             selected=[],
-            result={"phase": "mood_recovery", "result": "skip", "reason": "mood_not_needed"},
+            result={"phase": "mood_recovery", "result": "skip", "reason": "mood_ok"},
         )
         return False
-    _, total = get_chain_position(ctx)
-    if total > 1:
-        _inventory.log.info(f"Race chain of {total} - skipping cupcake (mood item)")
-        _set_item_trace(
-            ctx,
-            options=[],
-            selected=[],
-            result={"phase": "mood_recovery", "result": "skip", "reason": "race_chain_active"},
-        )
-        return False
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    incoming = get_incoming_mood(date, 3)
+
     owned = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
-    for name, boost in [('Berry Sweet Cupcake', 2), ('Plain Cupcake', 1)]:
-        skip_reason = None
-        if owned.get(name, 0) <= 0:
-            skip_reason = "no_owned"
-        elif mood + boost + incoming > 5 and incoming > 0:
-            skip_reason = "would_overcap_mood"
-        options.append(
-            item_option(
-                name,
-                "mood_recovery",
-                selected=skip_reason is None,
-                priority=1 if name == "Berry Sweet Cupcake" else 2,
-                skip_reason=skip_reason,
-                current_num=owned.get(name, 0),
-            )
+    # Use the largest cupcake that doesn't overshoot Great (5), repeating until mood
+    # reaches Good (4) or we run out. This naturally yields: Normal -> Berry Sweet,
+    # never wastes a Berry where it would overcap, and tops up Bad/Awful as needed.
+    cupcakes = [('Berry Sweet Cupcake', 2), ('Plain Cupcake', 1)]
+    used = []
+    progressed = True
+    while mood < 4 and progressed:
+        progressed = False
+        for name, boost in cupcakes:
+            if owned.get(name, 0) > 0 and mood + boost <= 5:
+                if use_item_and_update_inventory(ctx, name):
+                    owned[name] = owned.get(name, 0) - 1
+                    mood += boost
+                    used.append(name)
+                    progressed = True
+                break
+
+    if used:
+        ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
+        _set_item_trace(
+            ctx,
+            options=[],
+            selected=[selected_item(n) for n in used],
+            result={"phase": "mood_recovery", "result": "ok", "items": used},
         )
-        if skip_reason is not None:
-            continue
-        if use_item_and_update_inventory(ctx, name):
-            ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
-            _set_item_trace(
-                ctx,
-                options=options,
-                selected=[selected_item(name)],
-                result={"phase": "mood_recovery", "result": "ok", "item": name},
-            )
-            return True
+        return True
+
     _set_item_trace(
         ctx,
-        options=options,
+        options=[],
         selected=[],
-        result={"phase": "mood_recovery", "result": "skip", "reason": "no_valid_cupcake"},
+        result={"phase": "mood_recovery", "result": "skip", "reason": "no_owned"},
     )
     return False
 

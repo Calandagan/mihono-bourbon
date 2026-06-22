@@ -78,6 +78,25 @@ def _use_grilled_carrots_now(ctx, selected_items):
             break
 
 
+def _mood_needs_shop_for_cupcakes(ctx, current_date):
+    # True only when mood is below Good, we own no cupcakes, the shop is available,
+    # and we haven't already tried a mood-driven shop trip this turn (avoids looping
+    # the shop when cupcakes are disabled or out of stock).
+    from module.umamusume.scenario.mant.shop import is_shop_scan_turn
+    ti = getattr(ctx.cultivate_detail, 'turn_info', None)
+    if ti is None or getattr(ti, 'mant_mood_shop_attempted', False):
+        return False
+    if not is_shop_scan_turn(current_date):
+        return False
+    mood = getattr(ti, 'cached_mood', None)
+    if mood is None or mood >= 4:
+        return False
+    owned = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
+    if owned.get('Plain Cupcake', 0) > 0 or owned.get('Berry Sweet Cupcake', 0) > 0:
+        return False
+    return True
+
+
 def _mark_bought_shop_rows(items_list, bought_items):
     bought_counts = Counter(bought_items or [])
     updated_rows = []
@@ -262,7 +281,8 @@ def handle_mant_turn_start(ctx, current_date):
 
 
 def handle_mant_shop_scan(ctx, current_date):
-    if ctx.cultivate_detail.mant_shop_scanned_this_turn:
+    force_mood = getattr(ctx.cultivate_detail.turn_info, 'mant_force_shop_scan', False)
+    if ctx.cultivate_detail.mant_shop_scanned_this_turn and not force_mood:
         return False
     from module.umamusume.scenario.mant.shop import (
         is_shop_scan_turn, scan_mant_shop, buy_shop_items,
@@ -287,8 +307,10 @@ def handle_mant_shop_scan(ctx, current_date):
         return False
     chunk = current_shop_chunk(current_date)
     last_chunk = getattr(ctx.cultivate_detail, 'mant_shop_last_chunk', -1)
-    if chunk == last_chunk:
+    if chunk == last_chunk and not force_mood:
         return False
+    if force_mood:
+        ctx.cultivate_detail.turn_info.mant_force_shop_scan = False
 
     log.info(f"[SHOP] Starting scan — date={current_date} chunk={chunk} coins={ctx.cultivate_detail.mant_coins}")
     scan_result = scan_mant_shop(ctx)
@@ -894,6 +916,12 @@ def handle_mant_main_menu(ctx, img, current_date):
         ctx.cultivate_detail.turn_info.mant_cupcake_checked = True
         if handle_cupcake_use(ctx):
             return True
+        # Mood still below Good and no cupcakes on hand: force one shop trip this turn
+        # to buy them (and whatever else is allowed). They get used on the next pass.
+        if _mood_needs_shop_for_cupcakes(ctx, current_date):
+            ctx.cultivate_detail.turn_info.mant_force_shop_scan = True
+            ctx.cultivate_detail.turn_info.mant_mood_shop_attempted = True
+            ctx.cultivate_detail.turn_info.mant_cupcake_checked = False
 
     if not getattr(ctx.cultivate_detail.turn_info, 'mant_main_menu_coins_read', False):
         is_summer = is_summer_camp_period(current_date)
