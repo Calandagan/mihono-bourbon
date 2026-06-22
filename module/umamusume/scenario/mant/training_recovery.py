@@ -393,11 +393,29 @@ def handle_energy_item(ctx, item_name=None, *, mode: str = "failure"):
     ctx.cultivate_detail.turn_info.energy_item_used = True
     ctx.cultivate_detail.turn_info.energy_item_used_this_turn = True
     ctx.cultivate_detail.turn_info.post_item_rescan_needed = True
-    ok = use_item_and_update_inventory(ctx, item_name)
+
+    # Kale Juice drops mood by 1 step. If we own a cupcake, select it in the
+    # same panel confirm so the mood hit never lands.
+    cupcake_with_kale = None
+    if item_name == 'Royal Kale Juice':
+        owned_map = {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
+        if owned_map.get('Plain Cupcake', 0) > 0:
+            cupcake_with_kale = 'Plain Cupcake'
+        elif owned_map.get('Berry Sweet Cupcake', 0) > 0:
+            cupcake_with_kale = 'Berry Sweet Cupcake'
+
+    if cupcake_with_kale:
+        log.info(f"[ENERGY] Kale Juice + {cupcake_with_kale} in one confirm to offset mood penalty")
+        result = use_items_and_update_inventory(ctx, [item_name, cupcake_with_kale])
+        ok = result.get("confirmed", False) and item_name in result.get("selected", [])
+    else:
+        ok = use_item_and_update_inventory(ctx, item_name)
+
     if ok:
         _clear_item_failed(ctx, item_name)
     else:
         _mark_item_failed(ctx, item_name)
+    used_items = [item_name] + ([cupcake_with_kale] if cupcake_with_kale and ok else [])
     _record_item_trace(
         ctx,
         options=[{
@@ -408,7 +426,7 @@ def handle_energy_item(ctx, item_name=None, *, mode: str = "failure"):
             "skip_reason": None,
             "reason": "selected",
         }],
-        selected=[{"name": item_name, "use_num": 1}],
+        selected=[{"name": n, "use_num": 1} for n in used_items],
         result={"phase": "energy_recovery", "result": "ok" if ok else "failed", "item": item_name},
     )
     return ok
