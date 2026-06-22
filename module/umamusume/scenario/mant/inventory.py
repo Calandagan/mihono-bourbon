@@ -708,25 +708,36 @@ def use_training_item(ctx, item_name, quantity=1):
             return False
         time.sleep(0.15)
 
+    pre_confirm_frame = ctx.ctrl.get_screen()
+    clicked_use = has_use_training_items_button(pre_confirm_frame)
     ctx.ctrl.click(530, 1205, name="confirm exchange")
     time.sleep(0.3)
 
-    clicked_use = False
-    for _ in range(20):
+    stable_success = 0
+    for _ in range(24):
         time.sleep(0.17)
         frame = ctx.ctrl.get_screen()
         if has_use_training_items_button(frame):
             ctx.ctrl.click(530, 1205, name="confirm exchange")
             clicked_use = True
+            stable_success = 0
             time.sleep(0.5)
             continue
+
         if clicked_use:
-            if is_items_panel_open(frame) or not has_use_training_items_button(frame):
+            if is_items_panel_open(frame) or is_on_training_screen(frame) or is_on_main_menu(frame):
+                stable_success += 1
+            else:
+                stable_success = 0
+            if stable_success >= 2:
                 return True
+
         if not clicked_use and is_items_panel_open(frame):
             ctx.ctrl.click(530, 1205, name="confirm exchange")
 
-    return True
+    log.warning(f"[INVENTORY] Timed out confirming use of '{item_name}'")
+    close_items_panel(ctx)
+    return False
 
 
 INSTANT_USE_ITEMS = [

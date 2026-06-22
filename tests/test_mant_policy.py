@@ -768,6 +768,73 @@ class MantPolicyTests(unittest.TestCase):
         self.assertFalse(used_any)
         trace_mock.assert_called_once()
 
+    def test_handle_anklet_does_not_repeat_after_success_same_turn(self):
+        turn_info = types.SimpleNamespace(
+            date=40,
+            turn_operation=types.SimpleNamespace(training_type=types.SimpleNamespace(value=1)),
+            item_use_options=[],
+            item_use_selected=[],
+            item_use_result={},
+            set_item_trace=lambda **_kwargs: None,
+            append_trace=lambda *_args, **_kwargs: None,
+        )
+        ctx = types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(
+                        mant_config=types.SimpleNamespace(training_weights_threshold=40)
+                    )
+                )
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[("Speed Ankle Weights", 1)],
+                turn_info=turn_info,
+            ),
+        )
+
+        with patch.object(training_recovery, "TRAINING_TYPE_ANKLET", {1: "Speed Ankle Weights"}), \
+             patch.object(training_recovery, "get_stat_only_percentile", return_value=80), \
+             patch.object(training_recovery, "use_item_and_update_inventory", return_value=True) as use_mock:
+            self.assertTrue(training_recovery.handle_anklet(ctx))
+            self.assertFalse(training_recovery.handle_anklet(ctx))
+
+        use_mock.assert_called_once_with(ctx, "Speed Ankle Weights")
+        self.assertEqual(ctx.cultivate_detail.mant_anklet_used_turn, 40)
+        self.assertEqual(ctx.cultivate_detail.mant_anklet_used_name, "Speed Ankle Weights")
+
+    def test_handle_anklet_does_not_retry_failed_item_same_turn(self):
+        turn_info = types.SimpleNamespace(
+            date=40,
+            turn_operation=types.SimpleNamespace(training_type=types.SimpleNamespace(value=1)),
+            item_use_options=[],
+            item_use_selected=[],
+            item_use_result={},
+            set_item_trace=lambda **_kwargs: None,
+            append_trace=lambda *_args, **_kwargs: None,
+        )
+        ctx = types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(
+                        mant_config=types.SimpleNamespace(training_weights_threshold=40)
+                    )
+                )
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[("Speed Ankle Weights", 1)],
+                turn_info=turn_info,
+            ),
+        )
+
+        with patch.object(training_recovery, "TRAINING_TYPE_ANKLET", {1: "Speed Ankle Weights"}), \
+             patch.object(training_recovery, "get_stat_only_percentile", return_value=80), \
+             patch.object(training_recovery, "use_item_and_update_inventory", return_value=False) as use_mock:
+            self.assertFalse(training_recovery.handle_anklet(ctx))
+            self.assertFalse(training_recovery.handle_anklet(ctx))
+
+        use_mock.assert_called_once_with(ctx, "Speed Ankle Weights")
+        self.assertIn("Speed Ankle Weights", ctx.cultivate_detail.mant_failed_use_items)
+
 
 if __name__ == "__main__":
     unittest.main()

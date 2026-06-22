@@ -61,6 +61,19 @@ def _clear_item_failed(ctx, item_name):
         ctx.cultivate_detail.mant_item_use_error_pending = False
 
 
+def _current_turn_date(ctx):
+    return int(getattr(getattr(ctx.cultivate_detail, 'turn_info', None), 'date', 0) or 0)
+
+
+def _anklet_used_this_turn(ctx):
+    return getattr(ctx.cultivate_detail, 'mant_anklet_used_turn', None) == _current_turn_date(ctx)
+
+
+def _mark_anklet_used(ctx, item_name):
+    ctx.cultivate_detail.mant_anklet_used_turn = _current_turn_date(ctx)
+    ctx.cultivate_detail.mant_anklet_used_name = item_name
+
+
 def _record_item_trace(ctx, *, options=None, selected=None, result=None):
     turn_info = getattr(ctx.cultivate_detail, 'turn_info', None)
     if turn_info is None:
@@ -646,6 +659,23 @@ def handle_anklet(ctx):
     if mant_cfg is None:
         return False
 
+    if _anklet_used_this_turn(ctx):
+        item_name = getattr(ctx.cultivate_detail, 'mant_anklet_used_name', 'anklet')
+        log.info(f"[ANKLET] Skipping — already used {item_name} this turn")
+        _record_item_trace(
+            ctx,
+            options=[{
+                "name": item_name,
+                "context": "training_commitment",
+                "priority": 20,
+                "selected": False,
+                "skip_reason": "already_used_this_turn",
+                "reason": "not_selected",
+            }],
+            result={"phase": "training_commitment", "result": "skip_anklet"},
+        )
+        return False
+
     percentile = get_stat_only_percentile(ctx)
     owned_map = _owned_map(ctx)
     if percentile is None:
@@ -696,6 +726,22 @@ def handle_anklet(ctx):
     if anklet_name is None:
         log.info(f"[ANKLET] Skipping — no anklet for training type {training_val}")
         return False
+
+    if _item_failed(ctx, anklet_name):
+        log.info(f"[ANKLET] Skipping — previous use/search failed this turn for {anklet_name}")
+        _record_item_trace(
+            ctx,
+            options=[{
+                "name": anklet_name,
+                "context": "training_commitment",
+                "priority": 20,
+                "selected": False,
+                "skip_reason": "failed_this_turn",
+                "reason": "not_selected",
+            }],
+            result={"phase": "training_commitment", "result": "skip_anklet"},
+        )
+        return False
     
     anklet_qty = int(owned_map.get(anklet_name, 0) or 0)
     log.info(
@@ -723,6 +769,7 @@ def handle_anklet(ctx):
     log.info(f"[ANKLET] Using {anklet_name}")
     ok = use_item_and_update_inventory(ctx, anklet_name)
     if ok:
+        _mark_anklet_used(ctx, anklet_name)
         _clear_item_failed(ctx, anklet_name)
         log.info(f"[ANKLET] Successfully used {anklet_name}")
     else:
