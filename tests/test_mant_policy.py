@@ -55,7 +55,15 @@ sys.modules.setdefault(
 _mant_pkg.inventory = sys.modules["module.umamusume.scenario.mant.inventory"]
 sys.modules.setdefault(
     "module.umamusume.scenario.mant.actions",
-    types.SimpleNamespace(use_item_and_update_inventory=lambda *a, **k: True),
+    types.SimpleNamespace(
+        use_item_and_update_inventory=lambda *a, **k: True,
+        use_items_and_update_inventory=lambda _ctx, names: {
+            "selected": list(names),
+            "not_found": [],
+            "fully_searched_missing": [],
+            "confirmed": True,
+        },
+    ),
 )
 sys.modules["module.umamusume.asset.race_data"] = types.SimpleNamespace(
     is_g1_race=lambda race_id: int(race_id or 0) >= 2000,
@@ -722,8 +730,10 @@ class MantPolicyTests(unittest.TestCase):
         )
         self.assertTrue(useful)
 
-    def test_execute_training_commitment_actions_reevaluates_before_anklet(self):
+    def test_execute_training_commitment_actions_batches_megaphone_and_anklet(self):
         calls = []
+        mega_plan = {"kind": "megaphone", "name": "Motivating Megaphone", "tier": 3, "duration": 3}
+        anklet_plan = {"kind": "anklet", "name": "Speed Ankle Weights"}
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(
                 mant_megaphone_tier=1,
@@ -734,9 +744,14 @@ class MantPolicyTests(unittest.TestCase):
         current_op = types.SimpleNamespace(training_type="power")
 
         with patch.object(training_recovery, "has_whistle", return_value=False), \
-             patch.object(training_recovery, "handle_megaphone", side_effect=lambda _ctx: calls.append("megaphone") or True), \
+             patch.object(training_recovery, "_plan_megaphone", return_value=mega_plan), \
+             patch.object(training_recovery, "_plan_anklet", return_value=anklet_plan), \
+             patch.object(training_recovery, "_preview_megaphone_reevaluation", return_value=("power", False)), \
+             patch.object(training_recovery, "use_items_and_update_inventory", side_effect=lambda _ctx, names: calls.append(("batch", list(names))) or {"selected": list(names), "not_found": [], "confirmed": True}), \
+             patch.object(training_recovery, "_finish_megaphone_plan", side_effect=lambda _ctx, _plan, _ok: calls.append(("mega", _ok)) or _ok), \
+             patch.object(training_recovery, "_finish_anklet_plan", side_effect=lambda _ctx, _plan, _ok: calls.append(("anklet", _ok)) or _ok), \
              patch.object(training_recovery, "megaphone_reevaluate", side_effect=lambda _ctx, _op: calls.append("reevaluate") or True), \
-             patch.object(training_recovery, "handle_anklet", side_effect=lambda _ctx: calls.append("anklet") or True):
+             patch.object(training_recovery, "_record_item_trace") as trace_mock:
             used_any = training_recovery.execute_training_commitment_actions(
                 ctx,
                 planned_actions=["megaphone", "anklet"],
@@ -744,7 +759,50 @@ class MantPolicyTests(unittest.TestCase):
             )
 
         self.assertTrue(used_any)
-        self.assertEqual(calls, ["megaphone", "reevaluate", "anklet"])
+        self.assertEqual(
+            calls,
+            [
+                ("batch", ["Motivating Megaphone", "Speed Ankle Weights"]),
+                ("mega", True),
+                ("anklet", True),
+                "reevaluate",
+            ],
+        )
+        trace_mock.assert_not_called()
+
+    def test_execute_training_commitment_actions_uses_sequential_when_megaphone_changes_training(self):
+        calls = []
+        mega_plan = {"kind": "megaphone", "name": "Motivating Megaphone", "tier": 3, "duration": 3}
+        anklet_plan = {"kind": "anklet", "name": "Power Ankle Weights"}
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_megaphone_tier=1,
+                mant_megaphone_turns=2,
+                turn_info=types.SimpleNamespace(date=40),
+            )
+        )
+        current_op = types.SimpleNamespace(training_type="speed")
+
+        def execute_single(_ctx, plan):
+            calls.append(("single", plan["kind"]))
+            return True
+
+        with patch.object(training_recovery, "has_whistle", return_value=False), \
+             patch.object(training_recovery, "_plan_megaphone", return_value=mega_plan), \
+             patch.object(training_recovery, "_preview_megaphone_reevaluation", return_value=("power", True)), \
+             patch.object(training_recovery, "megaphone_reevaluate", side_effect=lambda _ctx, _op: calls.append("reevaluate") or True), \
+             patch.object(training_recovery, "_plan_anklet", side_effect=lambda _ctx: calls.append("plan_anklet") or anklet_plan), \
+             patch.object(training_recovery, "_execute_single_commitment_plan", side_effect=execute_single), \
+             patch.object(training_recovery, "use_items_and_update_inventory") as batch_mock:
+            used_any = training_recovery.execute_training_commitment_actions(
+                ctx,
+                planned_actions=["megaphone", "anklet"],
+                current_op=current_op,
+            )
+
+        self.assertTrue(used_any)
+        self.assertEqual(calls, [("single", "megaphone"), "reevaluate", "plan_anklet", ("single", "anklet")])
+        batch_mock.assert_not_called()
 
     def test_execute_training_commitment_actions_records_no_item_when_nothing_used(self):
         ctx = types.SimpleNamespace(
@@ -756,8 +814,8 @@ class MantPolicyTests(unittest.TestCase):
         )
 
         with patch.object(training_recovery, "has_whistle", return_value=False), \
-             patch.object(training_recovery, "handle_megaphone", return_value=False), \
-             patch.object(training_recovery, "handle_anklet", return_value=False), \
+             patch.object(training_recovery, "_plan_megaphone", return_value=None), \
+             patch.object(training_recovery, "_plan_anklet", return_value=None), \
              patch.object(training_recovery, "_record_item_trace") as trace_mock:
             used_any = training_recovery.execute_training_commitment_actions(
                 ctx,

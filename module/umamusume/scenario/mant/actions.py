@@ -64,6 +64,29 @@ def use_item_and_update_inventory(ctx, item_name):
     return True
 
 
+def use_items_and_update_inventory(ctx, item_names):
+    targets = [name for name in (item_names or []) if name]
+    result = _inventory.use_training_items(ctx, targets)
+    if not result.get("confirmed"):
+        return result
+
+    selected = list(result.get("selected", []))
+    _inventory.update_max_energy_from_ocr(ctx)
+    _inventory.close_items_panel(ctx)
+    owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
+    owned_map = {n: q for n, q in owned}
+    for item_name in selected:
+        owned_map[item_name] = max(0, owned_map.get(item_name, 0) - 1)
+    updated = [(n, q) for n, q in owned_map.items() if q > 0]
+    ctx.cultivate_detail.mant_owned_items = updated
+    from module.umamusume.persistence import save_inventory
+    save_inventory(ctx.cultivate_detail.mant_owned_items)
+    from module.umamusume.context import log_detected_items
+    log_detected_items(updated)
+    _inventory.log.info(f"used training items: {selected}")
+    return result
+
+
 def handle_instant_use_items(ctx):
     from module.umamusume.persistence import mark_buff_used, is_buff_used
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])

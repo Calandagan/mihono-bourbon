@@ -6,7 +6,10 @@ import numpy as np
 import bot.base.log as logger
 
 from module.umamusume.scenario.mant import inventory as _inventory
-from module.umamusume.scenario.mant.actions import use_item_and_update_inventory
+from module.umamusume.scenario.mant.actions import (
+    use_item_and_update_inventory,
+    use_items_and_update_inventory,
+)
 from module.umamusume.scenario.mant.item_targets import item_option, selected_item
 from module.umamusume.scenario.mant.policy import (
     get_date_weighted_score_percentile,
@@ -559,6 +562,47 @@ def megaphone_reevaluate(ctx, current_op):
     return False
 
 
+def _preview_megaphone_reevaluation(ctx, current_op, post_item_tier, post_item_turns):
+    pre_item_tier = getattr(ctx.cultivate_detail.turn_info, 'pre_item_tier', None)
+    pre_item_turns = getattr(ctx.cultivate_detail.turn_info, 'pre_item_turns', None)
+    if current_op is None or pre_item_tier is None or pre_item_turns is None:
+        return getattr(current_op, 'training_type', None), False
+
+    if post_item_tier == pre_item_tier and post_item_turns == pre_item_turns:
+        return getattr(current_op, 'training_type', None), False
+
+    scan_tier = getattr(ctx.cultivate_detail.turn_info, '_mega_scan_tier', 0)
+    scan_turns = getattr(ctx.cultivate_detail.turn_info, '_mega_scan_turns', 0)
+    old_mult = MEGA_STAT_MULT.get(scan_tier, 1.0) if scan_turns > 1 else 1.0
+    new_mult = MEGA_STAT_MULT.get(post_item_tier, 1.0) if post_item_turns > 0 else 1.0
+
+    if new_mult == old_mult:
+        return getattr(current_op, 'training_type', None), False
+
+    cached_stat_scores = getattr(ctx.cultivate_detail.turn_info, 'cached_stat_scores', None)
+    cached_scores = getattr(ctx.cultivate_detail.turn_info, 'cached_computed_scores', None)
+    cached_mults = getattr(ctx.cultivate_detail.turn_info, 'cached_facility_mults', None)
+    if not cached_stat_scores or not cached_scores or len(cached_stat_scores) != 5 or len(cached_scores) != 5:
+        return getattr(current_op, 'training_type', None), False
+
+    ratio = new_mult / old_mult
+    buffed_scores = []
+    for bi in range(5):
+        mult = cached_mults[bi] if cached_mults and len(cached_mults) == 5 else 1.0
+        delta = cached_stat_scores[bi] * (ratio - 1.0) * mult
+        buffed_scores.append(cached_scores[bi] + delta)
+
+    buffed_max = max(buffed_scores)
+    eps = 1e-9
+    ties = [bi for bi, bv in enumerate(buffed_scores) if abs(bv - buffed_max) < eps]
+    new_chosen = 4 if 4 in ties else (min(ties) if ties else int(np.argmax(buffed_scores)))
+
+    from module.umamusume.define import TrainingType
+
+    new_type = TrainingType(new_chosen + 1)
+    return new_type, new_type != getattr(current_op, 'training_type', None)
+
+
 def count_races_in_window(ctx, duration):
     current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     count = 0
@@ -587,21 +631,21 @@ def total_megaphone_turns(owned_map):
     return total
 
 
-def handle_megaphone(ctx):
+def _plan_megaphone(ctx):
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     if mant_cfg is None:
-        return False
+        return None
 
     date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     if date >= _inventory.MANT_CLIMAX_START and date not in _inventory.MANT_CLIMAX_TRAINING_TURNS:
         log.info(f"[MEGAPHONE] Skipping — climax non-training turn (date={date})")
-        return False
+        return None
 
     owned_map = _owned_map(ctx)
     active_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
     active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
     options, selected, choice = _build_megaphone_targets(ctx)
-    best_mega, best_tier = choice
+    best_mega, best_tier = choice if choice is not None else (None, 0)
     
     # Log detailed decision info
     snapshot = _best_training_snapshot(ctx)
@@ -629,11 +673,23 @@ def handle_megaphone(ctx):
             selected=selected,
             result={"phase": "training_commitment", "result": "skip_megaphone"},
         )
-        return False
+        return None
 
     _, duration = MEGAPHONE_TIERS[best_mega]
-    log.info(f"[MEGAPHONE] Using {best_mega} (tier {best_tier}, {duration} turns)")
-    ok = use_item_and_update_inventory(ctx, best_mega)
+    return {
+        "kind": "megaphone",
+        "name": best_mega,
+        "tier": best_tier,
+        "duration": duration,
+        "options": options,
+        "selected": selected,
+    }
+
+
+def _finish_megaphone_plan(ctx, plan, ok):
+    best_mega = plan["name"]
+    best_tier = plan["tier"]
+    duration = plan["duration"]
     if ok:
         ctx.cultivate_detail.mant_megaphone_tier = best_tier
         ctx.cultivate_detail.mant_megaphone_turns = duration
@@ -647,101 +703,81 @@ def handle_megaphone(ctx):
         log.warning(f"[MEGAPHONE] Failed to use {best_mega}")
     _record_item_trace(
         ctx,
-        options=options,
-        selected=selected,
+        options=plan["options"],
+        selected=plan["selected"],
         result={"phase": "training_commitment", "result": "ok" if ok else "failed", "item": best_mega},
     )
     return ok
 
 
-def handle_anklet(ctx):
+def handle_megaphone(ctx):
+    plan = _plan_megaphone(ctx)
+    if plan is None:
+        return False
+    log.info(f"[MEGAPHONE] Using {plan['name']} (tier {plan['tier']}, {plan['duration']} turns)")
+    ok = use_item_and_update_inventory(ctx, plan["name"])
+    return _finish_megaphone_plan(ctx, plan, ok)
+
+
+def _record_anklet_skip(ctx, item_name, skip_reason):
+    _record_item_trace(
+        ctx,
+        options=[{
+            "name": item_name,
+            "context": "training_commitment",
+            "priority": 20,
+            "selected": False,
+            "skip_reason": skip_reason,
+            "reason": "not_selected",
+        }],
+        result={"phase": "training_commitment", "result": "skip_anklet"},
+    )
+
+
+def _plan_anklet(ctx):
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     if mant_cfg is None:
-        return False
+        return None
 
     if _anklet_used_this_turn(ctx):
         item_name = getattr(ctx.cultivate_detail, 'mant_anklet_used_name', 'anklet')
         log.info(f"[ANKLET] Skipping — already used {item_name} this turn")
-        _record_item_trace(
-            ctx,
-            options=[{
-                "name": item_name,
-                "context": "training_commitment",
-                "priority": 20,
-                "selected": False,
-                "skip_reason": "already_used_this_turn",
-                "reason": "not_selected",
-            }],
-            result={"phase": "training_commitment", "result": "skip_anklet"},
-        )
-        return False
+        _record_anklet_skip(ctx, item_name, "already_used_this_turn")
+        return None
 
     percentile = get_stat_only_percentile(ctx)
     owned_map = _owned_map(ctx)
     if percentile is None:
         log.info(f"[ANKLET] Skipping — no percentile data")
-        _record_item_trace(
-            ctx,
-            options=[{
-                "name": "anklet",
-                "context": "training_commitment",
-                "priority": 20,
-                "selected": False,
-                "skip_reason": "no_percentile",
-                "reason": "not_selected",
-            }],
-            result={"phase": "training_commitment", "result": "skip_anklet"},
-        )
-        return False
+        _record_anklet_skip(ctx, "anklet", "no_percentile")
+        return None
 
     threshold = getattr(mant_cfg, 'training_weights_threshold', 40)
     if percentile < threshold:
         log.info(f"[ANKLET] Skipping — percentile={percentile:.1f} < threshold={threshold}")
-        _record_item_trace(
-            ctx,
-            options=[{
-                "name": "anklet",
-                "context": "training_commitment",
-                "priority": 20,
-                "selected": False,
-                "skip_reason": "percentile_below_threshold",
-                "reason": "not_selected",
-            }],
-            result={"phase": "training_commitment", "result": "skip_anklet"},
-        )
-        return False
+        _record_anklet_skip(ctx, "anklet", "percentile_below_threshold")
+        return None
 
     turn_info = getattr(ctx.cultivate_detail, 'turn_info', None)
     op = getattr(turn_info, 'turn_operation', None) if turn_info else None
     if op is None:
         log.info(f"[ANKLET] Skipping — no turn operation")
-        return False
+        return None
     training_type = getattr(op, 'training_type', None)
     if training_type is None:
         log.info(f"[ANKLET] Skipping — no training type")
-        return False
+        return None
     training_val = training_type.value if hasattr(training_type, 'value') else int(training_type)
 
     anklet_name = TRAINING_TYPE_ANKLET.get(training_val)
     if anklet_name is None:
         log.info(f"[ANKLET] Skipping — no anklet for training type {training_val}")
-        return False
+        return None
 
     if _item_failed(ctx, anklet_name):
         log.info(f"[ANKLET] Skipping — previous use/search failed this turn for {anklet_name}")
-        _record_item_trace(
-            ctx,
-            options=[{
-                "name": anklet_name,
-                "context": "training_commitment",
-                "priority": 20,
-                "selected": False,
-                "skip_reason": "failed_this_turn",
-                "reason": "not_selected",
-            }],
-            result={"phase": "training_commitment", "result": "skip_anklet"},
-        )
-        return False
+        _record_anklet_skip(ctx, anklet_name, "failed_this_turn")
+        return None
     
     anklet_qty = int(owned_map.get(anklet_name, 0) or 0)
     log.info(
@@ -752,22 +788,26 @@ def handle_anklet(ctx):
     
     if anklet_qty <= 0:
         log.info(f"[ANKLET] Skipping — no {anklet_name} in inventory")
-        _record_item_trace(
-            ctx,
-            options=[{
-                "name": anklet_name,
-                "context": "training_commitment",
-                "priority": 20,
-                "selected": False,
-                "skip_reason": "no_owned",
-                "reason": "not_selected",
-            }],
-            result={"phase": "training_commitment", "result": "skip_anklet"},
-        )
-        return False
+        _record_anklet_skip(ctx, anklet_name, "no_owned")
+        return None
 
-    log.info(f"[ANKLET] Using {anklet_name}")
-    ok = use_item_and_update_inventory(ctx, anklet_name)
+    return {
+        "kind": "anklet",
+        "name": anklet_name,
+        "options": [{
+            "name": anklet_name,
+            "context": "training_commitment",
+            "priority": 20,
+            "selected": True,
+            "skip_reason": None,
+            "reason": "selected",
+        }],
+        "selected": [{"name": anklet_name, "use_num": 1}],
+    }
+
+
+def _finish_anklet_plan(ctx, plan, ok):
+    anklet_name = plan["name"]
     if ok:
         _mark_anklet_used(ctx, anklet_name)
         _clear_item_failed(ctx, anklet_name)
@@ -777,18 +817,20 @@ def handle_anklet(ctx):
         log.warning(f"[ANKLET] Failed to use {anklet_name}")
     _record_item_trace(
         ctx,
-        options=[{
-            "name": anklet_name,
-            "context": "training_commitment",
-            "priority": 20,
-            "selected": True,
-            "skip_reason": None,
-            "reason": "selected",
-        }],
-        selected=[{"name": anklet_name, "use_num": 1}],
+        options=plan["options"],
+        selected=plan["selected"],
         result={"phase": "training_commitment", "result": "ok" if ok else "failed", "item": anklet_name},
     )
     return ok
+
+
+def handle_anklet(ctx):
+    plan = _plan_anklet(ctx)
+    if plan is None:
+        return False
+    log.info(f"[ANKLET] Using {plan['name']}")
+    ok = use_item_and_update_inventory(ctx, plan["name"])
+    return _finish_anklet_plan(ctx, plan, ok)
 
 
 def tick_megaphone(ctx):
@@ -807,6 +849,32 @@ def item_loop(ctx):
     execute_training_commitment_actions(ctx, planned_actions=["megaphone", "anklet"])
 
 
+def _execute_single_commitment_plan(ctx, plan):
+    if plan["kind"] == "megaphone":
+        log.info(f"[MEGAPHONE] Using {plan['name']} (tier {plan['tier']}, {plan['duration']} turns)")
+    elif plan["kind"] == "anklet":
+        log.info(f"[ANKLET] Using {plan['name']}")
+    ok = use_item_and_update_inventory(ctx, plan["name"])
+    if plan["kind"] == "megaphone":
+        return _finish_megaphone_plan(ctx, plan, ok)
+    return _finish_anklet_plan(ctx, plan, ok)
+
+
+def _execute_training_commitment_batch(ctx, plans):
+    names = [plan["name"] for plan in plans]
+    log.info(f"[MANT-ITEMS] Using combined training items: {names}")
+    result = use_items_and_update_inventory(ctx, names)
+    selected = set(result.get("selected", []) if result.get("confirmed") else [])
+    used_any = False
+    for plan in plans:
+        ok = plan["name"] in selected
+        if plan["kind"] == "megaphone":
+            used_any = _finish_megaphone_plan(ctx, plan, ok) or used_any
+        else:
+            used_any = _finish_anklet_plan(ctx, plan, ok) or used_any
+    return used_any
+
+
 def execute_training_commitment_actions(ctx, planned_actions=None, current_op=None):
     start_date = getattr(ctx.cultivate_detail.turn_info, 'date', None)
     if has_whistle(ctx) and whistle_loop(ctx, start_date):
@@ -821,14 +889,46 @@ def execute_training_commitment_actions(ctx, planned_actions=None, current_op=No
     if "megaphone" in actions:
         ctx.cultivate_detail.turn_info.pre_item_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
         ctx.cultivate_detail.turn_info.pre_item_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-        used_mega = handle_megaphone(ctx)
-        used_any = used_any or used_mega
-        if used_mega and current_op is not None:
-            megaphone_reevaluate(ctx, current_op)
+        mega_plan = _plan_megaphone(ctx)
+    else:
+        mega_plan = None
 
+    if mega_plan is not None and current_op is not None:
+        _, training_would_change = _preview_megaphone_reevaluation(
+            ctx,
+            current_op,
+            mega_plan["tier"],
+            mega_plan["duration"],
+        )
+        if training_would_change:
+            log.info("[MANT-ITEMS] Megaphone may change chosen training — using sequential commitment flow")
+            used_mega = _execute_single_commitment_plan(ctx, mega_plan)
+            used_any = used_any or used_mega
+            if used_mega:
+                megaphone_reevaluate(ctx, current_op)
+            if "anklet" in actions:
+                anklet_plan = _plan_anklet(ctx)
+                if anklet_plan is not None:
+                    used_any = _execute_single_commitment_plan(ctx, anklet_plan) or used_any
+            if not used_any:
+                _record_item_trace(
+                    ctx,
+                    result={"phase": "training_commitment", "result": "no_item_used"},
+                )
+            return used_any
+
+    plans = []
+    if mega_plan is not None:
+        plans.append(mega_plan)
     if "anklet" in actions:
-        used_anklet = handle_anklet(ctx)
-        used_any = used_any or used_anklet
+        anklet_plan = _plan_anklet(ctx)
+        if anklet_plan is not None:
+            plans.append(anklet_plan)
+
+    if plans:
+        used_any = _execute_training_commitment_batch(ctx, plans)
+        if used_any and mega_plan is not None and current_op is not None:
+            megaphone_reevaluate(ctx, current_op)
 
     if not used_any:
         _record_item_trace(

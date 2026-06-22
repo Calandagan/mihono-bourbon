@@ -691,6 +691,38 @@ def close_items_panel(ctx):
         time.sleep(0.3)
 
 
+def confirm_selected_training_items(ctx, item_name="training items", button_name="confirm exchange"):
+    pre_confirm_frame = ctx.ctrl.get_screen()
+    clicked_use = has_use_training_items_button(pre_confirm_frame)
+    ctx.ctrl.click(530, 1205, name=button_name)
+    time.sleep(0.3)
+
+    stable_success = 0
+    for _ in range(24):
+        time.sleep(0.17)
+        frame = ctx.ctrl.get_screen()
+        if has_use_training_items_button(frame):
+            ctx.ctrl.click(530, 1205, name=button_name)
+            clicked_use = True
+            stable_success = 0
+            time.sleep(0.5)
+            continue
+
+        if clicked_use:
+            if is_items_panel_open(frame) or is_on_training_screen(frame) or is_on_main_menu(frame):
+                stable_success += 1
+            else:
+                stable_success = 0
+            if stable_success >= 2:
+                return True
+
+        if not clicked_use and is_items_panel_open(frame):
+            ctx.ctrl.click(530, 1205, name=button_name)
+
+    log.warning(f"[INVENTORY] Timed out confirming use of '{item_name}'")
+    return False
+
+
 def use_training_item(ctx, item_name, quantity=1):
     if not open_items_panel(ctx):
         return False
@@ -708,36 +740,56 @@ def use_training_item(ctx, item_name, quantity=1):
             return False
         time.sleep(0.15)
 
-    pre_confirm_frame = ctx.ctrl.get_screen()
-    clicked_use = has_use_training_items_button(pre_confirm_frame)
-    ctx.ctrl.click(530, 1205, name="confirm exchange")
-    time.sleep(0.3)
-
-    stable_success = 0
-    for _ in range(24):
-        time.sleep(0.17)
-        frame = ctx.ctrl.get_screen()
-        if has_use_training_items_button(frame):
-            ctx.ctrl.click(530, 1205, name="confirm exchange")
-            clicked_use = True
-            stable_success = 0
-            time.sleep(0.5)
-            continue
-
-        if clicked_use:
-            if is_items_panel_open(frame) or is_on_training_screen(frame) or is_on_main_menu(frame):
-                stable_success += 1
-            else:
-                stable_success = 0
-            if stable_success >= 2:
-                return True
-
-        if not clicked_use and is_items_panel_open(frame):
-            ctx.ctrl.click(530, 1205, name="confirm exchange")
-
-    log.warning(f"[INVENTORY] Timed out confirming use of '{item_name}'")
+    if confirm_selected_training_items(ctx, item_name, "confirm exchange"):
+        return True
     close_items_panel(ctx)
     return False
+
+
+def use_training_items(ctx, item_names):
+    targets = [name for name in (item_names or []) if name]
+    result = {
+        "selected": [],
+        "not_found": list(targets),
+        "fully_searched_missing": [],
+        "confirmed": False,
+    }
+    if not targets:
+        return result
+    if not open_items_panel(ctx):
+        return result
+
+    selected = []
+    not_found = []
+    fully_searched_missing = []
+    for item_name in targets:
+        found, search_complete = try_click_item_plus_once(ctx, item_name)
+        if found:
+            selected.append(item_name)
+            time.sleep(0.15)
+        else:
+            not_found.append(item_name)
+            if search_complete:
+                fully_searched_missing.append(item_name)
+
+    result["selected"] = selected
+    result["not_found"] = not_found
+    result["fully_searched_missing"] = fully_searched_missing
+    if fully_searched_missing:
+        setattr(ctx.cultivate_detail, 'mant_inventory_rescan_pending', True)
+        log.warning(
+            f"[INVENTORY] Full search missed items {fully_searched_missing}; "
+            "keeping local inventory unchanged and scheduling a rescan"
+        )
+    if not selected:
+        close_items_panel(ctx)
+        return result
+
+    confirmed = confirm_selected_training_items(ctx, ", ".join(selected), "confirm items")
+    result["confirmed"] = confirmed
+    if not confirmed:
+        close_items_panel(ctx)
+    return result
 
 
 INSTANT_USE_ITEMS = [
