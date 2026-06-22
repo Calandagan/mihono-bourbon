@@ -33,9 +33,11 @@ MANT is where most of this work went. It's still being refined, but it's solid f
 - [Installation](#installation)
 - [Emulator Setup](#emulator-setup)
 - [Configuration](#configuration)
+- [Recommended Setup](#recommended-setup)
 - [Stat Caps (Target Attributes)](#stat-caps-target-attributes)
 - [GPU Acceleration](#gpu-acceleration)
 - [Troubleshooting](#troubleshooting)
+- [Disclaimer](#disclaimer)
 - [Credits](#credits)
 
 ---
@@ -127,6 +129,16 @@ Or just run `start.bat`.
 
 ---
 
+## Recommended Setup
+
+- Run at least **34 races** plus the **3 mandatory climax races**.
+- Bring cards with a high race bonus (Nishino Flower, Marvelous Sunday, Nice Nature, etc.).
+- Use umas with 2-3 aptitudes so you can run more races. Aptitudes should be **B minimum, A for optimal**.
+- **Skill purchasing hasn't been reworked** yet. I buy skills manually at the end of a run, so set the skill point learning threshold to **3000** to stop the bot from wasting time trying to buy skills.
+- There's **no race-retry logic**, on purpose. I don't want the bot burning all the clocks I need to train my aces.
+
+---
+
 ## Stat Caps (Target Attributes)
 
 Stat caps tell the bot when to stop prioritizing a stat. You set them in the **Target Attributes** field, one value per stat in this order: **Speed, Stamina, Power, Guts, Wit**.
@@ -204,6 +216,18 @@ Install or reinstall the Visual C++ Redistributable:
 - [Download vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 ![Stats Display](https://github.com/user-attachments/assets/1f68af35-cf9d-41ce-9392-c26ecf83cc70)
+
+---
+
+## Disclaimer
+
+**Use at your own risk.** I'm not responsible for anything that happens to your account, and I honestly don't care if you get banned. We're adults, make your own decisions and live with the consequences.
+
+There's no security risk here. I'm not a loser, there are no backdoors, keyloggers, or anything shady in this project.
+
+Machines with an **NVIDIA GPU** will perform better. No idea how it runs without one.
+
+P.S. Cygames, you can suck my BBC. You want us to stop botting? Add the damn autoplay and quality-of-life changes :)
 
 ---
 
