@@ -132,6 +132,61 @@ class MantInventoryMemoryTests(unittest.TestCase):
         )
         self.assertTrue(ctx.cultivate_detail.mant_inventory_rescan_pending)
 
+    def test_use_item_wrapper_removes_stale_local_inventory_after_full_search_miss(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[("Motivating Megaphone", 1), ("Vita 20", 1)],
+                mant_inventory_rescan_pending=False,
+                mant_last_full_search_missing_items=[],
+            )
+        )
+
+        def miss_item(_ctx, item_name, _qty):
+            _ctx.cultivate_detail.mant_last_full_search_missing_items = [item_name]
+            return False
+
+        with patch.object(actions._inventory, "use_training_item", side_effect=miss_item), \
+             patch.dict(
+                 sys.modules,
+                 {
+                     "module.umamusume.persistence": types.SimpleNamespace(save_inventory=lambda *_a, **_k: None),
+                     "module.umamusume.context": types.SimpleNamespace(log_detected_items=lambda *_a, **_k: None),
+                 },
+             ):
+            ok = actions.use_item_and_update_inventory(ctx, "Motivating Megaphone")
+
+        self.assertFalse(ok)
+        self.assertEqual(ctx.cultivate_detail.mant_owned_items, [("Vita 20", 1)])
+
+    def test_batch_use_removes_stale_local_inventory_after_full_search_miss(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(
+                mant_owned_items=[("Motivating Megaphone", 1), ("Power Ankle Weights", 1)],
+                mant_inventory_rescan_pending=False,
+            )
+        )
+
+        with patch.object(
+            actions._inventory,
+            "use_training_items",
+            return_value={
+                "selected": [],
+                "not_found": ["Motivating Megaphone"],
+                "fully_searched_missing": ["Motivating Megaphone"],
+                "confirmed": False,
+            },
+        ), patch.dict(
+            sys.modules,
+            {
+                "module.umamusume.persistence": types.SimpleNamespace(save_inventory=lambda *_a, **_k: None),
+                "module.umamusume.context": types.SimpleNamespace(log_detected_items=lambda *_a, **_k: None),
+            },
+        ):
+            result = actions.use_items_and_update_inventory(ctx, ["Motivating Megaphone"])
+
+        self.assertFalse(result["confirmed"])
+        self.assertEqual(ctx.cultivate_detail.mant_owned_items, [("Power Ankle Weights", 1)])
+
     def test_instant_use_full_search_miss_removes_stale_local_inventory(self):
         ctx = types.SimpleNamespace(
             ctrl=types.SimpleNamespace(),

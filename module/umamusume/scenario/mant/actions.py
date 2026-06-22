@@ -48,6 +48,10 @@ def _remove_stale_local_items(ctx, item_names):
 def use_item_and_update_inventory(ctx, item_name):
     ok = _inventory.use_training_item(ctx, item_name, 1)
     if not ok:
+        missing = getattr(ctx.cultivate_detail, 'mant_last_full_search_missing_items', [])
+        if item_name in set(missing or []):
+            _inventory.log.warning(f"[INVENTORY] Removing stale local entry for missing item '{item_name}'")
+            _remove_stale_local_items(ctx, [item_name])
         return False
     _inventory.update_max_energy_from_ocr(ctx)
     _inventory.close_items_panel(ctx)
@@ -67,6 +71,10 @@ def use_item_and_update_inventory(ctx, item_name):
 def use_items_and_update_inventory(ctx, item_names):
     targets = [name for name in (item_names or []) if name]
     result = _inventory.use_training_items(ctx, targets)
+    missing = result.get("fully_searched_missing", [])
+    if missing:
+        _inventory.log.warning(f"[INVENTORY] Removing stale local entries for missing items {missing}")
+        _remove_stale_local_items(ctx, missing)
     if not result.get("confirmed"):
         return result
 
@@ -276,6 +284,7 @@ __all__ = [
     "INSTANT_USE_ITEMS",
     "ONE_TIME_BUFF_ITEMS",
     "use_item_and_update_inventory",
+    "use_items_and_update_inventory",
     "handle_instant_use_items",
     "handle_cupcake_use",
     "has_instant_use_items",

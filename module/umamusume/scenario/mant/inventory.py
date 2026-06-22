@@ -724,6 +724,7 @@ def confirm_selected_training_items(ctx, item_name="training items", button_name
 
 
 def use_training_item(ctx, item_name, quantity=1):
+    setattr(ctx.cultivate_detail, 'mant_last_full_search_missing_items', [])
     if not open_items_panel(ctx):
         return False
 
@@ -733,9 +734,10 @@ def use_training_item(ctx, item_name, quantity=1):
             close_items_panel(ctx)
             if search_complete:
                 setattr(ctx.cultivate_detail, 'mant_inventory_rescan_pending', True)
+                setattr(ctx.cultivate_detail, 'mant_last_full_search_missing_items', [item_name])
                 log.warning(
                     f"[INVENTORY] '{item_name}' was not found after a full search; "
-                    "keeping local inventory unchanged and scheduling a rescan"
+                    "scheduling a rescan"
                 )
             return False
         time.sleep(0.15)
@@ -747,6 +749,7 @@ def use_training_item(ctx, item_name, quantity=1):
 
 
 def use_training_items(ctx, item_names):
+    setattr(ctx.cultivate_detail, 'mant_last_full_search_missing_items', [])
     targets = [name for name in (item_names or []) if name]
     result = {
         "selected": [],
@@ -777,9 +780,10 @@ def use_training_items(ctx, item_names):
     result["fully_searched_missing"] = fully_searched_missing
     if fully_searched_missing:
         setattr(ctx.cultivate_detail, 'mant_inventory_rescan_pending', True)
+        setattr(ctx.cultivate_detail, 'mant_last_full_search_missing_items', list(fully_searched_missing))
         log.warning(
             f"[INVENTORY] Full search missed items {fully_searched_missing}; "
-            "keeping local inventory unchanged and scheduling a rescan"
+            "scheduling a rescan"
         )
     if not selected:
         close_items_panel(ctx)

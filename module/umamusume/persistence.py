@@ -274,6 +274,28 @@ def load_inventory():
     return data.get('inventory', [])
 
 
+def clear_inventory():
+    data = load_persist()
+    data.pop('inventory', None)
+    save_persist(data)
+
+
+def clear_mant_run_state():
+    data = load_persist()
+    for key in (
+        'inventory',
+        'afflictions',
+        'megaphone_tier',
+        'megaphone_turns',
+        'used_buffs',
+        'ignore_cat_food',
+        'ignore_grilled_carrots',
+        'last_known_date',
+    ):
+        data.pop(key, None)
+    save_persist(data)
+
+
 def clear_all_persistence():
     save_persist({})
     clear_career_data()

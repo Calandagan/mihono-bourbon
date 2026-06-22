@@ -299,8 +299,9 @@ def get_detected_shop_items():
 
 @server.post("/api/clear-career-data")
 def clear_career_data_endpoint():
-    from module.umamusume.persistence import clear_career_data
+    from module.umamusume.persistence import clear_career_data, clear_mant_run_state
     cleared = clear_career_data()
+    clear_mant_run_state()
     return {"cleared": cleared}
 
 

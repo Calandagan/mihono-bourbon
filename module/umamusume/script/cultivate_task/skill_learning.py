@@ -199,9 +199,14 @@ def script_cultivate_finish(ctx: UmamusumeContext):
     from bot.base.runtime_state import set_state
     set_state("in_career_run", False)
     try:
-        from module.umamusume.persistence import clear_used_buffs, clear_megaphone_state
-        clear_used_buffs()
-        clear_megaphone_state()
+        from module.umamusume.persistence import clear_mant_run_state
+        clear_mant_run_state()
+        ctx.cultivate_detail.mant_megaphone_tier = 0
+        ctx.cultivate_detail.mant_megaphone_turns = 0
+        ctx.cultivate_detail.mant_afflictions = []
+        ctx.cultivate_detail.mant_owned_items = []
+        ctx.cultivate_detail.mant_inventory_scanned = False
+        ctx.cultivate_detail.mant_inventory_rescan_pending = False
     except Exception:
         pass
     if not ctx.task.detail.manual_purchase_at_end:
