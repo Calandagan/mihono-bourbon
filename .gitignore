@@ -145,3 +145,7 @@ persist.json
 config.yaml
 backup_races/
 docs/
+
+# Internal planning / dev notes (kept locally, not in the public repo)
+SWEEPY_PORTING_PLAN.md
+WATCHDOG_AND_RACE_POLICY_PLAN.md
