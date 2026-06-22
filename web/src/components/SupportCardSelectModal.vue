@@ -343,14 +343,75 @@ export default {
   padding: 1rem;
 }
 
+.support-card-modal-body {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.support-card-img-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.img-row {
+  display: flex;
+  gap: 8px;
+}
+
+.img-cell {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.img-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
 .card-img-wrapper {
   position: relative;
-  display: inline-block;
+  display: block;
+  width: 100%;
+  max-width: 112px;
 }
 
 .card-img-wrapper.card-selected {
   outline: 3px solid #6c63ff;
   border-radius: 4px;
   box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.35);
+}
+
+.support-card-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+}
+
+.card-ssr-icon {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 30px;
+  height: auto;
+}
+
+.card-type-icon {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 22px;
+  height: auto;
+}
+
+.support-card-label {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  word-break: break-word;
 }
 </style>

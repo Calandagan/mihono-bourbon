@@ -15,7 +15,7 @@
     <div class="mb-3">
       <div class="card image-card">
         <div class="card-body">
-          <div class="image-layer" :style="{ '--image-url': `url(${imageBg})` }" @click="toggleCharacter"></div>
+          <div class="image-layer" :style="{ '--image-url': `url(${imageBg})` }"></div>
         </div>
       </div>
     </div>
@@ -50,18 +50,14 @@ import DetectedItemsPanel from "@/components/DetectedItemsPanel.vue";
 import DetectedShopPanel from "@/components/DetectedShopPanel.vue";
 
 import imageBgUrl1 from "../../assets/cunny.png";
-import imageBgUrl2 from "../../assets/cunny2.png";
 export default {
   name: "SchedulerPanel",
   components: { CronJobList, HistoryTaskList, TaskEditModal, WaitingTaskList, AutoStatusPanel, RunningTaskPanel, DetectedSkillsPanel, DetectedPortraitsPanel, DetectedItemsPanel, DetectedShopPanel },
   props: ["runningTask", "waitingTaskList", "historyTaskList", "cronJobList", "detectedSkills", "detectedPortraits", "detectedItems", "detectedShopItems"],
-  data(){ 
-    const savedCharacter = localStorage.getItem('activeCharacter') || '0';
-    const activeChar = parseInt(savedCharacter);
-    return { 
-      imageBg: activeChar === 1 ? imageBgUrl2 : imageBgUrl1,
-      activeCharacter: activeChar
-    } 
+  data(){
+    return {
+      imageBg: imageBgUrl1
+    }
   },
   mounted() {
     this.applyTheme();
@@ -76,16 +72,9 @@ export default {
         ;
       });
     },
-    toggleCharacter() {
-      this.activeCharacter = this.activeCharacter === 0 ? 1 : 0;
-      this.imageBg = this.activeCharacter === 1 ? imageBgUrl2 : imageBgUrl1;
-      localStorage.setItem('activeCharacter', this.activeCharacter.toString());
-      this.applyTheme();
-    },
     applyTheme() {
-      const isBlue = this.activeCharacter === 1;
-      document.documentElement.classList.toggle('theme-blue', isBlue);
-      document.documentElement.classList.toggle('theme-pink', !isBlue);
+      document.documentElement.classList.remove('theme-blue');
+      document.documentElement.classList.add('theme-pink');
     }
   }
 }
@@ -96,8 +85,7 @@ export default {
 .list-panel .card{margin-bottom:0}
 .image-card{flex:1 1 auto;display:flex}
 .image-card .card-body{height:392px;min-height:392px;flex:0 0 auto;border-radius:12px;overflow:hidden}
-.image-card .image-layer{width:100%;height:100%;min-height:100%;background:transparent var(--image-url) center/contain no-repeat !important;cursor:pointer;transition:transform 0.2s ease}
-.image-card .image-layer:hover{transform:scale(1.02)}
+.image-card .image-layer{width:100%;height:100%;min-height:100%;background:transparent var(--image-url) center/contain no-repeat !important}
 .list-panel> .mb-3:last-child{margin-bottom:0}
 .list-title{font-weight:700}
 .list-empty{color:var(--muted)}
