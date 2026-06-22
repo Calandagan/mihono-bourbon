@@ -246,7 +246,7 @@ class AdbController(AndroidController):
 
     def wait_click_interval(self):
         elapsed = time.time() - self.last_click_time
-        min_interval = random.uniform(0.06, 0.09)
+        min_interval = 0.07
         wait_needed = max(0.0, min_interval - elapsed)
         if wait_needed > 0: time.sleep(wait_needed)
 
@@ -281,10 +281,6 @@ class AdbController(AndroidController):
             click_key = self.build_click_key(x, y, name)
             if self.update_repetitive_click(click_key): return
 
-            if random_offset:
-                x += int(max(-8, min(8, random.gauss(0, 3))))
-                y += int(max(-8, min(8, random.gauss(0, 3))))
-            
             x, y = max(1, min(719, x)), max(1, min(1279, y))
             if hold_duration > 0 and y < 66: hold_duration = 0
 
@@ -293,10 +289,8 @@ class AdbController(AndroidController):
             if hold_duration == 0:
                 self._sendevent_tap(x, y)
             else:
-                duration = int(max(50, min(180, random.gauss(90, 30)))) + hold_duration
-                dx, dy = x + random.randint(-3, 3), y + random.randint(-3, 3)
-                if y < 120: dy = y
-                self._sendevent_swipe(x, y, dx, dy, duration)
+                duration = 90 + hold_duration
+                self._sendevent_swipe(x, y, x, y, duration)
 
             self.last_click_time = time.time()
             time.sleep(CONFIG.bot.auto.adb.delay)
@@ -306,18 +300,13 @@ class AdbController(AndroidController):
             from bot.base.runtime_state import get_state
             if get_state().get("input_blocked"): return
 
-            x1 += int(max(-10, min(10, random.gauss(0, 4))))
-            y1 += int(max(-10, min(10, random.gauss(0, 4))))
-            x2 += int(max(-10, min(10, random.gauss(0, 4))))
-            y2 += int(max(-10, min(10, random.gauss(0, 4))))
-
             if y1 < 120:
                 self.click(x1, y1, name=name, random_offset=False, hold_duration=0)
                 return
 
             x1, y1 = max(1, min(719, x1)), max(1, min(1279, y1))
             x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))
-            d = int(duration * 1000 * random.uniform(0.94, 1.06))
+            d = int(duration * 1000)
             self._perform_swipe(x1, y1, x2, y2, d)
             time.sleep(CONFIG.bot.auto.adb.delay)
 
@@ -367,20 +356,15 @@ class AdbController(AndroidController):
             from bot.base.runtime_state import get_state
             if get_state().get("input_blocked"): return
             
-            x1 += int(max(-10, min(10, random.gauss(0, 4))))
-            y1 += int(max(-10, min(10, random.gauss(0, 4))))
-            x2 += int(max(-10, min(10, random.gauss(0, 4))))
-            y2 += int(max(-10, min(10, random.gauss(0, 4))))
-            
             if y1 < 120:
                 self.click(x1, y1, name=name, random_offset=False, hold_duration=0)
                 return
-                
+
             x1, y1 = max(1, min(719, x1)), max(1, min(1279, y1))
             x2, y2 = max(1, min(719, x2)), max(1, min(1279, y2))
-            
-            sw_d = int(swipe_duration * random.uniform(0.94, 1.06))
-            ho_d = int(hold_duration * random.uniform(0.94, 1.06))
+
+            sw_d = int(swipe_duration)
+            ho_d = int(hold_duration)
             self._input_swipe(x1, y1, x2, y2, sw_d)
             time.sleep(0.05)
             self._input_swipe(x2, y2, x2, y2, ho_d)

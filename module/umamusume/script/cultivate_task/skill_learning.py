@@ -113,11 +113,9 @@ def content_same(before, after):
 
 
 def sb_drag(ctx, from_y, to_y):
-    sx = random.randint(SB_X_MIN, SB_X_MAX)
-    ex = random.randint(SB_X_MIN, SB_X_MAX)
-    dur = random.randint(166, 211)
+    dur = 188
     from_y, to_y = max(110, from_y), max(110, to_y)
-    ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
+    ctx.ctrl.swipe(SB_X, from_y, SB_X, to_y, duration=dur / 1000.0)
     time.sleep(0.15)
 
 
@@ -419,8 +417,7 @@ def script_cultivate_learn_skill(ctx: UmamusumeContext):
         est_frames = total_content / desired_shift
         swipe_dur = max(5000, min(25000, int(est_frames * 600)))
 
-        scan_x_end = _gauss_scan_x()
-        proc = ctx.ctrl.swipe_async(SB_X, start_y, scan_x_end, TRACK_BOT, swipe_dur)
+        proc = ctx.ctrl.swipe_async(SB_X, start_y, SB_X, TRACK_BOT, swipe_dur)
 
         time.sleep(0.3)
         prev_frame = img

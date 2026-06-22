@@ -156,26 +156,12 @@ def inv_find_content_shift(before, after):
 
 
 def sb_drag(ctx, from_y, to_y):
-    # Add a bit more randomization and a slight curve/jitter to the start/end X
-    sx = random.randint(SB_X_MIN, SB_X_MAX)
-    ex = random.randint(SB_X_MIN, SB_X_MAX)
-    
-    # Calculate duration based on distance to feel more natural, with jitter
+    # Deterministic, pure-vertical scrollbar drag for precise/repeatable scrolling
     dist = abs(to_y - from_y)
-    # A typical human drag is around 150-500ms depending on distance
-    base_dur = max(160, min(600, int(dist * 0.75)))
-    dur = random.randint(base_dur, base_dur + 60)
-    
+    dur = max(160, min(600, int(dist * 0.75)))
     from_y, to_y = max(110, from_y), max(110, to_y)
-    
-    # Occasionally add a tiny "hesitation" before swiping (15% chance)
-    if random.random() < 0.15:
-        time.sleep(random.uniform(0.04, 0.1))
-        
-    ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
-    
-    # Post-swipe pause variation (simulating letting go of the screen)
-    time.sleep(random.uniform(0.14, 0.28))
+    ctx.ctrl.swipe(SB_X, from_y, SB_X, to_y, duration=dur / 1000.0)
+    time.sleep(0.20)
 
 
 def scroll_to_top(ctx):
@@ -475,11 +461,10 @@ def scan_inventory(ctx, stop_when_found=None):
             reached_bottom = True
             break
             
-        seg_dur = random.randint(600, 1100)
-        scan_x_end = _gauss_scan_x()
-        
-        # Start an async swipe for this segment to capture frames while moving
-        proc = ctx.ctrl.swipe_async(SB_X, cursor, scan_x_end, target_y, seg_dur)
+        seg_dur = 850
+
+        # Pure-vertical scrollbar drag (deterministic) while capturing frames
+        proc = ctx.ctrl.swipe_async(SB_X, cursor, SB_X, target_y, seg_dur)
         
         # Scan during this segment's motion
         segment_end_time = time.time() + (seg_dur / 1000.0) + 0.2

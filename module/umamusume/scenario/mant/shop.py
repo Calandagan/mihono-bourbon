@@ -137,16 +137,11 @@ def content_same(before, after):
 
 
 def sb_drag(ctx, from_y, to_y):
-    sx = random.randint(SB_X_MIN, SB_X_MAX)
-    ex = random.randint(SB_X_MIN, SB_X_MAX)
     dist = abs(to_y - from_y)
-    base_dur = max(180, min(700, int(dist * 0.85)))
-    dur = random.randint(base_dur, base_dur + 80)
+    dur = max(180, min(700, int(dist * 0.85)))
     from_y, to_y = max(110, from_y), max(110, to_y)
-    if random.random() < 0.15:
-        time.sleep(random.uniform(0.04, 0.1))
-    ctx.ctrl.swipe(sx, from_y, ex, to_y, duration=dur / 1000.0)
-    time.sleep(random.uniform(0.14, 0.28))
+    ctx.ctrl.swipe(SB_X, from_y, SB_X, to_y, duration=dur / 1000.0)
+    time.sleep(0.20)
 
 
 def scroll_to_top(ctx):
@@ -169,13 +164,11 @@ def scroll_to_top(ctx):
 
 
 def content_scroll_down(ctx, distance_px=260):
-    start_x = random.randint(CONTENT_X1 + 260, CONTENT_X2 - 40)
-    end_x = start_x + random.randint(-18, 18)
+    scroll_x = (CONTENT_X1 + CONTENT_X2) // 2
     start_y = min(CONTENT_BOT - 26, CONTENT_TOP + distance_px + 80)
     end_y = max(CONTENT_TOP + 26, start_y - distance_px)
-    duration = random.uniform(0.42, 0.68)
-    ctx.ctrl.swipe(start_x, start_y, end_x, end_y, duration=duration)
-    time.sleep(random.uniform(0.16, 0.28))
+    ctx.ctrl.swipe(scroll_x, start_y, scroll_x, end_y, duration=0.5)
+    time.sleep(0.22)
 
 
 def _gauss_scan_x():

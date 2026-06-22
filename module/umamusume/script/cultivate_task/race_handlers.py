@@ -240,21 +240,20 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
                         log.info("Reached top of race list, race not found")
                         break
                 
-                # Perform a humanized swipe
-                sx = random.randint(300, 420)
-                ex = sx + random.randint(-20, 20)
-                dur = random.randint(300, 500)
-                
+                # Deterministic, pure-vertical swipe for precise/repeatable scrolling
+                sx = 360
+                dur = 400
+
                 if direction == "down":
-                    y1, y2 = random.randint(850, 950), random.randint(650, 750)
-                    ctx.ctrl.swipe(x1=sx, y1=y1, x2=ex, y2=y2, duration=dur/1000.0, name="")
+                    y1, y2 = 900, 700
+                    ctx.ctrl.swipe(x1=sx, y1=y1, x2=sx, y2=y2, duration=dur/1000.0, name="")
                     scrolled_down = True
                 else:
-                    y1, y2 = random.randint(650, 750), random.randint(850, 950)
-                    ctx.ctrl.swipe(x1=sx, y1=y1, x2=ex, y2=y2, duration=dur/1000.0, name="")
+                    y1, y2 = 700, 900
+                    ctx.ctrl.swipe(x1=sx, y1=y1, x2=sx, y2=y2, duration=dur/1000.0, name="")
                     scrolled_up = True
-                    
-                time.sleep(random.uniform(0.4, 0.6))
+
+                time.sleep(0.5)
 
             # If we reach here, the race wasn't found
             log.warning(f"Race ID {target_race_id} not found in list")
