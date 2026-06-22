@@ -436,7 +436,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             return
         viewed = train_type.value
 
-   
+        _scan_t0 = time.perf_counter()
 
         if extra_weight[viewed - 1] > -1:
             facility_name = FACILITY_NAME_MAP.get(train_type)
@@ -484,6 +484,8 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
 
         for thread in threads:
             thread.join()
+
+        log.info(f"[TIMING] facility scan ({len(threads)} facilities) took {(time.perf_counter() - _scan_t0) * 1000:.0f} ms")
 
         for idx, energy_val in energy_changes:
             ctx.cultivate_detail.turn_info.training_info_list[idx].energy_change = energy_val

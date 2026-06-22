@@ -137,13 +137,14 @@ def extract_digit_mask(mask, region):
     digit_mask = mask[y1:y2, x1:x2]
     return digit_mask if digit_mask.size > 0 else None
 
-def recognize_digits_cnn(roi, max_value=100):
+def _extract_digit_masks(roi):
+    """CPU-side digit extraction for one stat ROI. Returns (digit_masks, valid_regions)."""
     if roi is None or roi.size == 0:
-        return 0
+        return [], []
     mask = create_color_mask(roi)
     regions = find_digit_regions(mask)
     if not regions:
-        return 0
+        return [], []
     digit_masks = []
     valid_regions = []
     for region in regions:
@@ -151,10 +152,11 @@ def recognize_digits_cnn(roi, max_value=100):
         if dm is not None:
             digit_masks.append(dm)
             valid_regions.append(region)
-    if not digit_masks:
-        return 0
-    classifier = get_classifier()
-    results = classifier.predict_batch(digit_masks)
+    return digit_masks, valid_regions
+
+
+def _assemble_value(results, valid_regions, max_value=100):
+    """Turn per-digit (pred, conf) predictions + their regions into an int value."""
     digits = []
     for i, (pred, conf) in enumerate(results):
         if pred >= 0 and conf > 0.3:
@@ -184,6 +186,56 @@ def recognize_digits_cnn(roi, max_value=100):
             return last_two
     return 0
 
+
+def recognize_digits_cnn(roi, max_value=100):
+    digit_masks, valid_regions = _extract_digit_masks(roi)
+    if not digit_masks:
+        return 0
+    classifier = get_classifier()
+    if classifier is None:
+        return 0
+    results = classifier.predict_batch(digit_masks)
+    return _assemble_value(results, valid_regions, max_value)
+
+
+def scan_stats_batch(img, stat_names, scenario="aoharuhai", max_value=100):
+    """Scan several stat regions with a SINGLE CNN forward pass.
+
+    Collects the digit masks from every requested stat region, runs one
+    predict_batch over all of them, then splits the predictions back per stat.
+    Behaviour per stat is identical to recognize_digits_cnn.
+    """
+    areas = STAT_AREAS_URA if scenario == "ura" else STAT_AREAS_AOHARUHAI
+    h, w = img.shape[:2]
+    all_masks = []
+    spans = {}  # stat -> (start_index, count, valid_regions)
+    for stat in stat_names:
+        if stat not in areas:
+            spans[stat] = (0, 0, [])
+            continue
+        x1, y1, x2, y2 = areas[stat]
+        x1 = max(0, min(x1, w)); x2 = max(0, min(x2, w))
+        y1 = max(0, min(y1, h)); y2 = max(0, min(y2, h))
+        roi = img[y1:y2, x1:x2]
+        masks, regions = _extract_digit_masks(roi)
+        start = len(all_masks)
+        all_masks.extend(masks)
+        spans[stat] = (start, len(masks), regions)
+
+    results = {stat: 0 for stat in stat_names}
+    if not all_masks:
+        return results
+    classifier = get_classifier()
+    if classifier is None:
+        return results
+    preds = classifier.predict_batch(all_masks)
+    for stat in stat_names:
+        start, count, regions = spans[stat]
+        if count == 0:
+            continue
+        results[stat] = _assemble_value(preds[start:start + count], regions, max_value)
+    return results
+
 def scan_stat_gain(img, stat_name, scenario="aoharuhai"):
     if scenario == "ura":
         areas = STAT_AREAS_URA
@@ -203,18 +255,11 @@ def scan_stat_gain(img, stat_name, scenario="aoharuhai"):
 def scan_facility_stats(img, facility_type, scenario="aoharuhai"):
     if facility_type not in FACILITY_STATS:
         return {}
-    stats_to_scan = FACILITY_STATS[facility_type]
-    results = {}
-    for stat in stats_to_scan:
-        value = scan_stat_gain(img, stat, scenario)
-        results[stat] = value
-    return results
+    # One CNN forward pass for all of this facility's stats instead of one per stat.
+    return scan_stats_batch(img, FACILITY_STATS[facility_type], scenario)
 
 def parse_training_result_template(img, scenario="aoharuhai"):
-    speed = scan_stat_gain(img, "speed", scenario)
-    stamina = scan_stat_gain(img, "stamina", scenario)
-    power = scan_stat_gain(img, "power", scenario)
-    guts = scan_stat_gain(img, "guts", scenario)
-    wits = scan_stat_gain(img, "wits", scenario)
-    sp = scan_stat_gain(img, "sp", scenario)
-    return [speed, stamina, power, guts, wits, sp]
+    order = ["speed", "stamina", "power", "guts", "wits", "sp"]
+    # One CNN forward pass for all 6 stats instead of six separate calls.
+    vals = scan_stats_batch(img, order, scenario)
+    return [vals[s] for s in order]

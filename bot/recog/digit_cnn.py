@@ -54,8 +54,16 @@ class DigitClassifier:
     def predict_batch(self, images):
         if not images:
             return []
+        # Preprocess on CPU and move the whole batch to the GPU in one transfer,
+        # instead of one host->device copy per digit.
+        arrs = []
+        for img in images:
+            if img.ndim == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = cv2.resize(img, (24, 32))
+            arrs.append(img.astype(np.float32) / 255.0)
         with torch.no_grad():
-            batch = torch.cat([self.preprocess(img) for img in images], dim=0)
+            batch = torch.from_numpy(np.stack(arrs)).unsqueeze(1).to(self.device)
             output = self.model(batch)
             probs = F.softmax(output, dim=1)
             preds = torch.argmax(probs, dim=1).cpu().numpy()
