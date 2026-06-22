@@ -279,6 +279,7 @@ def ocr(img, lang="en"):
 def ocr_batch(img_list, lang="en"):
     """Run OCR on multiple small ROI images in a single GPU call.
     Returns a list of text strings, one per input image (empty string on miss)."""
+    global ocr_broken
     if not img_list:
         return []
     reset_timeout()
@@ -298,12 +299,10 @@ def ocr_batch(img_list, lang="en"):
         try:
             o = get_ocr(lang)
             batch_raw = o.ocr(imgs_to_run, cls=False)
+            ocr_broken = False
         except Exception:
-            global ocr_broken
             ocr_broken = True
             batch_raw = [[] for _ in imgs_to_run]
-        else:
-            ocr_broken = False
         if _USE_GPU:
             gpu_utils.clear_gpu_cache()
         for j, (orig_idx, cache_key, _) in enumerate(uncached):
