@@ -63,6 +63,21 @@ def _apply_shop_purchase_to_local_inventory(ctx, selected_items):
     return _save_owned_items_map(ctx, owned_map)
 
 
+def _use_grilled_carrots_now(ctx, selected_items):
+    # Grilled Carrots are meant to be consumed immediately (favor/BBQ), not hoarded.
+    # Force-use as many as were just purchased, right after closing the shop, instead
+    # of waiting for the next turn's instant-use pass. Scoped to Grilled Carrots only.
+    carrots = sum(1 for name in (selected_items or []) if name == "Grilled Carrots")
+    if carrots <= 0:
+        return
+    from module.umamusume.scenario.mant.actions import use_item_and_update_inventory
+    log.info(f"[CARROTS] Using {carrots} Grilled Carrots immediately after purchase")
+    for _ in range(carrots):
+        if not use_item_and_update_inventory(ctx, "Grilled Carrots"):
+            log.warning("[CARROTS] Could not use a Grilled Carrots immediately; leaving for next inventory pass")
+            break
+
+
 def _mark_bought_shop_rows(items_list, bought_items):
     bought_counts = Counter(bought_items or [])
     updated_rows = []
@@ -484,6 +499,7 @@ def handle_mant_shop_scan(ctx, current_date):
                 selected_items = list((held_items or {}).get("selected") or [])
                 ctx.cultivate_detail.mant_inventory_rescan_pending = True
                 _apply_shop_purchase_to_local_inventory(ctx, selected_items)
+                _use_grilled_carrots_now(ctx, selected_items)
                 total_spent = sum(SHOP_ITEM_COSTS.get(t, 0) for t in selected_items)
                 budget_end = max(0, ctx.cultivate_detail.mant_coins - total_spent)
                 ctx.cultivate_detail.mant_coins = budget_end
@@ -637,6 +653,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
         selected_items = list((buy_result or {}).get("selected") or [])
         ctx.cultivate_detail.mant_inventory_rescan_pending = True
         _apply_shop_purchase_to_local_inventory(ctx, selected_items)
+        _use_grilled_carrots_now(ctx, selected_items)
         spent = sum(SHOP_ITEM_COSTS.get(tgt, 0) for tgt in selected_items)
         budget_end = max(0, ctx.cultivate_detail.mant_coins - spent)
         ctx.cultivate_detail.mant_coins = budget_end

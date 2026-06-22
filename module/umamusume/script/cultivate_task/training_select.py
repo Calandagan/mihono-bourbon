@@ -681,9 +681,30 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             stat_results = getattr(til, 'stat_results', {})
             stat_score = 0.0
             stat_parts = []
+            # Per-stat hard cap: once a stat reaches its configured cap (expect_attribute,
+            # one value per stat in order speed/stamina/power/guts/wit), stop counting gains
+            # in THAT stat — but keep the other stats' gains, so a buffed off-type training
+            # (e.g. a Speed facility that also gives Power) can still win. A cap of 0 (or a
+            # very high value like 9999) effectively means "no cap" for that stat.
+            stat_caps = None
+            curr_stat_vals = None
+            try:
+                ea = ctx.cultivate_detail.expect_attribute
+                if isinstance(ea, list) and len(ea) == 5:
+                    uma_now = ctx.cultivate_detail.turn_info.uma_attribute
+                    stat_caps = [float(v) for v in ea]
+                    curr_stat_vals = [uma_now.speed, uma_now.stamina, uma_now.power,
+                                      uma_now.will, uma_now.intelligence]
+            except Exception:
+                stat_caps = None
             for sk_idx, sk in enumerate(stat_keys):
                 sv_val = stat_results.get(sk, 0)
                 if sv_val > 0:
+                    if (stat_caps is not None and sk_idx < 5
+                            and stat_caps[sk_idx] > 0
+                            and curr_stat_vals[sk_idx] >= stat_caps[sk_idx]):
+                        stat_parts.append(f"{sk}:{sv_val} (capped)")
+                        continue
                     contrib = sv_val * stat_mult[sk_idx]
                     stat_score += contrib
                     stat_contributions[idx][sk_idx] = contrib
@@ -799,28 +820,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             if scenario_multiplier != 1.0:
                 score *= scenario_multiplier
 
+            # Stat capping is now applied per-stat in the stat-contribution loop above
+            # (expect_attribute used as a hard cap per stat, keeping cross-stat gains).
+            # The old whole-facility gradient based on the primary stat is removed;
+            # target_mult stays 1.0 so the score-breakdown log below still works.
             target_mult = 1.0
-            try:
-                expect_attr = ctx.cultivate_detail.expect_attribute
-                if isinstance(expect_attr, list) and len(expect_attr) == 5:
-                    uma = ctx.cultivate_detail.turn_info.uma_attribute
-                    curr_vals = [uma.speed, uma.stamina, uma.power, uma.will, uma.intelligence]
-                    cap_val = float(expect_attr[idx])
-                    curr_val = float(curr_vals[idx])
-                    if cap_val > 0:
-                        ratio = curr_val / cap_val
-                        if ratio > 0.95:
-                            target_mult = 0.0
-                        elif ratio >= 0.90:
-                            target_mult = 0.7
-                        elif ratio >= 0.80:
-                            target_mult = 0.8
-                        elif ratio >= 0.70:
-                            target_mult = 0.9
-                        score *= target_mult
-            except Exception:
-                pass
-            
+
             weight_mult = 1.0
             try:
                 ew = extra_weight[idx] if isinstance(extra_weight, (list, tuple)) and len(extra_weight) == 5 else 0.0
