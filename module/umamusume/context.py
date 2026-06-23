@@ -234,6 +234,9 @@ class CultivateContextDetail:
         self.mant_failed_use_turn = None
         self.mant_failed_use_items = set()
         self.mant_item_use_error_pending = False
+        self.mant_debut_retry_pending = False
+        self.mant_debut_retry_count = 0
+        self.mant_debut_retry_last_click_at = 0.0
         self.mant_race_rejections = set()
         self.user_provided_priority = False
         self.event_overrides = {}

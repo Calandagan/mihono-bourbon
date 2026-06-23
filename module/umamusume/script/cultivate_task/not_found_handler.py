@@ -37,6 +37,14 @@ def script_not_found_ui(ctx: UmamusumeContext):
             return
 
         try:
+            from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
+            if maybe_handle_mant_debut_retry(ctx):
+                if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
+                return
+        except Exception as e:
+            log.debug(f"MANT debut retry check failed: {e}")
+
+        try:
             from module.umamusume.asset.template import REF_NEXT, REF_NEXT2
             img_gray_full = getattr(ctx, 'current_screen_gray', None)
             if img_gray_full is None:
@@ -82,6 +90,12 @@ def script_not_found_ui(ctx: UmamusumeContext):
             
             if result.find_match:
                 if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
+                try:
+                    from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
+                    if maybe_handle_mant_debut_retry(ctx):
+                        return
+                except Exception as e:
+                    log.debug(f"MANT debut retry result check failed: {e}")
                 log.info("Cultivate Result 1 template matched! Clicking confirm button")
                 ctx.ctrl.click_by_point(CULTIVATE_RESULT_CONFIRM)
                 return
@@ -101,6 +115,12 @@ def script_not_found_ui(ctx: UmamusumeContext):
             result_keywords = ['rewards', 'result', 'cultivation', 'complete', 'finish']
             if any(keyword in title_text for keyword in result_keywords):
                 if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
+                try:
+                    from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
+                    if maybe_handle_mant_debut_retry(ctx):
+                        return
+                except Exception as e:
+                    log.debug(f"MANT debut retry OCR result check failed: {e}")
                 log.info(f"Potential cultivation result detected: '{title_text[:50]}...'")
                 log.info("Attempting to click cultivation result confirm button")
                 ctx.ctrl.click_by_point(CULTIVATE_RESULT_CONFIRM)

@@ -53,7 +53,7 @@ def script_cultivate_goal_race(ctx: UmamusumeContext):
         return
     
     ctx.cultivate_detail.goal_race_parse_failures = 0
-    
+
     if ctx.cultivate_detail.turn_info is None or current_date != ctx.cultivate_detail.turn_info.date:
         if ctx.cultivate_detail.turn_info is not None:
             ctx.cultivate_detail.turn_info_history.append(ctx.cultivate_detail.turn_info)
@@ -61,6 +61,13 @@ def script_cultivate_goal_race(ctx: UmamusumeContext):
                 ctx.cultivate_detail.turn_info_history = ctx.cultivate_detail.turn_info_history[-100:]
         ctx.cultivate_detail.turn_info = TurnInfo()
         ctx.cultivate_detail.turn_info.date = current_date
+
+    if mant_cfg is not None and current_date == 12:
+        try:
+            from module.umamusume.scenario.mant.debut_retry import mark_mant_debut_race_started
+            mark_mant_debut_race_started(ctx, "goal_race")
+        except Exception as e:
+            log.debug(f"MANT debut retry arm failed: {e}")
     
     if ctx.cultivate_detail.turn_info.turn_operation:
         race_id = ctx.cultivate_detail.turn_info.turn_operation.race_id
@@ -156,6 +163,13 @@ def script_cultivate_race_list(ctx: UmamusumeContext):
     
     if goal_match:
         log.info("Found Goal Race - clicking to enter detail interface")
+        current_date = int(getattr(ctx.cultivate_detail.turn_info, "date", 0) or 0)
+        if current_date == 12:
+            try:
+                from module.umamusume.scenario.mant.debut_retry import mark_mant_debut_race_started
+                mark_mant_debut_race_started(ctx, "race_list_goal")
+            except Exception as e:
+                log.debug(f"MANT debut retry arm failed: {e}")
         try_use_cleat(ctx, getattr(turn_op, 'race_id', 0) if turn_op else 0, is_climax=True)
         ctx.ctrl.click_by_point(CULTIVATE_GOAL_RACE_INTER_1)
     elif ura_match:
