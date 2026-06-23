@@ -141,6 +141,36 @@ class MantMainMenuTests(unittest.TestCase):
             ],
         )
 
+    def test_confirmed_shop_purchase_does_not_force_inventory_rescan(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(mant_inventory_rescan_pending=False)
+        )
+
+        rescan = main_menu._mark_inventory_rescan_if_shop_buy_uncertain(
+            ctx,
+            {"selected": ["Vita 20"], "clicked": ["Vita 20"]},
+            ["Vita 20"],
+            "test",
+        )
+
+        self.assertFalse(rescan)
+        self.assertFalse(ctx.cultivate_detail.mant_inventory_rescan_pending)
+
+    def test_uncertain_shop_purchase_schedules_inventory_rescan(self):
+        ctx = types.SimpleNamespace(
+            cultivate_detail=types.SimpleNamespace(mant_inventory_rescan_pending=False)
+        )
+
+        rescan = main_menu._mark_inventory_rescan_if_shop_buy_uncertain(
+            ctx,
+            {"selected": [], "clicked": ["Vita 20"]},
+            [],
+            "test",
+        )
+
+        self.assertTrue(rescan)
+        self.assertTrue(ctx.cultivate_detail.mant_inventory_rescan_pending)
+
     def test_coin_triggered_buy_tracks_chunk_on_cultivate_detail(self):
         ctx = types.SimpleNamespace(
             cultivate_detail=types.SimpleNamespace(

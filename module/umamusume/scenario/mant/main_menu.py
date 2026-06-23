@@ -63,6 +63,21 @@ def _apply_shop_purchase_to_local_inventory(ctx, selected_items):
     return _save_owned_items_map(ctx, owned_map)
 
 
+def _mark_inventory_rescan_if_shop_buy_uncertain(ctx, buy_result, selected_items, source):
+    selected_items = [name for name in (selected_items or []) if name]
+    clicked_items = list((buy_result or {}).get("clicked") or [])
+    if selected_items:
+        log.info(f"[INVENTORY] Applied confirmed shop purchase locally ({source}); skipping full rescan")
+        return False
+    if clicked_items:
+        ctx.cultivate_detail.mant_inventory_rescan_pending = True
+        log.warning(
+            f"[INVENTORY] Shop buy clicked items but confirmed none ({source}); scheduling inventory rescan"
+        )
+        return True
+    return False
+
+
 def _use_grilled_carrots_now(ctx, selected_items):
     # Grilled Carrots are meant to be consumed immediately (favor/BBQ), not hoarded.
     # Force-use as many as were just purchased, right after closing the shop, instead
@@ -519,7 +534,7 @@ def handle_mant_shop_scan(ctx, current_date):
             bought, held_items = buy_shop_items(ctx, targets, items_list)
             if bought:
                 selected_items = list((held_items or {}).get("selected") or [])
-                ctx.cultivate_detail.mant_inventory_rescan_pending = True
+                _mark_inventory_rescan_if_shop_buy_uncertain(ctx, held_items, selected_items, "shop_scan")
                 _apply_shop_purchase_to_local_inventory(ctx, selected_items)
                 _use_grilled_carrots_now(ctx, selected_items)
                 total_spent = sum(SHOP_ITEM_COSTS.get(t, 0) for t in selected_items)
@@ -673,7 +688,7 @@ def handle_mant_emergency_shop_buys(ctx, current_date):
     bought, buy_result = buy_shop_items(ctx, final_targets, items_list)
     if bought:
         selected_items = list((buy_result or {}).get("selected") or [])
-        ctx.cultivate_detail.mant_inventory_rescan_pending = True
+        _mark_inventory_rescan_if_shop_buy_uncertain(ctx, buy_result, selected_items, "emergency_shop")
         _apply_shop_purchase_to_local_inventory(ctx, selected_items)
         _use_grilled_carrots_now(ctx, selected_items)
         spent = sum(SHOP_ITEM_COSTS.get(tgt, 0) for tgt in selected_items)
@@ -838,7 +853,7 @@ def _execute_cleat_buy(ctx, cleat_name, cost, *, source="cleat_override", debug=
     bought, buy_result = buy_shop_items(ctx, [cleat_name], items_list)
     if bought:
         selected_items = list((buy_result or {}).get("selected") or [])
-        ctx.cultivate_detail.mant_inventory_rescan_pending = True
+        _mark_inventory_rescan_if_shop_buy_uncertain(ctx, buy_result, selected_items, "cleat_shop")
         _apply_shop_purchase_to_local_inventory(ctx, selected_items)
         spent = sum(cost for item_name in selected_items if item_name == cleat_name)
         ctx.cultivate_detail.mant_coins = max(0, ctx.cultivate_detail.mant_coins - spent)
