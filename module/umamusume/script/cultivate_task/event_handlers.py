@@ -53,6 +53,13 @@ def _nudge_post_event_transition(ctx: UmamusumeContext, event_name: str, choice_
             return
 
         try:
+            from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
+            if maybe_handle_mant_debut_retry(ctx):
+                continue
+        except Exception:
+            pass
+
+        try:
             from module.umamusume.asset.template import REF_NEXT, REF_NEXT2
             gray = ctx.current_screen_gray if ctx.current_screen_gray is not None else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             next_match = image_match(gray, REF_NEXT)
@@ -212,6 +219,13 @@ def script_cultivate_event(ctx: UmamusumeContext):
     if img is None or getattr(img, 'size', 0) == 0:
         log.warning("Failed to get screen")
         return
+    ctx.current_screen = img
+    try:
+        from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
+        if maybe_handle_mant_debut_retry(ctx):
+            return
+    except Exception:
+        pass
     h, w = img.shape[:2]
     y1, y2, x1, x2 = 237, 283, 111, 480
     y1 = max(0, min(h, y1)); y2 = max(y1, min(h, y2))

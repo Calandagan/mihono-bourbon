@@ -48,6 +48,8 @@ def _retry_screen(enabled=True, present=True):
     _fill_noisy(screen, debut_retry.MANT_RETRY_TEXT_REGION, 80, 220)
     x1, y1, x2, y2 = debut_retry.MANT_RETRY_STATUS_REGION
     screen[y1:y2, x1:x2] = 245 if enabled else 155
+    x1, y1, x2, y2 = debut_retry.MANT_NEXT_BUTTON_REGION
+    screen[y1:y2, x1:x2] = (80, 210, 20)
     return screen
 
 
@@ -115,6 +117,28 @@ class MantDebutRetryTests(unittest.TestCase):
         self.assertFalse(handled)
         self.assertEqual(ctx.ctrl.clicks, [])
         self.assertFalse(ctx.cultivate_detail.mant_debut_retry_pending)
+
+    def test_maybe_handle_rejects_ambiguous_brightness(self):
+        screen = _retry_screen(enabled=True)
+        x1, y1, x2, y2 = debut_retry.MANT_RETRY_STATUS_REGION
+        screen[y1:y2, x1:x2] = 219
+        ctx = _ctx(screen, count=0)
+
+        handled = debut_retry.maybe_handle_mant_debut_retry(ctx)
+
+        self.assertFalse(handled)
+        self.assertEqual(ctx.ctrl.clicks, [])
+        self.assertFalse(ctx.cultivate_detail.mant_debut_retry_pending)
+
+    def test_button_state_requires_next_button_signal(self):
+        screen = _retry_screen(enabled=True)
+        x1, y1, x2, y2 = debut_retry.MANT_NEXT_BUTTON_REGION
+        screen[y1:y2, x1:x2] = 240
+
+        state = debut_retry.mant_debut_retry_button_state(screen)
+
+        self.assertFalse(state["present"])
+        self.assertFalse(state["enabled"])
 
     def test_mark_mant_debut_only_arms_date_twelve(self):
         ctx = _ctx(_retry_screen(enabled=True), date=12, pending=False)

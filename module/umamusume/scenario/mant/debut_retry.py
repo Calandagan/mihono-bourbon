@@ -17,9 +17,12 @@ MANT_RETRY_CLICK = (202, 1179)
 MANT_RETRY_STATUS_REGION = (118, 1150, 328, 1168)
 MANT_RETRY_ICON_REGION = (72, 1152, 121, 1201)
 MANT_RETRY_TEXT_REGION = (160, 1160, 286, 1194)
-MANT_RETRY_ENABLED_BRIGHTNESS = 200.0
+MANT_NEXT_BUTTON_REGION = (420, 1155, 620, 1200)
+MANT_RETRY_ENABLED_BRIGHTNESS = 235.0
 MANT_RETRY_PRESENT_MIN_BRIGHTNESS = 115.0
 MANT_RETRY_PRESENT_MIN_STD = 30.0
+MANT_NEXT_GREEN_MIN = 135.0
+MANT_NEXT_GREEN_DELTA_MIN = 35.0
 MANT_RETRY_CLICK_COOLDOWN = 10.0
 
 
@@ -96,22 +99,33 @@ def mant_debut_retry_button_state(screen):
     status = _region(screen, MANT_RETRY_STATUS_REGION)
     icon = _region(screen, MANT_RETRY_ICON_REGION)
     text = _region(screen, MANT_RETRY_TEXT_REGION)
-    if status is None or icon is None or text is None:
+    next_button = _region(screen, MANT_NEXT_BUTTON_REGION)
+    if status is None or icon is None or text is None or next_button is None:
         return {
             "present": False,
             "enabled": False,
             "brightness": 0.0,
             "icon_std": 0.0,
             "text_std": 0.0,
+            "next_green": 0.0,
+            "next_green_delta": 0.0,
         }
 
     brightness = float(np.mean(status))
     icon_std = float(np.std(icon))
     text_std = float(np.std(text))
+    next_mean = np.mean(next_button, axis=(0, 1))
+    next_green = float(next_mean[1])
+    next_green_delta = float(next_mean[1] - max(next_mean[0], next_mean[2]))
+    next_present = (
+        next_green >= MANT_NEXT_GREEN_MIN
+        and next_green_delta >= MANT_NEXT_GREEN_DELTA_MIN
+    )
     present = (
         brightness >= MANT_RETRY_PRESENT_MIN_BRIGHTNESS
         and icon_std >= MANT_RETRY_PRESENT_MIN_STD
         and text_std >= MANT_RETRY_PRESENT_MIN_STD
+        and next_present
     )
     enabled = present and brightness >= MANT_RETRY_ENABLED_BRIGHTNESS
     return {
@@ -120,7 +134,28 @@ def mant_debut_retry_button_state(screen):
         "brightness": brightness,
         "icon_std": icon_std,
         "text_std": text_std,
+        "next_green": next_green,
+        "next_green_delta": next_green_delta,
     }
+
+
+def clear_mant_debut_retry_pending(ctx, reason: str = "") -> bool:
+    detail = getattr(ctx, "cultivate_detail", None)
+    if detail is None or not getattr(detail, "mant_debut_retry_pending", False):
+        return False
+    state = mant_debut_retry_button_state(getattr(ctx, "current_screen", None))
+    detail.mant_debut_retry_pending = False
+    log.info(
+        "[DEBUT-RETRY] Clearing pending retry - reason=%s present=%s enabled=%s "
+        "brightness=%.1f next_green=%.1f next_delta=%.1f",
+        reason or "unknown",
+        state["present"],
+        state["enabled"],
+        state["brightness"],
+        state["next_green"],
+        state["next_green_delta"],
+    )
+    return True
 
 
 def maybe_handle_mant_debut_retry(ctx) -> bool:
@@ -138,18 +173,20 @@ def maybe_handle_mant_debut_retry(ctx) -> bool:
     if retry_count >= MANT_DEBUT_RETRY_LIMIT:
         detail.mant_debut_retry_pending = False
         log.info(
-            "[DEBUT-RETRY] Retry cap reached - count=%s/%s brightness=%.1f; continuing",
+            "[DEBUT-RETRY] Retry cap reached - count=%s/%s brightness=%.1f next_green=%.1f; continuing",
             retry_count,
             MANT_DEBUT_RETRY_LIMIT,
             state["brightness"],
+            state["next_green"],
         )
         return False
 
     if not state["enabled"]:
         detail.mant_debut_retry_pending = False
         log.info(
-            "[DEBUT-RETRY] Try Again disabled - brightness=%.1f; debut result accepted",
+            "[DEBUT-RETRY] Try Again disabled - brightness=%.1f next_green=%.1f; debut result accepted",
             state["brightness"],
+            state["next_green"],
         )
         return False
 
@@ -164,8 +201,9 @@ def maybe_handle_mant_debut_retry(ctx) -> bool:
     detail.mant_debut_retry_last_click_at = now
     x, y = MANT_RETRY_CLICK
     log.info(
-        "[DEBUT-RETRY] Try Again enabled - brightness=%.1f; retrying debut with clock %s/%s",
+        "[DEBUT-RETRY] Try Again enabled - brightness=%.1f next_green=%.1f; retrying debut with clock %s/%s",
         state["brightness"],
+        state["next_green"],
         retry_count,
         MANT_DEBUT_RETRY_LIMIT,
     )

@@ -29,6 +29,21 @@ def has_home_coin(ctx):
         return False
 
 
+def _try_mant_debut_retry(ctx, clear_reason=None):
+    try:
+        from module.umamusume.scenario.mant.debut_retry import (
+            clear_mant_debut_retry_pending,
+            maybe_handle_mant_debut_retry,
+        )
+        if maybe_handle_mant_debut_retry(ctx):
+            return True
+        if clear_reason:
+            clear_mant_debut_retry_pending(ctx, clear_reason)
+    except Exception as e:
+        log.debug(f"MANT debut retry check failed: {e}")
+    return False
+
+
 def script_not_found_ui(ctx: UmamusumeContext):
     if ctx.current_screen is not None:
         log.debug(f"NOT_FOUND_UI - Screen shape: {ctx.current_screen.shape}")
@@ -36,13 +51,9 @@ def script_not_found_ui(ctx: UmamusumeContext):
         if has_home_coin(ctx):
             return
 
-        try:
-            from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
-            if maybe_handle_mant_debut_retry(ctx):
-                if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
-                return
-        except Exception as e:
-            log.debug(f"MANT debut retry check failed: {e}")
+        if _try_mant_debut_retry(ctx):
+            if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
+            return
 
         try:
             from module.umamusume.asset.template import REF_NEXT, REF_NEXT2
@@ -90,12 +101,8 @@ def script_not_found_ui(ctx: UmamusumeContext):
             
             if result.find_match:
                 if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
-                try:
-                    from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
-                    if maybe_handle_mant_debut_retry(ctx):
-                        return
-                except Exception as e:
-                    log.debug(f"MANT debut retry result check failed: {e}")
+                if _try_mant_debut_retry(ctx, "cultivate_result_confirm"):
+                    return
                 log.info("Cultivate Result 1 template matched! Clicking confirm button")
                 ctx.ctrl.click_by_point(CULTIVATE_RESULT_CONFIRM)
                 return
@@ -115,12 +122,8 @@ def script_not_found_ui(ctx: UmamusumeContext):
             result_keywords = ['rewards', 'result', 'cultivation', 'complete', 'finish']
             if any(keyword in title_text for keyword in result_keywords):
                 if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
-                try:
-                    from module.umamusume.scenario.mant.debut_retry import maybe_handle_mant_debut_retry
-                    if maybe_handle_mant_debut_retry(ctx):
-                        return
-                except Exception as e:
-                    log.debug(f"MANT debut retry OCR result check failed: {e}")
+                if _try_mant_debut_retry(ctx, "ocr_result_confirm"):
+                    return
                 log.info(f"Potential cultivation result detected: '{title_text[:50]}...'")
                 log.info("Attempting to click cultivation result confirm button")
                 ctx.ctrl.click_by_point(CULTIVATE_RESULT_CONFIRM)
@@ -131,6 +134,8 @@ def script_not_found_ui(ctx: UmamusumeContext):
             log.debug(f"Bond area OCR: '{bond_text[:100]}...'")
             if 'bond level' in bond_text or 'total fans' in bond_text:
                 if hasattr(ctx, 'fallback_click_count'): ctx.fallback_click_count = 0
+                if _try_mant_debut_retry(ctx, "rewards_confirm"):
+                    return
                 log.info(f"Rewards screen detected via bond/fans text: '{bond_text[:50]}...'")
                 log.info("Attempting to click cultivation result confirm button")
                 ctx.ctrl.click_by_point(CULTIVATE_RESULT_CONFIRM)
@@ -164,10 +169,14 @@ def script_not_found_ui(ctx: UmamusumeContext):
                         img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
                         next_match = image_match(img_full, REF_NEXT)
                         if next_match.find_match:
+                            if _try_mant_debut_retry(ctx, "goal_complete_next"):
+                                return
                             ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
                             return
                     except Exception:
                         pass
+                    if _try_mant_debut_retry(ctx, "goal_complete_confirm"):
+                        return
                     ctx.ctrl.click_by_point(GOAL_ACHIEVE_CONFIRM)
                     return
                 elif any(word in combined_text for word in ['failed']):
@@ -176,10 +185,14 @@ def script_not_found_ui(ctx: UmamusumeContext):
                         img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
                         next_match = image_match(img_full, REF_NEXT)
                         if next_match.find_match:
+                            if _try_mant_debut_retry(ctx, "goal_failed_next"):
+                                return
                             ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
                             return
                     except Exception:
                         pass
+                    if _try_mant_debut_retry(ctx, "goal_failed_confirm"):
+                        return
                     ctx.ctrl.click_by_point(GOAL_FAIL_CONFIRM)
                     return
                 elif any(word in combined_text for word in ['next']):
@@ -188,14 +201,20 @@ def script_not_found_ui(ctx: UmamusumeContext):
                         img_full = getattr(ctx, 'current_screen_gray', None) or cv2.cvtColor(ctx.current_screen, cv2.COLOR_BGR2GRAY)
                         next_match = image_match(img_full, REF_NEXT)
                         if next_match.find_match:
+                            if _try_mant_debut_retry(ctx, "goal_next"):
+                                return
                             ctx.ctrl.click(next_match.center_point[0], next_match.center_point[1], "REF_NEXT")
                             return
                     except Exception:
                         pass
+                    if _try_mant_debut_retry(ctx, "goal_next_confirm"):
+                        return
                     ctx.ctrl.click_by_point(NEXT_GOAL_CONFIRM)
                     return
                 else:
                     log.info(f"Generic goal screen - using standard position")
+                    if _try_mant_debut_retry(ctx, "generic_goal_confirm"):
+                        return
                     ctx.ctrl.click(370, 1110, "Generic goal confirmation")
                     return
             
