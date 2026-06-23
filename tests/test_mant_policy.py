@@ -893,6 +893,91 @@ class MantPolicyTests(unittest.TestCase):
         use_mock.assert_called_once_with(ctx, "Speed Ankle Weights")
         self.assertIn("Speed Ankle Weights", ctx.cultivate_detail.mant_failed_use_items)
 
+    def _make_megaphone_ctx(self, *, owned_qty=1, active_tier=0, active_turns=0):
+        def make_training(score=0.0, support_count=0):
+            return types.SimpleNamespace(
+                support_card_info_list=[
+                    types.SimpleNamespace(favor=3, has_event=False)
+                    for _ in range(support_count)
+                ],
+                failure_rate=0,
+                speed_incr=10,
+                stamina_incr=0,
+                power_incr=5,
+                will_incr=0,
+                intelligence_incr=0,
+                skill_point_incr=2,
+                _score=score,
+            )
+
+        turn_info = types.SimpleNamespace(
+            date=40,
+            cached_original_scores=[1.0, 1.0, 10.0, 1.0, 1.0],
+            training_info_list=[
+                make_training(),
+                make_training(),
+                make_training(score=10.0, support_count=5),
+                make_training(),
+                make_training(),
+            ],
+            item_use_options=[],
+            item_use_selected=[],
+            item_use_result={},
+            set_item_trace=lambda **_kwargs: None,
+            append_trace=lambda *_args, **_kwargs: None,
+        )
+        return types.SimpleNamespace(
+            task=types.SimpleNamespace(
+                detail=types.SimpleNamespace(
+                    scenario_config=types.SimpleNamespace(
+                        mant_config=types.SimpleNamespace(
+                            mega_small_threshold=1,
+                            mega_medium_threshold=1,
+                            mega_large_threshold=1,
+                        )
+                    )
+                )
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                mant_megaphone_tier=active_tier,
+                mant_megaphone_turns=active_turns,
+                mant_owned_items=[("Motivating Megaphone", owned_qty)],
+                turn_info=turn_info,
+            ),
+        )
+
+    def test_plan_megaphone_skips_when_any_megaphone_is_active(self):
+        ctx = self._make_megaphone_ctx(active_tier=1, active_turns=2)
+
+        with patch.object(training_recovery, "_build_megaphone_targets") as build_mock:
+            self.assertIsNone(training_recovery._plan_megaphone(ctx))
+
+        build_mock.assert_not_called()
+
+    def test_handle_megaphone_does_not_repeat_after_success_same_turn(self):
+        ctx = self._make_megaphone_ctx()
+
+        with patch.object(training_recovery, "use_item_and_update_inventory", return_value=True) as use_mock:
+            self.assertTrue(training_recovery.handle_megaphone(ctx))
+            self.assertFalse(training_recovery.handle_megaphone(ctx))
+
+        use_mock.assert_called_once_with(ctx, "Motivating Megaphone")
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_attempt_turn, 40)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_attempt_name, "Motivating Megaphone")
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_tier, 3)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_turns, 3)
+
+    def test_handle_megaphone_does_not_retry_failed_item_same_turn(self):
+        ctx = self._make_megaphone_ctx()
+
+        with patch.object(training_recovery, "use_item_and_update_inventory", return_value=False) as use_mock:
+            self.assertFalse(training_recovery.handle_megaphone(ctx))
+            self.assertFalse(training_recovery.handle_megaphone(ctx))
+
+        use_mock.assert_called_once_with(ctx, "Motivating Megaphone")
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_attempt_turn, 40)
+        self.assertIn("Motivating Megaphone", ctx.cultivate_detail.mant_failed_use_items)
+
 
 if __name__ == "__main__":
     unittest.main()

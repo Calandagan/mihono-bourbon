@@ -206,6 +206,8 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 clear_all_persistence()
                 ctx.cultivate_detail.mant_megaphone_tier = 0
                 ctx.cultivate_detail.mant_megaphone_turns = 0
+                ctx.cultivate_detail.mant_megaphone_attempt_turn = None
+                ctx.cultivate_detail.mant_megaphone_attempt_name = None
                 ctx.cultivate_detail.mant_afflictions = []
                 ctx.cultivate_detail.mant_owned_items = []
             elif current_date < last_known_date:
@@ -214,6 +216,8 @@ def script_cultivate_main_menu(ctx: UmamusumeContext):
                 clear_mant_run_state()
                 ctx.cultivate_detail.mant_megaphone_tier = 0
                 ctx.cultivate_detail.mant_megaphone_turns = 0
+                ctx.cultivate_detail.mant_megaphone_attempt_turn = None
+                ctx.cultivate_detail.mant_megaphone_attempt_name = None
                 ctx.cultivate_detail.mant_afflictions = []
                 ctx.cultivate_detail.mant_owned_items = []
                 ctx.cultivate_detail.mant_inventory_scanned = False

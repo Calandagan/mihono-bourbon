@@ -77,6 +77,15 @@ def _mark_anklet_used(ctx, item_name):
     ctx.cultivate_detail.mant_anklet_used_name = item_name
 
 
+def _megaphone_attempted_this_turn(ctx):
+    return getattr(ctx.cultivate_detail, 'mant_megaphone_attempt_turn', None) == _current_turn_date(ctx)
+
+
+def _mark_megaphone_attempted(ctx, item_name):
+    ctx.cultivate_detail.mant_megaphone_attempt_turn = _current_turn_date(ctx)
+    ctx.cultivate_detail.mant_megaphone_attempt_name = item_name
+
+
 def _record_item_trace(ctx, *, options=None, selected=None, result=None):
     turn_info = getattr(ctx.cultivate_detail, 'turn_info', None)
     if turn_info is None:
@@ -278,9 +287,9 @@ def _build_megaphone_targets(ctx):
         owned_qty = int(owned_map.get(name, 0) or 0)
         eligible = owned_qty > 0 and not failed
         threshold = thresholds[tier]
-        if active_turns > 0 and tier <= active_tier:
+        if active_turns > 0:
             eligible = False
-            skip_reason = "active_tier_not_upgrade"
+            skip_reason = "active_megaphone"
         elif not eligible:
             skip_reason = "failed_this_turn" if failed else "no_owned"
         elif dump_mode or inventory_pressure:
@@ -312,6 +321,7 @@ def _build_megaphone_targets(ctx):
                     "opportunity_score": round(opportunity_score, 2),
                     "threshold": round(threshold, 2),
                     "active_tier": active_tier,
+                    "active_turns": active_turns,
                     "slots_left": slots_left,
                     "dump_mode": dump_mode,
                     "inventory_pressure": inventory_pressure,
@@ -649,6 +659,26 @@ def total_megaphone_turns(owned_map):
     return total
 
 
+def _record_megaphone_skip(ctx, item_name, skip_reason, *, active_tier=0, active_turns=0):
+    _record_item_trace(
+        ctx,
+        options=[{
+            "name": item_name,
+            "context": "training_commitment",
+            "priority": 10,
+            "selected": False,
+            "skip_reason": skip_reason,
+            "reason": "not_selected",
+            "planned_use": "training_commitment",
+            "debug": {
+                "active_tier": active_tier,
+                "active_turns": active_turns,
+            },
+        }],
+        result={"phase": "training_commitment", "result": "skip_megaphone"},
+    )
+
+
 def _plan_megaphone(ctx):
     mant_cfg = getattr(ctx.task.detail.scenario_config, 'mant_config', None)
     if mant_cfg is None:
@@ -659,9 +689,29 @@ def _plan_megaphone(ctx):
         log.info(f"[MEGAPHONE] Skipping — climax non-training turn (date={date})")
         return None
 
+    active_tier = int(getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0) or 0)
+    active_turns = int(getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0) or 0)
+    if active_turns > 0:
+        log.info(
+            f"[MEGAPHONE] Skipping — active megaphone tier={active_tier} "
+            f"turns_remaining={active_turns}"
+        )
+        _record_megaphone_skip(
+            ctx,
+            "megaphone",
+            "active_megaphone",
+            active_tier=active_tier,
+            active_turns=active_turns,
+        )
+        return None
+
+    if _megaphone_attempted_this_turn(ctx):
+        item_name = getattr(ctx.cultivate_detail, 'mant_megaphone_attempt_name', 'megaphone')
+        log.info(f"[MEGAPHONE] Skipping — already attempted {item_name} this turn")
+        _record_megaphone_skip(ctx, item_name, "already_attempted_this_turn")
+        return None
+
     owned_map = _owned_map(ctx)
-    active_tier = getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0)
-    active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
     options, selected, choice = _build_megaphone_targets(ctx)
     best_mega, best_tier = choice if choice is not None else (None, 0)
     
@@ -708,6 +758,7 @@ def _finish_megaphone_plan(ctx, plan, ok):
     best_mega = plan["name"]
     best_tier = plan["tier"]
     duration = plan["duration"]
+    _mark_megaphone_attempted(ctx, best_mega)
     if ok:
         ctx.cultivate_detail.mant_megaphone_tier = best_tier
         ctx.cultivate_detail.mant_megaphone_turns = duration
