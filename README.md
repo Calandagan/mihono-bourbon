@@ -35,6 +35,7 @@ MANT is where most of this work went. It's still being refined, but it's solid f
 - [Configuration](#configuration)
 - [Recommended Setup](#recommended-setup)
 - [Stat Caps (Target Attributes)](#stat-caps-target-attributes)
+- [Recent Changelog](#recent-changelog)
 - [GPU Acceleration](#gpu-acceleration)
 - [Troubleshooting](#troubleshooting)
 - [Disclaimer](#disclaimer)
@@ -135,7 +136,7 @@ Or just run `start.bat`.
 - Bring cards with a high race bonus (Nishino Flower, Marvelous Sunday, Nice Nature, etc.).
 - Use umas with 2-3 aptitudes so you can run more races. Aptitudes should be **B minimum, A for optimal**.
 - **Skill purchasing hasn't been reworked** yet. I buy skills manually at the end of a run, so set the skill point learning threshold to **3000** to stop the bot from wasting time trying to buy skills.
-- There's **no race-retry logic**, on purpose. I don't want the bot burning all the clocks I need to train my aces.
+- There's **no general race-retry logic**, on purpose. The only exception is MANT debut: the bot can spend a small capped number of clocks there because losing debut can ruin the whole run.
 
 ---
 
@@ -153,6 +154,25 @@ Set the stat's target to the value you want, e.g. Speed `1040`. Once Speed reach
 - It still considers a Speed facility if it gives enough of the **other** stats. A card-buffed Speed slot that hands you more Power than the Power slot is still worth clicking, and the bot will take it.
 
 It's a clean per-stat cutoff (no soft gradient). Leave a stat at 9999 to never cap it. There's no turn requirement, the cap kicks in the moment the stat reaches the value.
+
+---
+
+## Recent Changelog
+
+### 2026-06-24 - MANT reliability pass
+
+- **MANT debut retry.** The debut race now arms a scenario-specific retry guard, checks the actual race result screen before pressing Next, and can spend up to 5 clocks only on debut. It reads both the Try Again button state and the large top-left race rank (`1st`, `16th`, etc.) so it does not rely on the lower result list.
+- **Safer race-result flow.** MANT debut retry now runs inside the `RACE_RESULT` handler itself, preventing the bot from skipping past Try Again before the retry logic sees it.
+- **Shop and inventory syncing.** Inventory is periodically rescanned to repair stale memory, shop scans sample more aggressively during scroll, and the shop/buy flow is more willing to spend coins on configured valid items.
+- **Shop priorities and exclusions.** MANT item tiers now support a visible `Disabled / Never Buy` bucket, strict enabled-tier priority, and hard exclusion for disabled items even when contextual overrides would normally want them.
+- **Recovery item behavior.** Training recovery was tightened so the bot checks usable recovery resources before resting, rescans training in place after item use, and avoids stale failure-rate decisions.
+- **Megaphone and anklet handling.** Megaphone + anklet use can be batched into one inventory operation when safe, repeated same-turn anklet attempts are blocked, and megaphone duration now ticks once per real turn instead of once per training rescan.
+- **Cleats and race prep.** Cleat ownership now follows inventory scans more reliably, preventing obvious cases where the bot owned cleats but treated the count as zero.
+- **Stat cap discipline.** When a stat is already at its target cap, the shop no longer buys items for that capped stat.
+- **Scroll behavior.** ADB vertical swipes use real-duration input, and shop/inventory/borrow-card scrolling was made smoother and less prone to bouncing or ending early.
+- **Safety stops.** The bot now hard-stops with auto-restart disabled on the `Account Activity Warning` popup, using the same safety-stop style as the existing Veteran Max Umamusume guard.
+- **Run timer.** The web UI now shows elapsed run time while a task is running.
+- **Setup polish.** `config.yaml` is auto-created from the template on first run, and Windows startup scripts consistently use the venv.
 
 ---
 
