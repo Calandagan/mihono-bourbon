@@ -386,10 +386,19 @@ def parse_umamusume_basic_ability_value(ctx: UmamusumeContext, img):
     ctx.cultivate_detail.turn_info.uma_attribute.skill_point = trans_attribute_value(skill_point_text, ctx)
 
 
+MAX_PLAUSIBLE_ATTRIBUTE = 9999  # real stats are <= ~1800; bigger means OCR garbage
+
+
 def trans_attribute_value(text: str, ctx: UmamusumeContext,
                           train_type: TrainingType = TrainingType.TRAINING_TYPE_UNKNOWN) -> int:
     text = DIGITS_ONLY.sub("", text)
-    if text == "":
+    value = int(text) if text else None
+    # An empty read OR an implausible value (OCR garbage like "332211307186")
+    # falls back to the previous turn's stat, so a misread never poisons the
+    # stat-cap logic or the training decision.
+    if value is None or value > MAX_PLAUSIBLE_ATTRIBUTE:
+        if value is not None:
+            log.warning(f"Implausible attribute read {value} (train_type={train_type}); using previous turn value")
         prev_turn_idx = len(ctx.cultivate_detail.turn_info_history)
         if prev_turn_idx != 0:
             history = ctx.cultivate_detail.turn_info_history[prev_turn_idx - 1]
@@ -407,8 +416,7 @@ def trans_attribute_value(text: str, ctx: UmamusumeContext,
                 return 0
         else:
             return 100
-    else:
-        return int(text)
+    return value
 
 
 def parse_train_main_menu_operations_availability(ctx: UmamusumeContext, img):
