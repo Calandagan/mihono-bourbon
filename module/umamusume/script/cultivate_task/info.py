@@ -25,6 +25,27 @@ def is_veteran_max_umamusume_box(text: str) -> bool:
     return all(token in normalized for token in required_tokens)
 
 
+def is_account_activity_warning_box(text: str) -> bool:
+    if not text:
+        return False
+    normalized = " ".join(text.lower().split())
+    required_tokens = ("account", "activity", "warning")
+    return all(token in normalized for token in required_tokens)
+
+
+def stop_for_safety_option_box(ctx, label: str, original_text: str):
+    log.error("=" * 72)
+    log.error(f"SAFETY STOP: {label} popup detected")
+    log.error(f"OCR text: '{original_text}'")
+    log.error("Task stopped and auto-restart disabled to avoid continuing past this popup.")
+    log.error("=" * 72)
+    ctx.task.disable_auto_restart = True
+    ctx.task.skip_scheduler_persist = True
+    ctx.task.skip_process_restart = True
+    ctx.task.stop_scheduler_after_end = True
+    ctx.task.end_task(TaskStatus.TASK_STATUS_FAILED, UEndTaskReason.UNKNOWN_OPTION_BOX)
+
+
 def get_race_point(ctx):
     try:
         if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
@@ -163,6 +184,12 @@ def script_info(ctx: UmamusumeContext):
         
         # Debug: Log the original OCR text and similarity matching
         original_text = title_text
+        if is_account_activity_warning_box(original_text):
+            stop_for_safety_option_box(ctx, "Account Activity Warning", original_text)
+            return
+        if is_veteran_max_umamusume_box(original_text):
+            stop_for_safety_option_box(ctx, "Veteran Max Umamusume", original_text)
+            return
         title_text = find_similar_text(title_text, TITLE, 0.8)
         
         if title_text == "":
@@ -171,14 +198,6 @@ def script_info(ctx: UmamusumeContext):
             title_text = find_similar_text(original_text, TITLE, 0.6)
             if title_text == "":
                 log.warning(f"Still no match with lower threshold - OCR: '{original_text}'")
-                if is_veteran_max_umamusume_box(original_text):
-                    log.error(f"Stopping task due to Veteran Max Umamusume option box: '{original_text}'")
-                    ctx.task.disable_auto_restart = True
-                    ctx.task.skip_scheduler_persist = True
-                    ctx.task.skip_process_restart = True
-                    ctx.task.stop_scheduler_after_end = True
-                    ctx.task.end_task(TaskStatus.TASK_STATUS_FAILED, UEndTaskReason.UNKNOWN_OPTION_BOX)
-                    return
                 try:
                     from module.umamusume.asset.template import REF_NEXT
                     img_full = getattr(ctx, 'current_screen_gray', None)
