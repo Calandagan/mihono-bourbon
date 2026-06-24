@@ -522,10 +522,10 @@ def rescan_training(ctx, in_place=False):
         # as the panel closes. So we re-scan in place instead of bouncing to the
         # main menu and back. Resetting parse_train_info_finish above makes the next
         # executor loop re-run the facility scan while we stay on this screen.
-        # The 0.5s settle lets the panel-close redraw finish (avoids reading a
-        # half-drawn/unreadable rate) and, being >120ms, guarantees the next
-        # captured frame is fresh, not a cached pre-item one.
-        time.sleep(0.5)
+        # The settle lets the panel-close redraw finish (avoids reading a
+        # half-drawn/unreadable rate) and, being well over the 120ms frame cache,
+        # guarantees the next captured frame is fresh, not a cached pre-item one.
+        time.sleep(1.5)
         return
 
     from module.umamusume.asset.point import RETURN_TO_CULTIVATE_MAIN_MENU

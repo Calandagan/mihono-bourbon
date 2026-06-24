@@ -63,6 +63,11 @@ def get_facility_period_index(date):
     return 6  # Endgame (Disable)
 STAT_KEY_LIST = ["speed", "stamina", "power", "guts", "wits", "sp"]
 
+# Hard cap (Option B): when a facility's own primary stat is already at/over its
+# configured cap, multiply the WHOLE facility score by this factor so it only
+# wins when its cross-stat value is genuinely high. Lower = harder cap.
+CAPPED_FACILITY_SCORE_MULT = 0.25
+
 TYPE_MAP = [
     SupportCardType.SUPPORT_CARD_TYPE_SPEED,
     SupportCardType.SUPPORT_CARD_TYPE_STAMINA,
@@ -822,11 +827,20 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             if scenario_multiplier != 1.0:
                 score *= scenario_multiplier
 
-            # Stat capping is now applied per-stat in the stat-contribution loop above
-            # (expect_attribute used as a hard cap per stat, keeping cross-stat gains).
-            # The old whole-facility gradient based on the primary stat is removed;
-            # target_mult stays 1.0 so the score-breakdown log below still works.
+            # Per-stat capping (Option A) already removed the capped stat's own gain
+            # in the stat-contribution loop above, keeping cross-stat gains.
+            # Option B (hard cap): if THIS facility's primary stat is already at/over
+            # its cap, deprioritize the whole facility so it only wins when its
+            # cross-stat value is genuinely high.
             target_mult = 1.0
+            try:
+                if (stat_caps is not None and idx < 5
+                        and stat_caps[idx] > 0
+                        and curr_stat_vals[idx] >= stat_caps[idx]):
+                    target_mult = CAPPED_FACILITY_SCORE_MULT
+                    score *= target_mult
+            except Exception:
+                pass
 
             weight_mult = 1.0
             try:
@@ -1282,7 +1296,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     from module.umamusume.scenario.mant.training_recovery import rescan_training
                     ctx.cultivate_detail.turn_info.post_item_rescan_needed = False
                     ctx.cultivate_detail.turn_info.energy_item_used = False
-                    rescan_training(ctx)
+                    rescan_training(ctx, in_place=True)
                     return
         except Exception:
             log.exception("MANT training pre-actions failed")
