@@ -351,6 +351,12 @@ def script_in_race(ctx: UmamusumeContext):
 
 
 def script_cultivate_race_result(ctx: UmamusumeContext):
+    try:
+        from module.umamusume.scenario.mant.debut_retry import handle_mant_debut_retry_on_race_result
+        if handle_mant_debut_retry_on_race_result(ctx):
+            return
+    except Exception as e:
+        log.debug(f"MANT debut retry race result check failed: {e}")
     ctx.ctrl.click_by_point(RACE_RESULT_CONFIRM)
 
 

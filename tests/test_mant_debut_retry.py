@@ -53,12 +53,24 @@ def _retry_screen(enabled=True, present=True):
     return screen
 
 
+def _paint_big_rank(screen, result):
+    x1, y1, x2, y2 = debut_retry.MANT_BIG_RESULT_CORE_REGION
+    if result == "first":
+        screen[y1:y2, x1:x2] = (45, 185, 245)
+    elif result == "not_first":
+        screen[y1:y2, x1:x2] = (70, 105, 170)
+    return screen
+
+
 class _Ctrl:
     def __init__(self):
         self.clicks = []
 
     def click(self, x, y, name=""):
         self.clicks.append((x, y, name))
+
+    def get_screen(self, *args, **kwargs):
+        return None
 
 
 def _ctx(screen, *, date=12, pending=True, count=0):
@@ -139,6 +151,32 @@ class MantDebutRetryTests(unittest.TestCase):
 
         self.assertFalse(state["present"])
         self.assertFalse(state["enabled"])
+
+    def test_big_rank_state_detects_first_and_not_first(self):
+        first = debut_retry.mant_debut_big_rank_state(_paint_big_rank(_retry_screen(present=False), "first"))
+        not_first = debut_retry.mant_debut_big_rank_state(_paint_big_rank(_retry_screen(present=False), "not_first"))
+
+        self.assertEqual(first["result"], "first")
+        self.assertEqual(not_first["result"], "not_first")
+
+    def test_race_result_handler_retries_when_big_rank_is_not_first(self):
+        ctx = _ctx(_paint_big_rank(_retry_screen(present=False), "not_first"), count=1)
+
+        handled = debut_retry.handle_mant_debut_retry_on_race_result(ctx, wait_seconds=0)
+
+        self.assertTrue(handled)
+        self.assertEqual(ctx.ctrl.clicks, [(202, 1179, "MANT Debut Try Again")])
+        self.assertEqual(ctx.cultivate_detail.mant_debut_retry_count, 2)
+        self.assertTrue(ctx.cultivate_detail.mant_debut_retry_pending)
+
+    def test_race_result_handler_accepts_first_with_disabled_retry(self):
+        ctx = _ctx(_paint_big_rank(_retry_screen(enabled=False), "first"), count=1)
+
+        handled = debut_retry.handle_mant_debut_retry_on_race_result(ctx, wait_seconds=0)
+
+        self.assertFalse(handled)
+        self.assertEqual(ctx.ctrl.clicks, [])
+        self.assertFalse(ctx.cultivate_detail.mant_debut_retry_pending)
 
     def test_mark_mant_debut_only_arms_date_twelve(self):
         ctx = _ctx(_retry_screen(enabled=True), date=12, pending=False)
