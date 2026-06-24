@@ -256,49 +256,6 @@
                         </div>
                       </div>
                       <div class="mant-thresholds mt-3">
-                        <label>Cleats &amp; Glow Sticks</label>
-                        <div class="mant-threshold-group">
-                          <div class="mant-threshold-row">
-                            <div class="mant-threshold-controls">
-                              <span class="mant-threshold-label">Preferred cleat (falls back to the other if unavailable)</span>
-                              <div class="token-toggle" role="group">
-                                <button type="button" class="token" :class="{ active: mantCleatPriority === 'master' }" @click="mantCleatPriority = 'master'">Master</button>
-                                <button type="button" class="token" :class="{ active: mantCleatPriority === 'artisan' }" @click="mantCleatPriority = 'artisan'">Artisan</button>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="mant-threshold-row">
-                            <div class="mant-threshold-controls">
-                              <span class="mant-threshold-label">Use cleats on climax races</span>
-                              <div class="token-toggle" role="group">
-                                <button type="button" class="token" :class="{ active: mantClimaxUseCleat }" @click="mantClimaxUseCleat = true">On</button>
-                                <button type="button" class="token" :class="{ active: !mantClimaxUseCleat }" @click="mantClimaxUseCleat = false">Off</button>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="mant-threshold-row">
-                            <div class="mant-threshold-controls">
-                              <span class="mant-threshold-label">Use glow stick on climax (only the last climax race)</span>
-                              <div class="token-toggle" role="group">
-                                <button type="button" class="token" :class="{ active: mantClimaxUseGlow }" @click="mantClimaxUseGlow = true">On</button>
-                                <button type="button" class="token" :class="{ active: !mantClimaxUseGlow }" @click="mantClimaxUseGlow = false">Off</button>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="mant-threshold-row">
-                            <div class="mant-threshold-controls">
-                              <span class="mant-threshold-label">Per selected race — toggle cleat / glow stick usage</span>
-                              <div v-if="selectedRaceObjects.length === 0" class="mant-threshold-label" style="opacity:.6">Select races first to assign cleats/glow.</div>
-                              <div v-for="race in selectedRaceObjects" :key="race.id" class="d-flex align-items-center gap-2" style="padding:4px 0">
-                                <span class="mant-threshold-label" style="flex:1 1 auto">{{ race.name }}</span>
-                                <button type="button" class="token" :class="{ active: mantCleatRaceIds.includes(race.id) }" @click="toggleCleatRace(race.id)">Cleat</button>
-                                <button type="button" class="token" :class="{ active: mantGlowRaceIds.includes(race.id) }" @click="toggleGlowRace(race.id)">Glow</button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="mant-thresholds mt-3">
                         <label>Friendship</label>
                         <div class="mant-threshold-group">
                           <div class="mant-threshold-row">
@@ -1373,6 +1330,58 @@
                             </div>
                           </div>
                           <i v-if="extraRace.includes(race.id)" class="bi bi-check-circle-fill race-slot-popup-check"></i>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="selectedScenario === 3" class="form-group">
+                  <div class="race-options-header" style="cursor:default">
+                    <div class="race-options-title">
+                      <i class="fas fa-shoe-prints"></i>
+                      Cleats &amp; Glow Sticks
+                    </div>
+                  </div>
+                  <div class="race-options-content">
+                    <div class="mant-thresholds">
+                      <label>Preferred cleat (falls back to the other if unavailable)</label>
+                      <div class="token-toggle" role="group">
+                        <button type="button" class="token" :class="{ active: mantCleatPriority === 'master' }" @click="mantCleatPriority = 'master'">Master</button>
+                        <button type="button" class="token" :class="{ active: mantCleatPriority === 'artisan' }" @click="mantCleatPriority = 'artisan'">Artisan</button>
+                      </div>
+                    </div>
+                    <div class="mant-thresholds mt-2">
+                      <label>Use cleats on climax races</label>
+                      <div class="token-toggle" role="group">
+                        <button type="button" class="token" :class="{ active: mantClimaxUseCleat }" @click="mantClimaxUseCleat = true">On</button>
+                        <button type="button" class="token" :class="{ active: !mantClimaxUseCleat }" @click="mantClimaxUseCleat = false">Off</button>
+                      </div>
+                    </div>
+                    <div class="mant-thresholds mt-2">
+                      <label>Use glow stick on climax (only the last climax race)</label>
+                      <div class="token-toggle" role="group">
+                        <button type="button" class="token" :class="{ active: mantClimaxUseGlow }" @click="mantClimaxUseGlow = true">On</button>
+                        <button type="button" class="token" :class="{ active: !mantClimaxUseGlow }" @click="mantClimaxUseGlow = false">Off</button>
+                      </div>
+                    </div>
+                    <div class="mant-thresholds mt-2">
+                      <label>Per selected race</label>
+                      <div v-if="selectedRaceObjects.length === 0" class="list-empty" style="padding:6px 0">Select races above to assign cleats / glow sticks.</div>
+                      <div v-for="race in selectedRaceObjects" :key="race.id" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+                        <span style="flex:1 1 150px;font-weight:600">{{ race.name }}</span>
+                        <div style="display:flex;align-items:center;gap:6px">
+                          <span class="toggle-text">Cleat</span>
+                          <div class="token-toggle" role="group">
+                            <button type="button" class="token" :class="{ active: mantCleatRaceIds.includes(race.id) }" @click="setCleatRace(race.id, true)">On</button>
+                            <button type="button" class="token" :class="{ active: !mantCleatRaceIds.includes(race.id) }" @click="setCleatRace(race.id, false)">Off</button>
+                          </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                          <span class="toggle-text">Glow</span>
+                          <div class="token-toggle" role="group">
+                            <button type="button" class="token" :class="{ active: mantGlowRaceIds.includes(race.id) }" @click="setGlowRace(race.id, true)">On</button>
+                            <button type="button" class="token" :class="{ active: !mantGlowRaceIds.includes(race.id) }" @click="setGlowRace(race.id, false)">Off</button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3382,15 +3391,15 @@ export default {
         this.extraRace.push(raceId);
       }
     },
-    toggleCleatRace: function (raceId) {
+    setCleatRace: function (raceId, on) {
       const i = this.mantCleatRaceIds.indexOf(raceId);
-      if (i > -1) { this.mantCleatRaceIds.splice(i, 1); }
-      else { this.mantCleatRaceIds.push(raceId); }
+      if (on && i === -1) { this.mantCleatRaceIds.push(raceId); }
+      else if (!on && i > -1) { this.mantCleatRaceIds.splice(i, 1); }
     },
-    toggleGlowRace: function (raceId) {
+    setGlowRace: function (raceId, on) {
       const i = this.mantGlowRaceIds.indexOf(raceId);
-      if (i > -1) { this.mantGlowRaceIds.splice(i, 1); }
-      else { this.mantGlowRaceIds.push(raceId); }
+      if (on && i === -1) { this.mantGlowRaceIds.push(raceId); }
+      else if (!on && i > -1) { this.mantGlowRaceIds.splice(i, 1); }
     },
     openSlotPopup: function (yearIdx, slotIdx) {
       const yearLabels = ['Junior Year', 'Classic Year', 'Senior Year'];
