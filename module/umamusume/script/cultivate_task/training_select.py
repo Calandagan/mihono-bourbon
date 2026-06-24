@@ -1041,14 +1041,14 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                             f"All available trainings exceed failure limit ({failure_limit}%) - "
                             f"used {item_name} and will re-evaluate"
                         )
-                        rescan_training(ctx)
+                        rescan_training(ctx, in_place=True)
                         return
                     if action == "energy_item" and handle_energy_recovery(ctx, item_name=item_name, mode="failure"):
                         log.info(
                             f"All available trainings exceed failure limit ({failure_limit}%) - "
                             f"used {item_name} and will re-evaluate"
                         )
-                        rescan_training(ctx)
+                        rescan_training(ctx, in_place=True)
                         return
                 except Exception:
                     pass
@@ -1268,7 +1268,7 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                         if execute_mant_pre_action(ctx, action, getattr(planner_turn, 'race_id', 0)):
                             if getattr(planner_turn, 'requires_replan_after_pre_action', False):
                                 from module.umamusume.scenario.mant.training_recovery import rescan_training
-                                rescan_training(ctx)
+                                rescan_training(ctx, in_place=True)
                                 return
 
                 from module.umamusume.scenario.mant.training_recovery import execute_training_commitment_actions

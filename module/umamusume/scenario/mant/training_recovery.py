@@ -510,11 +510,24 @@ def handle_charm(ctx, force=False):
     return result
 
 
-def rescan_training(ctx):
+def rescan_training(ctx, in_place=False):
     _inventory.close_items_panel(ctx)
     ctx.cultivate_detail.turn_info.parse_train_info_finish = False
     ctx.cultivate_detail.turn_info.turn_operation = None
     ctx.cultivate_detail.last_decision_stats = None
+
+    if in_place:
+        # Energy/charm items are used from the items overlay without ever leaving
+        # the training screen, and the game shows the updated failure rates as soon
+        # as the panel closes. So we re-scan in place instead of bouncing to the
+        # main menu and back. Resetting parse_train_info_finish above makes the next
+        # executor loop re-run the facility scan while we stay on this screen.
+        # The 0.5s settle lets the panel-close redraw finish (avoids reading a
+        # half-drawn/unreadable rate) and, being >120ms, guarantees the next
+        # captured frame is fresh, not a cached pre-item one.
+        time.sleep(0.5)
+        return
+
     from module.umamusume.asset.point import RETURN_TO_CULTIVATE_MAIN_MENU
 
     ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)

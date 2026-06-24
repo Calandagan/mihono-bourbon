@@ -916,9 +916,9 @@ def handle_charm(ctx):
     return impl(ctx)
 
 
-def rescan_training(ctx):
+def rescan_training(ctx, in_place=False):
     from module.umamusume.scenario.mant.training_recovery import rescan_training as impl
-    return impl(ctx)
+    return impl(ctx, in_place=in_place)
 
 
 def has_energy_recovery(ctx):
