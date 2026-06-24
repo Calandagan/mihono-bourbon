@@ -966,6 +966,7 @@ class MantPolicyTests(unittest.TestCase):
         self.assertEqual(ctx.cultivate_detail.mant_megaphone_attempt_name, "Motivating Megaphone")
         self.assertEqual(ctx.cultivate_detail.mant_megaphone_tier, 3)
         self.assertEqual(ctx.cultivate_detail.mant_megaphone_turns, 3)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_last_tick_date, 40)
 
     def test_handle_megaphone_does_not_retry_failed_item_same_turn(self):
         ctx = self._make_megaphone_ctx()
@@ -977,6 +978,32 @@ class MantPolicyTests(unittest.TestCase):
         use_mock.assert_called_once_with(ctx, "Motivating Megaphone")
         self.assertEqual(ctx.cultivate_detail.mant_megaphone_attempt_turn, 40)
         self.assertIn("Motivating Megaphone", ctx.cultivate_detail.mant_failed_use_items)
+
+    def test_tick_megaphone_only_once_per_turn(self):
+        ctx = self._make_megaphone_ctx(active_tier=3, active_turns=2)
+        ctx.cultivate_detail.mant_megaphone_last_tick_date = 39
+
+        with patch("module.umamusume.persistence.save_megaphone_state") as save_mock:
+            training_recovery.tick_megaphone(ctx)
+            training_recovery.tick_megaphone(ctx)
+
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_tier, 3)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_turns, 1)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_last_tick_date, 40)
+        save_mock.assert_called_once_with(3, 1, 40)
+
+    def test_tick_megaphone_expires_on_later_turn(self):
+        ctx = self._make_megaphone_ctx(active_tier=3, active_turns=1)
+        ctx.cultivate_detail.mant_megaphone_last_tick_date = 40
+        ctx.cultivate_detail.turn_info.date = 41
+
+        with patch("module.umamusume.persistence.save_megaphone_state") as save_mock:
+            training_recovery.tick_megaphone(ctx)
+
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_tier, 0)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_turns, 0)
+        self.assertEqual(ctx.cultivate_detail.mant_megaphone_last_tick_date, 41)
+        save_mock.assert_called_once_with(0, 0, 41)
 
 
 if __name__ == "__main__":

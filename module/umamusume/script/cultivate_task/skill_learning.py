@@ -203,6 +203,7 @@ def script_cultivate_finish(ctx: UmamusumeContext):
         clear_mant_run_state()
         ctx.cultivate_detail.mant_megaphone_tier = 0
         ctx.cultivate_detail.mant_megaphone_turns = 0
+        ctx.cultivate_detail.mant_megaphone_last_tick_date = None
         ctx.cultivate_detail.mant_megaphone_attempt_turn = None
         ctx.cultivate_detail.mant_megaphone_attempt_name = None
         ctx.cultivate_detail.mant_debut_retry_pending = False

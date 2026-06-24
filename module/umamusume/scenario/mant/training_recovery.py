@@ -762,9 +762,11 @@ def _finish_megaphone_plan(ctx, plan, ok):
     if ok:
         ctx.cultivate_detail.mant_megaphone_tier = best_tier
         ctx.cultivate_detail.mant_megaphone_turns = duration
+        current_date = _current_turn_date(ctx)
+        ctx.cultivate_detail.mant_megaphone_last_tick_date = current_date
         from module.umamusume.persistence import save_megaphone_state
 
-        save_megaphone_state(best_tier, duration)
+        save_megaphone_state(best_tier, duration, current_date)
         _clear_item_failed(ctx, best_mega)
         log.info(f"[MEGAPHONE] Successfully used {best_mega}")
     else:
@@ -903,15 +905,26 @@ def handle_anklet(ctx):
 
 
 def tick_megaphone(ctx):
-    active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-    if active_turns > 0:
-        active_turns -= 1
-        ctx.cultivate_detail.mant_megaphone_turns = active_turns
-        if active_turns <= 0:
-            ctx.cultivate_detail.mant_megaphone_tier = 0
-        from module.umamusume.persistence import save_megaphone_state
+    active_turns = int(getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0) or 0)
+    if active_turns <= 0:
+        return
 
-        save_megaphone_state(getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0), active_turns)
+    current_date = _current_turn_date(ctx)
+    if current_date <= 0:
+        return
+
+    last_tick_date = getattr(ctx.cultivate_detail, 'mant_megaphone_last_tick_date', None)
+    if last_tick_date == current_date:
+        return
+
+    active_turns -= 1
+    ctx.cultivate_detail.mant_megaphone_turns = active_turns
+    ctx.cultivate_detail.mant_megaphone_last_tick_date = current_date
+    if active_turns <= 0:
+        ctx.cultivate_detail.mant_megaphone_tier = 0
+    from module.umamusume.persistence import save_megaphone_state
+
+    save_megaphone_state(getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0), active_turns, current_date)
 
 
 def item_loop(ctx):

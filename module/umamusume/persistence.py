@@ -220,10 +220,14 @@ def clear_ignore_grilled_carrots():
     save_persist(data)
 
 
-def save_megaphone_state(tier, turns):
+def save_megaphone_state(tier, turns, last_tick_date=None):
     data = load_persist()
     data['megaphone_tier'] = tier
     data['megaphone_turns'] = turns
+    if last_tick_date is None:
+        data.pop('megaphone_last_tick_date', None)
+    else:
+        data['megaphone_last_tick_date'] = last_tick_date
     save_persist(data)
 
 
@@ -231,13 +235,15 @@ def load_megaphone_state():
     data = load_persist()
     tier = data.get('megaphone_tier', 0)
     turns = data.get('megaphone_turns', 0)
-    return tier, turns
+    last_tick_date = data.get('megaphone_last_tick_date', None)
+    return tier, turns, last_tick_date
 
 
 def clear_megaphone_state():
     data = load_persist()
     data.pop('megaphone_tier', None)
     data.pop('megaphone_turns', None)
+    data.pop('megaphone_last_tick_date', None)
     save_persist(data)
 
 
@@ -287,6 +293,7 @@ def clear_mant_run_state():
         'afflictions',
         'megaphone_tier',
         'megaphone_turns',
+        'megaphone_last_tick_date',
         'used_buffs',
         'ignore_cat_food',
         'ignore_grilled_carrots',

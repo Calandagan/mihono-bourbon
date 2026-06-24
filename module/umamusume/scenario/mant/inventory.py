@@ -1078,14 +1078,8 @@ def handle_anklet(ctx):
 
 
 def tick_megaphone(ctx):
-    active_turns = getattr(ctx.cultivate_detail, 'mant_megaphone_turns', 0)
-    if active_turns > 0:
-        active_turns -= 1
-        ctx.cultivate_detail.mant_megaphone_turns = active_turns
-        if active_turns <= 0:
-            ctx.cultivate_detail.mant_megaphone_tier = 0
-        from module.umamusume.persistence import save_megaphone_state
-        save_megaphone_state(getattr(ctx.cultivate_detail, 'mant_megaphone_tier', 0), active_turns)
+    from module.umamusume.scenario.mant.training_recovery import tick_megaphone as impl
+    return impl(ctx)
 
 
 def item_loop(ctx):
