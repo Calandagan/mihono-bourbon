@@ -388,6 +388,36 @@ def build_emergency_expiring_targets(
     return targets, budget
 
 
+# Stat item name prefix -> (expect_attribute index, uma_attribute field)
+_STAT_ITEM_PREFIXES = (
+    ("Speed", 0, "speed"),
+    ("Stamina", 1, "stamina"),
+    ("Power", 2, "power"),
+    ("Guts", 3, "will"),
+    ("Wit", 4, "intelligence"),
+)
+
+
+def get_capped_stat_prefixes(expect_attribute, uma_attribute) -> set:
+    """Return the set of stat name prefixes (e.g. {'Speed'}) whose target cap has
+    already been reached. Their shop items (Speed Scroll/Manual/Notepad/Training
+    Application/Ankle Weights, etc.) no longer help, so they can be skipped.
+    Same cap rule as training: cap > 0 and current >= cap."""
+    capped = set()
+    if (not isinstance(expect_attribute, (list, tuple)) or len(expect_attribute) < 5
+            or uma_attribute is None):
+        return capped
+    for prefix, idx, attr in _STAT_ITEM_PREFIXES:
+        try:
+            cap = float(expect_attribute[idx])
+            cur = float(getattr(uma_attribute, attr, 0) or 0)
+        except Exception:
+            continue
+        if cap > 0 and cur >= cap:
+            capped.add(prefix)
+    return capped
+
+
 def should_skip_shop_item(
     display_name,
     *,
@@ -403,6 +433,7 @@ def should_skip_shop_item(
     owned_map,
     ailment_cure_all,
     deck_counts,
+    capped_stat_prefixes=None,
 ):
     if display_name in priority_set:
         return True
@@ -410,6 +441,11 @@ def should_skip_shop_item(
         return True
     if is_contextual_shop_override_item(display_name):
         return True
+    # A stat that already reached its target cap gains nothing from its items.
+    if capped_stat_prefixes:
+        for prefix in capped_stat_prefixes:
+            if display_name.startswith(prefix + " "):
+                return True
     if display_name in one_time_buff_items and display_name in used_buffs:
         return True
     if ignore_cat and display_name == "Yummy Cat Food":
@@ -458,4 +494,5 @@ __all__ = [
     "get_shop_item_ui_tier",
     "is_shop_item_disabled",
     "should_skip_shop_item",
+    "get_capped_stat_prefixes",
 ]

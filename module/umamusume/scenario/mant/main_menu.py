@@ -369,6 +369,7 @@ def handle_mant_shop_scan(ctx, current_date):
         get_shop_stock_state,
         is_shop_item_disabled,
         should_skip_shop_item,
+        get_capped_stat_prefixes,
     )
     if not is_shop_scan_turn(current_date):
         return False
@@ -453,6 +454,13 @@ def handle_mant_shop_scan(ctx, current_date):
 
         deck_counts = get_deck_type_counts(getattr(ctx.task.detail, 'pal_card_store', {}))
 
+        capped_stat_prefixes = get_capped_stat_prefixes(
+            getattr(ctx.cultivate_detail, 'expect_attribute', None),
+            getattr(getattr(ctx.cultivate_detail, 'turn_info', None), 'uma_attribute', None),
+        )
+        if capped_stat_prefixes:
+            log.info(f"[SHOP] Capped stats — skipping their items: {sorted(capped_stat_prefixes)}")
+
         def should_skip(display_name):
             return should_skip_shop_item(
                 display_name,
@@ -468,6 +476,7 @@ def handle_mant_shop_scan(ctx, current_date):
                 owned_map=owned_map,
                 ailment_cure_all=AILMENT_CURE_ALL,
                 deck_counts=deck_counts,
+                capped_stat_prefixes=capped_stat_prefixes,
             )
 
         tier_targets = []
