@@ -86,34 +86,85 @@ def handle_energy_drink_max_before_race(ctx):
     return use_item_and_update_inventory(ctx, 'Energy Drink MAX')
 
 
+def _get_mant_cfg(ctx):
+    return getattr(getattr(ctx.task.detail, 'scenario_config', None), 'mant_config', None)
+
+
+def _current_race_id(ctx):
+    op = getattr(getattr(ctx.cultivate_detail, 'turn_info', None), 'turn_operation', None)
+    try:
+        return int(getattr(op, 'race_id', 0) or 0)
+    except Exception:
+        return 0
+
+
+def _select_cleat_by_priority(owned_map, priority):
+    order = ['Artisan Cleat Hammer', 'Master Cleat Hammer'] if priority == 'artisan' \
+        else ['Master Cleat Hammer', 'Artisan Cleat Hammer']
+    for name in order:
+        if int((owned_map or {}).get(name, 0) or 0) > 0:
+            return name
+    return None
+
+
 def handle_glow_sticks_before_race(ctx):
+    # User-controlled: glow on a calendar race only if its id is listed; on climax
+    # only if enabled AND it's the last climax race (turn 78).
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
     if owned_map.get('Glow Sticks', 0) <= 0:
         return False
+    mant_cfg = _get_mant_cfg(ctx)
+    if mant_cfg is None:
+        return False
+    date = int(getattr(ctx.cultivate_detail.turn_info, 'date', 0) or 0)
+    if date in MANT_CLIMAX_RACE_TURNS:
+        if not getattr(mant_cfg, 'climax_use_glow', False):
+            _inventory.log.info("[GLOW] Skip — climax glow disabled")
+            return False
+        if date != max(MANT_CLIMAX_RACE_TURNS):
+            _inventory.log.info(f"[GLOW] Skip — climax glow only on last race (turn {max(MANT_CLIMAX_RACE_TURNS)})")
+            return False
+    else:
+        race_id = _current_race_id(ctx)
+        glow_ids = getattr(mant_cfg, 'glow_race_ids', []) or []
+        if race_id not in glow_ids:
+            _inventory.log.info(f"[GLOW] Skip — race {race_id} not in glow list")
+            return False
     return use_item_and_update_inventory(ctx, 'Glow Sticks')
 
 
 def handle_cleat_before_race(ctx, race_id, is_climax_override=False):
+    # User-controlled: cleat on a calendar race only if its id is listed; on climax
+    # only if enabled. Picks the cleat by the global priority, falling back to the
+    # other if the preferred one isn't in inventory.
     if getattr(ctx.cultivate_detail, 'mant_cleat_used', False):
-        _inventory.log.info(f"[CLEAT] Skipping — already used this turn")
+        _inventory.log.info("[CLEAT] Skipping — already used this turn")
         return False
+
+    mant_cfg = _get_mant_cfg(ctx)
+    if mant_cfg is None:
+        return False
+
+    date = int(getattr(ctx.cultivate_detail.turn_info, 'date', 0) or 0)
+    is_climax = bool(is_climax_override) or date in MANT_CLIMAX_RACE_TURNS
+    if is_climax:
+        if not getattr(mant_cfg, 'climax_use_cleat', True):
+            _inventory.log.info("[CLEAT] Skip — climax cleats disabled")
+            return False
+    else:
+        cleat_ids = getattr(mant_cfg, 'cleat_race_ids', []) or []
+        if int(race_id or 0) not in cleat_ids:
+            _inventory.log.info(f"[CLEAT] Skip — race {race_id} not in cleat list")
+            return False
 
     owned = getattr(ctx.cultivate_detail, 'mant_owned_items', [])
     owned_map = {n: q for n, q in owned}
-    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
-    state = get_cleat_state(owned_map)
-    _inventory.log.info(f"[CLEAT] Checking — race_id={race_id} date={date} is_climax={is_climax_override} owned={state}")
-    selected = choose_cleat_for_race(
-        date,
-        race_id,
-        owned_map,
-        is_climax_override=is_climax_override,
-    )
+    selected = _select_cleat_by_priority(owned_map, getattr(mant_cfg, 'cleat_priority', 'master'))
     if not selected:
-        _inventory.log.info(f"[CLEAT] No cleat selected — total={state['total']} spare_artisan={state['spare_artisan']} spare_master={state['spare_master']}")
+        _inventory.log.info("[CLEAT] Skip — no cleat in inventory")
         return False
-    _inventory.log.info(f"[CLEAT] Using {selected}")
+    _inventory.log.info(f"[CLEAT] Using {selected} (priority={getattr(mant_cfg, 'cleat_priority', 'master')})")
     result = use_item_and_update_inventory(ctx, selected)
     if result:
         ctx.cultivate_detail.mant_cleat_used = True

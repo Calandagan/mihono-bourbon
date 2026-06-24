@@ -35,6 +35,11 @@ class MantConfig:
     charm_failure_rate: int
     tier_thresholds: dict
     skip_race_percentile: int
+    cleat_priority: str
+    climax_use_cleat: bool
+    climax_use_glow: bool
+    cleat_race_ids: list
+    glow_race_ids: list
 
     def __init__(self, config: dict):
         self.tier_count = int(config.get("tier_count", 8) or 8)
@@ -72,6 +77,25 @@ class MantConfig:
         raw_thresholds = config.get("tier_thresholds", {})
         self.tier_thresholds = {int(k): v for k, v in raw_thresholds.items() if int(k) >= 1}
         self.skip_race_percentile = config.get("skip_race_percentile", 0)
+
+        # User-controlled cleat/glow usage (replaces the old aggressive logic).
+        prio = str(config.get("cleat_priority", "master") or "master").lower()
+        self.cleat_priority = prio if prio in ("master", "artisan") else "master"
+        self.climax_use_cleat = bool(config.get("climax_use_cleat", True))
+        self.climax_use_glow = bool(config.get("climax_use_glow", False))
+
+        def _int_id_list(raw):
+            out = []
+            for x in (raw or []):
+                try:
+                    if str(x).strip():
+                        out.append(int(x))
+                except Exception:
+                    continue
+            return out
+
+        self.cleat_race_ids = _int_id_list(config.get("cleat_race_ids", []))
+        self.glow_race_ids = _int_id_list(config.get("glow_race_ids", []))
 
 
 class ScenarioConfig:

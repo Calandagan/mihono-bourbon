@@ -256,6 +256,49 @@
                         </div>
                       </div>
                       <div class="mant-thresholds mt-3">
+                        <label>Cleats &amp; Glow Sticks</label>
+                        <div class="mant-threshold-group">
+                          <div class="mant-threshold-row">
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Preferred cleat (falls back to the other if unavailable)</span>
+                              <div class="token-toggle" role="group">
+                                <button type="button" class="token" :class="{ active: mantCleatPriority === 'master' }" @click="mantCleatPriority = 'master'">Master</button>
+                                <button type="button" class="token" :class="{ active: mantCleatPriority === 'artisan' }" @click="mantCleatPriority = 'artisan'">Artisan</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="mant-threshold-row">
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Use cleats on climax races</span>
+                              <div class="token-toggle" role="group">
+                                <button type="button" class="token" :class="{ active: mantClimaxUseCleat }" @click="mantClimaxUseCleat = true">On</button>
+                                <button type="button" class="token" :class="{ active: !mantClimaxUseCleat }" @click="mantClimaxUseCleat = false">Off</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="mant-threshold-row">
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Use glow stick on climax (only the last climax race)</span>
+                              <div class="token-toggle" role="group">
+                                <button type="button" class="token" :class="{ active: mantClimaxUseGlow }" @click="mantClimaxUseGlow = true">On</button>
+                                <button type="button" class="token" :class="{ active: !mantClimaxUseGlow }" @click="mantClimaxUseGlow = false">Off</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="mant-threshold-row">
+                            <div class="mant-threshold-controls">
+                              <span class="mant-threshold-label">Per selected race — toggle cleat / glow stick usage</span>
+                              <div v-if="selectedRaceObjects.length === 0" class="mant-threshold-label" style="opacity:.6">Select races first to assign cleats/glow.</div>
+                              <div v-for="race in selectedRaceObjects" :key="race.id" class="d-flex align-items-center gap-2" style="padding:4px 0">
+                                <span class="mant-threshold-label" style="flex:1 1 auto">{{ race.name }}</span>
+                                <button type="button" class="token" :class="{ active: mantCleatRaceIds.includes(race.id) }" @click="toggleCleatRace(race.id)">Cleat</button>
+                                <button type="button" class="token" :class="{ active: mantGlowRaceIds.includes(race.id) }" @click="toggleGlowRace(race.id)">Glow</button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mant-thresholds mt-3">
                         <label>Friendship</label>
                         <div class="mant-threshold-group">
                           <div class="mant-threshold-row">
@@ -2214,6 +2257,11 @@ export default {
       mantCharmFailureRate: 21,
       mantSkipRacePercentile: 0,
       mantTierThresholds: {"3":51,"7":300,"8":99999999999},
+      mantCleatPriority: "master",
+      mantClimaxUseCleat: true,
+      mantClimaxUseGlow: false,
+      mantCleatRaceIds: [],
+      mantGlowRaceIds: [],
       levelDataList: [],
       umamusumeTaskTypeList: [
         {
@@ -2468,6 +2516,14 @@ export default {
     window.removeEventListener('drop', this.onGlobalDrop, false);
   },
   computed: {
+    selectedRaceObjects() {
+      const byId = {};
+      (raceData.races || []).forEach(r => { byId[r.id] = r; });
+      return this.extraRace.map(id => ({
+        id,
+        name: (byId[id] && byId[id].name) ? byId[id].name : String(id),
+      }));
+    },
     mantDisabledTier() {
       return 0;
     },
@@ -3326,6 +3382,16 @@ export default {
         this.extraRace.push(raceId);
       }
     },
+    toggleCleatRace: function (raceId) {
+      const i = this.mantCleatRaceIds.indexOf(raceId);
+      if (i > -1) { this.mantCleatRaceIds.splice(i, 1); }
+      else { this.mantCleatRaceIds.push(raceId); }
+    },
+    toggleGlowRace: function (raceId) {
+      const i = this.mantGlowRaceIds.indexOf(raceId);
+      if (i > -1) { this.mantGlowRaceIds.splice(i, 1); }
+      else { this.mantGlowRaceIds.push(raceId); }
+    },
     openSlotPopup: function (yearIdx, slotIdx) {
       const yearLabels = ['Junior Year', 'Classic Year', 'Senior Year'];
       const yearRaces = [this.filteredRaces_1, this.filteredRaces_2, this.filteredRaces_3][yearIdx];
@@ -3662,7 +3728,12 @@ export default {
             "charm_threshold": this.mantCharmThreshold,
             "charm_failure_rate": this.mantCharmFailureRate,
             "skip_race_percentile": this.mantSkipRacePercentile,
-            "tier_thresholds": { ...this.mantTierThresholds }
+            "tier_thresholds": { ...this.mantTierThresholds },
+            "cleat_priority": this.mantCleatPriority,
+            "climax_use_cleat": this.mantClimaxUseCleat,
+            "climax_use_glow": this.mantClimaxUseGlow,
+            "cleat_race_ids": [...this.mantCleatRaceIds],
+            "glow_race_ids": [...this.mantGlowRaceIds]
           } : null
         }
       }
@@ -4132,9 +4203,19 @@ export default {
          this.mantMegaRacePenalty = this.presetsUse.mant_config.mega_race_penalty ?? 5;
          this.mantMegaSummerBonus = this.presetsUse.mant_config.mega_summer_bonus ?? 10;
          this.mantTrainingWeightsThreshold = this.presetsUse.mant_config.training_weights_threshold ?? 60;
+         this.mantCleatPriority = this.presetsUse.mant_config.cleat_priority ?? "master";
+         this.mantClimaxUseCleat = this.presetsUse.mant_config.climax_use_cleat ?? true;
+         this.mantClimaxUseGlow = this.presetsUse.mant_config.climax_use_glow ?? false;
+         this.mantCleatRaceIds = [...(this.presetsUse.mant_config.cleat_race_ids ?? [])];
+         this.mantGlowRaceIds = [...(this.presetsUse.mant_config.glow_race_ids ?? [])];
        } else {
          this.mantItemTiers = this.mantGetDefaultTiers();
          this.mantTierCount = 8;
+         this.mantCleatPriority = "master";
+         this.mantClimaxUseCleat = true;
+         this.mantClimaxUseGlow = false;
+         this.mantCleatRaceIds = [];
+         this.mantGlowRaceIds = [];
          this.mantTierThresholds = {"3":51,"7":300,"8":99999999999};
          this.mantWhistleThreshold = 20;
          this.mantWhistleFocusSummer = true;
@@ -4372,12 +4453,22 @@ export default {
          this.mantMegaRacePenalty = data.mant_config.mega_race_penalty ?? 5;
          this.mantMegaSummerBonus = data.mant_config.mega_summer_bonus ?? 10;
          this.mantTrainingWeightsThreshold = data.mant_config.training_weights_threshold ?? 60;
+         this.mantCleatPriority = data.mant_config.cleat_priority ?? "master";
+         this.mantClimaxUseCleat = data.mant_config.climax_use_cleat ?? true;
+         this.mantClimaxUseGlow = data.mant_config.climax_use_glow ?? false;
+         this.mantCleatRaceIds = [...(data.mant_config.cleat_race_ids ?? [])];
+         this.mantGlowRaceIds = [...(data.mant_config.glow_race_ids ?? [])];
        } else {
         this.mantItemTiers = this.mantGetDefaultTiers();
         this.mantTierCount = 8;
         this.mantTierThresholds = {"3":51,"7":300,"8":99999999999};
         this.mantWhistleThreshold = 20;
         this.mantWhistleFocusSummer = true;
+        this.mantCleatPriority = "master";
+        this.mantClimaxUseCleat = true;
+        this.mantClimaxUseGlow = false;
+        this.mantCleatRaceIds = [];
+        this.mantGlowRaceIds = [];
          this.mantFocusSummerClassic = 20;
          this.mantFocusSummerSenior = 10;
          this.mantMegaSmallThreshold = 60;
@@ -4606,7 +4697,12 @@ export default {
            charm_threshold: this.mantCharmThreshold,
            charm_failure_rate: this.mantCharmFailureRate,
            skip_race_percentile: this.mantSkipRacePercentile,
-           tier_thresholds: { ...this.mantTierThresholds }
+           tier_thresholds: { ...this.mantTierThresholds },
+           cleat_priority: this.mantCleatPriority,
+           climax_use_cleat: this.mantClimaxUseCleat,
+           climax_use_glow: this.mantClimaxUseGlow,
+           cleat_race_ids: [...this.mantCleatRaceIds],
+           glow_race_ids: [...this.mantGlowRaceIds]
          };
       }
       preset.facility_period_configs = this.facilityPeriodConfigs.map(p => ({
