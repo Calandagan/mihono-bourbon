@@ -413,15 +413,18 @@ def scan_inventory(ctx, stop_when_found=None):
 
     img = ctx.ctrl.get_screen()
     if img is None:
+        ctx.cultivate_detail.mant_last_scan_reached_bottom = False
         return []
 
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     thumb = inv_find_thumb(img_rgb)
 
     if thumb is None:
+        # No scrollbar means the whole list fits on one screen -> we saw all of it.
         results = classify_with_qty(img)
         owned = [(name, qty) for name, score, y, qty in results if 130 < y < 1030]
         owned.sort(key=lambda x: x[0])
+        ctx.cultivate_detail.mant_last_scan_reached_bottom = True
         return owned
 
     time.sleep(random.uniform(0.2, 0.4))
@@ -513,6 +516,7 @@ def scan_inventory(ctx, stop_when_found=None):
         owned = [(name, qty) for name, qty in owned if name != "Grilled Carrots"]
 
     owned.sort(key=lambda x: x[0])
+    ctx.cultivate_detail.mant_last_scan_reached_bottom = reached_bottom
     scroll_to_top(ctx)
     return owned
 

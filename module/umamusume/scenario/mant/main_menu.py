@@ -53,6 +53,18 @@ def _merge_scanned_inventory_with_local(ctx, scanned_items):
     return _save_owned_items_map(ctx, merged)
 
 
+def _overwrite_inventory_with_scan(ctx, scanned_items):
+    # Replace local memory with exactly what the scan saw (corrects both ghost
+    # items the memory missed AND stale over-counts). Only used after a scan that
+    # confirmed it reached the bottom of the list.
+    new_map = {}
+    for name, qty in scanned_items or []:
+        qty_val = int(qty or 0)
+        if qty_val > 0:
+            new_map[name] = qty_val
+    return _save_owned_items_map(ctx, new_map)
+
+
 def _apply_shop_purchase_to_local_inventory(ctx, selected_items):
     selected_items = [name for name in (selected_items or []) if name]
     if not selected_items:
@@ -241,7 +253,46 @@ def handle_mant_inventory_scan(ctx, current_date):
     owned = scan_inventory(ctx)
     _merge_scanned_inventory_with_local(ctx, owned)
     ctx.cultivate_detail.mant_inventory_scanned = True
+    ctx.cultivate_detail.mant_last_inventory_scan_date = current_date
 
+    close_items_panel(ctx)
+    ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
+    return True
+
+
+INVENTORY_PERIODIC_SCAN_INTERVAL = 6
+
+
+def handle_mant_periodic_inventory_scan(ctx, current_date):
+    # Every N turns, re-scan and resync local memory. The bot still trusts its
+    # memory between scans; this just periodically corrects it (e.g. a ghost item
+    # the initial scan missed). Overwrites memory when the scan reached the bottom
+    # of the list; otherwise falls back to a safe max-merge so a cut-short scan
+    # never wipes items it didn't reach.
+    if current_date < 13:
+        return False
+    if not ctx.cultivate_detail.mant_inventory_scanned:
+        return False  # let the initial scan run first
+    last = getattr(ctx.cultivate_detail, 'mant_last_inventory_scan_date', None)
+    if last is not None and current_date - last < INVENTORY_PERIODIC_SCAN_INTERVAL:
+        return False
+
+    from module.umamusume.scenario.mant.scan import scan_inventory, open_items_panel, close_items_panel
+
+    opened = open_items_panel(ctx)
+    if not opened:
+        ctx.ctrl.trigger_decision_reset = True
+        return True
+
+    owned = scan_inventory(ctx)
+    reached_bottom = getattr(ctx.cultivate_detail, 'mant_last_scan_reached_bottom', False)
+    if reached_bottom:
+        _overwrite_inventory_with_scan(ctx, owned)
+        log.info("[INVENTORY] Periodic scan: resynced local memory from scan (reached bottom)")
+    else:
+        _merge_scanned_inventory_with_local(ctx, owned)
+        log.warning("[INVENTORY] Periodic scan did not reach bottom; merged instead of overwriting")
+    ctx.cultivate_detail.mant_last_inventory_scan_date = current_date
     close_items_panel(ctx)
     ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
     return True
@@ -263,6 +314,7 @@ def handle_mant_inventory_rescan_if_pending(ctx, current_date):
     _merge_scanned_inventory_with_local(ctx, owned)
     ctx.cultivate_detail.mant_inventory_scanned = True
     ctx.cultivate_detail.mant_inventory_rescan_pending = False
+    ctx.cultivate_detail.mant_last_inventory_scan_date = current_date
     close_items_panel(ctx)
     ctx.cultivate_detail.turn_info.parse_main_menu_finish = False
     return True
@@ -917,6 +969,9 @@ def handle_mant_main_menu(ctx, img, current_date):
         return True
 
     if handle_mant_inventory_scan(ctx, current_date):
+        return True
+
+    if handle_mant_periodic_inventory_scan(ctx, current_date):
         return True
 
     from module.umamusume.scenario.mant.actions import (
