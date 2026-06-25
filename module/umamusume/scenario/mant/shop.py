@@ -952,12 +952,19 @@ def buy_shop_items(ctx, target_names, items_list):
         return False, result
 
     ctx.cultivate_detail.mant_failed_shop_names_snapshot = set()
-    final_selected_names = list(confirmed_selected) if confirmed_selected is not None else list(selected_names)
+    # Exchange Complete was reached, so every item we clicked was actually purchased
+    # in-game. The Exchange Complete popup OCR (confirmed_selected) routinely misses
+    # rows during its scroll-scan, which previously dropped genuinely-bought items
+    # (cleats/glow sticks) from local inventory and desynced the coin count. Trust the
+    # click record for what entered inventory; the popup scan is kept only as a
+    # diagnostic of which rows the OCR happened to see.
+    final_selected_names = list(selected_names)
     result = {
         "result": "ok",
         "original_targets": original_targets,
         "selected": final_selected_names,
         "clicked": list(selected_names),
+        "popup_confirmed": list(confirmed_selected) if confirmed_selected is not None else None,
         "unresolved": unresolved,
         "failed_snapshot": [],
     }
@@ -965,5 +972,8 @@ def buy_shop_items(ctx, target_names, items_list):
         ctx.cultivate_detail.turn_info.set_shop_trace(selected=[{"name": n} for n in final_selected_names], result=result)
     except Exception:
         pass
-    log.info(f"[BUY] Done — selected={final_selected_names}, clicked={selected_names}, remaining={dict(remaining)}")
+    log.info(
+        f"[BUY] Done — registered={final_selected_names} "
+        f"(popup_confirmed={confirmed_selected}), remaining={dict(remaining)}"
+    )
     return True, result

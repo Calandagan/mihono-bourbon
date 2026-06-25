@@ -31,6 +31,22 @@ TRAINING_TYPE_ANKLET = _inventory.TRAINING_TYPE_ANKLET
 MEGA_STAT_MULT = _inventory.MEGA_STAT_MULT
 TRAINING_NAMES = ["Speed", "Stamina", "Power", "Guts", "Wit"]
 
+# In the final training turns there's no value in hoarding consumables — anything
+# left when the run ends is wasted. At or below this many remaining real training
+# slots, megaphones and anklets are used regardless of the per-turn opportunity
+# score / percentile gate. Default 3 = the climax training turns (73/75/77); bump
+# it to start the dump earlier.
+MANT_FINAL_DUMP_SLOTS = 3
+
+
+def _in_final_dump_phase(ctx):
+    date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
+    try:
+        slots_left = remaining_training_turns_real(ctx, date)
+    except Exception:
+        return False
+    return 0 < slots_left <= MANT_FINAL_DUMP_SLOTS
+
 
 def _owned_map(ctx):
     return {n: q for n, q in getattr(ctx.cultivate_detail, 'mant_owned_items', [])}
@@ -263,6 +279,7 @@ def _build_megaphone_targets(ctx):
     total_duration = total_megaphone_turns(owned_map)
     inventory_pressure = slots_left > 0 and sum(int(owned_map.get(name, 0) or 0) for name in MEGAPHONE_TIERS) >= slots_left
     dump_mode = slots_left > 0 and total_duration >= slots_left
+    final_dump = _in_final_dump_phase(ctx)
 
     opportunity_score = (
         snapshot["stat_gain"] * 2.0
@@ -292,7 +309,7 @@ def _build_megaphone_targets(ctx):
             skip_reason = "active_megaphone"
         elif not eligible:
             skip_reason = "failed_this_turn" if failed else "no_owned"
-        elif dump_mode or inventory_pressure:
+        elif dump_mode or inventory_pressure or final_dump:
             skip_reason = None
         elif opportunity_score >= threshold:
             skip_reason = None
@@ -312,6 +329,7 @@ def _build_megaphone_targets(ctx):
                 selected=selected_now,
                 skip_reason=skip_reason,
                 reason=(
+                    "final_dump" if selected_now and final_dump else
                     "dump_mode" if selected_now and (dump_mode or inventory_pressure) else
                     "high_value_training" if selected_now else
                     "not_selected"
@@ -831,13 +849,17 @@ def _plan_anklet(ctx):
 
     percentile = get_stat_only_percentile(ctx)
     owned_map = _owned_map(ctx)
-    if percentile is None:
+    final_dump = _in_final_dump_phase(ctx)
+    threshold = getattr(mant_cfg, 'training_weights_threshold', 40)
+    if final_dump:
+        # Final training turns: burn anklets regardless of score — anything left when
+        # the run ends is wasted.
+        log.info(f"[ANKLET] Final dump phase — ignoring percentile gate")
+    elif percentile is None:
         log.info(f"[ANKLET] Skipping — no percentile data")
         _record_anklet_skip(ctx, "anklet", "no_percentile")
         return None
-
-    threshold = getattr(mant_cfg, 'training_weights_threshold', 40)
-    if percentile < threshold:
+    elif percentile < threshold:
         log.info(f"[ANKLET] Skipping — percentile={percentile:.1f} < threshold={threshold}")
         _record_anklet_skip(ctx, "anklet", "percentile_below_threshold")
         return None
@@ -864,8 +886,9 @@ def _plan_anklet(ctx):
         return None
     
     anklet_qty = int(owned_map.get(anklet_name, 0) or 0)
+    pct_str = f"{percentile:.1f}" if percentile is not None else "n/a"
     log.info(
-        f"[ANKLET] percentile={percentile:.1f} threshold={threshold} "
+        f"[ANKLET] percentile={pct_str} threshold={threshold} final_dump={final_dump} "
         f"training_type={training_val} anklet={anklet_name} qty={anklet_qty} "
         f"owned={ {n: int(owned_map.get(n, 0) or 0) for n in TRAINING_TYPE_ANKLET.values()} }"
     )
