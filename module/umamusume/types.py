@@ -222,6 +222,7 @@ class CultivateContextDetail:
     pal_thresholds: list
     pal_friendship_score: list[float]
     pal_card_multiplier: float
+    aggressive_cap_skip: bool
     wit_special_multiplier: list
     group_card_enabled: bool
     group_card_name: str

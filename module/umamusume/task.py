@@ -173,6 +173,7 @@ class TaskDetail:
     score_value: list
     compensate_failure: bool
     max_failure_rate: int
+    aggressive_cap_skip: bool
     base_score: list
     event_weights: dict
     scenario_config: ScenarioConfig
@@ -258,6 +259,7 @@ def build_task(task_execute_mode: TaskExecuteMode, task_type: int,
         minimum=0,
         maximum=100,
     )
+    td.aggressive_cap_skip = bool(attachment_data.get('aggressive_cap_skip', False))
     td.manual_purchase_at_end = attachment_data['manual_purchase_at_end']
     td.override_insufficient_fans_forced_races = bool(attachment_data.get('override_insufficient_fans_forced_races', False))
     td.use_last_parents = bool(attachment_data.get('use_last_parents', False))

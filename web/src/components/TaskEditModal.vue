@@ -424,6 +424,14 @@
               <div class="form-group">
                 <div>Target Attributes (per-stat cap — leave at 9999 to disable; set a value and the bot stops prioritizing that stat once reached, while still taking off-type trainings that help other stats)</div>
               </div>
+              <div v-if="selectedScenario === 1 || selectedScenario === 2" class="form-group">
+                <label class="d-block mb-1">Skip capped training scans aggressively</label>
+                <div class="token-toggle" role="group" aria-label="Skip capped training scans aggressively">
+                  <button type="button" class="token" :class="{ active: aggressiveCapSkip }" @click="aggressiveCapSkip = true">Yes</button>
+                  <button type="button" class="token" :class="{ active: !aggressiveCapSkip }" @click="aggressiveCapSkip = false">No</button>
+                </div>
+                <small class="form-text text-muted">URA/Aoharu speed mode: once a facility's main target stat is capped, the bot skips scanning that facility entirely.</small>
+              </div>
               <div class="row">
                 <div class="col">
                   <div class="form-group">
@@ -2318,6 +2326,7 @@ export default {
       expectPowerValue: 9999,
       expectWillValue: 9999,
       expectIntelligenceValue: 9999,
+      aggressiveCapSkip: false,
 
       supportCardLevel: 50,
 
@@ -2328,6 +2337,7 @@ export default {
         skill_priority_list: [],
         skill_blacklist: "",
         expect_attribute: [9999, 9999, 9999, 9999, 9999],
+        aggressive_cap_skip: false,
         follow_support_card: { id: 10001, name: 'Beyond This Shining Moment', desc: 'Silence Suzuka' },
         follow_support_card_level: 50,
         clock_use_limit: 99,
@@ -3659,6 +3669,7 @@ export default {
           "scenario": this.selectedScenario,
           "cure_asap_conditions": this.cureAsapConditions,
           "expect_attribute": [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
+          "aggressive_cap_skip": this.aggressiveCapSkip,
           "follow_support_card_name": this.selectedSupportCard.name,
           "follow_support_card_level": this.supportCardLevel,
           "extra_race_list": this.extraRace,
@@ -3853,6 +3864,7 @@ export default {
       this.expectPowerValue = this.presetsUse.expect_attribute[2]
       this.expectWillValue = this.presetsUse.expect_attribute[3]
       this.expectIntelligenceValue = this.presetsUse.expect_attribute[4]
+      this.aggressiveCapSkip = !!this.presetsUse.aggressive_cap_skip
       this.selectedSupportCard = this.presetsUse.follow_support_card,
         this.supportCardLevel = this.presetsUse.follow_support_card_level,
         this.clockUseLimit = this.presetsUse.clock_use_limit,
@@ -4261,6 +4273,7 @@ export default {
         this.expectWillValue = data.expect_attribute[3];
         this.expectIntelligenceValue = data.expect_attribute[4];
       }
+      this.aggressiveCapSkip = data.aggressive_cap_skip === true;
       if (data.follow_support_card_name) {
         this.selectedSupportCard = { name: data.follow_support_card_name };
       }
@@ -4608,6 +4621,7 @@ export default {
         },
         cureAsapConditions: this.cureAsapConditions,
         expect_attribute: [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
+        aggressive_cap_skip: this.aggressiveCapSkip,
         follow_support_card: this.selectedSupportCard,
         follow_support_card_level: this.supportCardLevel,
         clock_use_limit: this.clockUseLimit,
@@ -4812,6 +4826,7 @@ export default {
         },
         cureAsapConditions: this.cureAsapConditions,
         expect_attribute: [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
+        aggressive_cap_skip: this.aggressiveCapSkip,
         follow_support_card: this.selectedSupportCard,
         follow_support_card_level: this.supportCardLevel,
         clock_use_limit: this.clockUseLimit,

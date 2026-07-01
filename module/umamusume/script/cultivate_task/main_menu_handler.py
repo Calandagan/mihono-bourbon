@@ -78,6 +78,7 @@ def request_training_select(ctx: UmamusumeContext, *, reason: str = "") -> bool:
     y = TO_TRAINING_SELECT.coordinate.y
     suffix = f" ({reason})" if reason else ""
     log.info("Requesting training select attempt %s%s", attempt, suffix)
+    request_started_at = time.perf_counter()
 
     primary_name = f"Go to Training Selection [{attempt % 2}]"
     secondary_name = f"Go to Training Selection [{(attempt + 1) % 2}]"
@@ -95,6 +96,11 @@ def request_training_select(ctx: UmamusumeContext, *, reason: str = "") -> bool:
             ctx.current_screen = frame
             if is_on_training_screen(frame):
                 log.info("Training select detected after request attempt %s", attempt)
+                log.info(
+                    "[TIMING] training select transition took %.0f ms (attempt %s)",
+                    (time.perf_counter() - request_started_at) * 1000.0,
+                    attempt,
+                )
                 turn_info.pending_training_scan = False
                 turn_info.training_select_request_count = 0
                 return True

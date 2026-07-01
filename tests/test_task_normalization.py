@@ -50,6 +50,7 @@ class TaskNormalizationTests(unittest.TestCase):
             {
                 "scenario": 3,
                 "expect_attribute": ["100", "", None, "250.8", "0"],
+                "aggressive_cap_skip": 1,
                 "follow_support_card_name": "",
                 "follow_support_card_level": "45",
                 "extra_race_list": ["101", 202, ""],
@@ -88,6 +89,7 @@ class TaskNormalizationTests(unittest.TestCase):
         )
 
         self.assertEqual(task.detail.expect_attribute, [100, 0, 0, 250, 0])
+        self.assertTrue(task.detail.aggressive_cap_skip)
         self.assertEqual(task.detail.extra_race_list, [101, 202])
         self.assertEqual(task.detail.max_failure_rate, 100)
         self.assertEqual(task.detail.rest_threshold, 52)

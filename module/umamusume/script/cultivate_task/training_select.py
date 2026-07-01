@@ -85,7 +85,51 @@ def get_max_failure_rate(ctx: UmamusumeContext) -> int:
     return max(0, min(100, limit))
 
 
+def _get_stat_caps_and_current_values(ctx: UmamusumeContext):
+    try:
+        ea = getattr(ctx.cultivate_detail, 'expect_attribute', None)
+        if not (isinstance(ea, list) and len(ea) == 5):
+            return None, None
+        uma_now = ctx.cultivate_detail.turn_info.uma_attribute
+        stat_caps = [float(v) for v in ea]
+        curr_stat_vals = [
+            float(uma_now.speed),
+            float(uma_now.stamina),
+            float(uma_now.power),
+            float(uma_now.will),
+            float(uma_now.intelligence),
+        ]
+        return stat_caps, curr_stat_vals
+    except Exception:
+        return None, None
+
+
+def _should_fast_skip_capped_facility_scan(
+        ctx: UmamusumeContext,
+        facility_idx: int,
+        stat_caps,
+        curr_stat_vals) -> bool:
+    if not bool(getattr(ctx.cultivate_detail, 'aggressive_cap_skip', False)):
+        return False
+    try:
+        scenario_type = ctx.cultivate_detail.scenario.scenario_type()
+    except Exception:
+        return False
+    if scenario_type not in (
+            ScenarioType.SCENARIO_TYPE_URA,
+            ScenarioType.SCENARIO_TYPE_AOHARU):
+        return False
+    if stat_caps is None or curr_stat_vals is None:
+        return False
+    if facility_idx < 0 or facility_idx >= 5:
+        return False
+    cap = stat_caps[facility_idx]
+    current = curr_stat_vals[facility_idx]
+    return cap > 0 and current >= cap
+
+
 def script_cultivate_training_select(ctx: UmamusumeContext):
+    script_t0 = time.perf_counter()
     if ctx.cultivate_detail.turn_info is None:
         log.warning("Turn information not initialized")
         ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
@@ -441,9 +485,12 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             return
         viewed = train_type.value
 
+        stat_caps, curr_stat_vals = _get_stat_caps_and_current_values(ctx)
         _scan_t0 = time.perf_counter()
 
-        if extra_weight[viewed - 1] > -1:
+        skip_viewed_scan = _should_fast_skip_capped_facility_scan(
+            ctx, viewed - 1, stat_caps, curr_stat_vals)
+        if extra_weight[viewed - 1] > -1 and not skip_viewed_scan:
             facility_name = FACILITY_NAME_MAP.get(train_type)
             immediate_img = ctx.ctrl.get_screen()
             # Use full parallel thread: OCR + energy scan together
@@ -454,11 +501,18 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             threads.append(thread)
             thread.start()
         else:
+            if skip_viewed_scan:
+                log.info(
+                    "[FAST-CAP] Skipping %s facility scan — target already reached",
+                    TRAINING_NAMES[viewed - 1],
+                )
             clear_training(ctx, train_type)
 
         for i in range(5):
             if i != (viewed - 1):
-                if extra_weight[i] > -1:
+                skip_facility_scan = _should_fast_skip_capped_facility_scan(
+                    ctx, i, stat_caps, curr_stat_vals)
+                if extra_weight[i] > -1 and not skip_facility_scan:
                     slot_start = time.perf_counter()
                     retry = 0
                     ctx.ctrl.click_by_point(TRAINING_POINT_LIST[i])
@@ -485,12 +539,18 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                     threads.append(thread)
                     thread.start()
                 else:
+                    if skip_facility_scan:
+                        log.info(
+                            "[FAST-CAP] Skipping %s facility scan — target already reached",
+                            TRAINING_NAMES[i],
+                        )
                     clear_training(ctx, TrainingType(i + 1))
 
         for thread in threads:
             thread.join()
 
         log.info(f"[TIMING] facility scan ({len(threads)} facilities) took {(time.perf_counter() - _scan_t0) * 1000:.0f} ms")
+        decision_t0 = time.perf_counter()
 
         for idx, energy_val in energy_changes:
             ctx.cultivate_detail.turn_info.training_info_list[idx].energy_change = energy_val
@@ -693,17 +753,6 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             # in THAT stat — but keep the other stats' gains, so a buffed off-type training
             # (e.g. a Speed facility that also gives Power) can still win. A cap of 0 (or a
             # very high value like 9999) effectively means "no cap" for that stat.
-            stat_caps = None
-            curr_stat_vals = None
-            try:
-                ea = ctx.cultivate_detail.expect_attribute
-                if isinstance(ea, list) and len(ea) == 5:
-                    uma_now = ctx.cultivate_detail.turn_info.uma_attribute
-                    stat_caps = [float(v) for v in ea]
-                    curr_stat_vals = [uma_now.speed, uma_now.stamina, uma_now.power,
-                                      uma_now.will, uma_now.intelligence]
-            except Exception:
-                stat_caps = None
             for sk_idx, sk in enumerate(stat_keys):
                 sv_val = stat_results.get(sk, 0)
                 if sv_val > 0:
@@ -1145,6 +1194,10 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
                 ties = [i for i, v in enumerate(computed_scores) if abs(v - max_score) < eps]
                 chosen_idx = 4 if 4 in ties else (min(ties) if len(ties) > 0 else int(np.argmax(computed_scores)))
         local_training_type = TrainingType(chosen_idx + 1)
+        log.info(
+            "[TIMING] training score/decision took %.0f ms",
+            (time.perf_counter() - decision_t0) * 1000.0,
+        )
        
         ctx.cultivate_detail.turn_info.cached_training_type = local_training_type
         try:
@@ -1158,6 +1211,10 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
     ctx.cultivate_detail.turn_info.force_safe_recovery = False
     planner_turn = plan_training_turn(ctx, local_training_type, force_safe_recovery=force_safe_recovery)
     set_turn_plan(ctx, planner_turn)
+    log.info(
+        "[TIMING] training select evaluation total took %.0f ms",
+        (time.perf_counter() - script_t0) * 1000.0,
+    )
     if planner_turn.primary_action == "training":
         log.info(
             "Training decision: scored_best=%s final=%s reason=%s",
