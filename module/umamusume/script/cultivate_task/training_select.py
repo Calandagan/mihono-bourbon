@@ -115,9 +115,11 @@ def _should_fast_skip_capped_facility_scan(
         scenario_type = ctx.cultivate_detail.scenario.scenario_type()
     except Exception:
         return False
-    if scenario_type not in (
-            ScenarioType.SCENARIO_TYPE_URA,
-            ScenarioType.SCENARIO_TYPE_AOHARU):
+    aoharu_type = getattr(ScenarioType, 'SCENARIO_TYPE_AOHARUHAI', None)
+    allowed_scenarios = {ScenarioType.SCENARIO_TYPE_URA}
+    if aoharu_type is not None:
+        allowed_scenarios.add(aoharu_type)
+    if scenario_type not in allowed_scenarios:
         return False
     if stat_caps is None or curr_stat_vals is None:
         return False
