@@ -374,6 +374,23 @@ def script_info(ctx: UmamusumeContext):
             return
             
         if title_text == TITLE[9]: #Confirmation
+            try:
+                if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_AOHARUHAI:
+                    from module.umamusume.scenario.aoharuhai.hooks import (
+                        is_team_showdown_confirmation_popup,
+                        TEAM_SHOWDOWN_CONFIRM_X,
+                        TEAM_SHOWDOWN_CONFIRM_Y,
+                    )
+                    if is_team_showdown_confirmation_popup(ctx.current_screen):
+                        log.info("Handling Aoharu Team Showdown confirmation via Begin Showdown button")
+                        ctx.ctrl.click(
+                            TEAM_SHOWDOWN_CONFIRM_X,
+                            TEAM_SHOWDOWN_CONFIRM_Y,
+                            "Aoharu Team Showdown confirmation",
+                        )
+                        return
+            except Exception:
+                pass
             ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_CONFIRM_AGAIN)
         if title_text == TITLE[10]: #Skills Learned
             ctx.ctrl.click_by_point(CULTIVATE_LEARN_SKILL_DONE_CONFIRM)

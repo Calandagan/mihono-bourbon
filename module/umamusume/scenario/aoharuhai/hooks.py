@@ -14,6 +14,8 @@ log = logger.get_logger(__name__)
 TEAM_SHOWDOWN_ROI = (0, 0, 230, 48)
 TEAM_SHOWDOWN_RACE_X = 360
 TEAM_SHOWDOWN_RACE_Y = 980
+TEAM_SHOWDOWN_CONFIRM_X = 530
+TEAM_SHOWDOWN_CONFIRM_Y = 975
 
 
 def _is_team_showdown_screen(img):
@@ -26,6 +28,31 @@ def _is_team_showdown_screen(img):
         y2 = max(y1, min(h, y2))
         roi = img[y1:y2, x1:x2]
         return image_match(roi, REF_TEAM_SHOWDOWN).find_match
+    except Exception:
+        return False
+
+
+def is_team_showdown_confirmation_popup(img):
+    try:
+        if not _is_team_showdown_screen(img):
+            return False
+        header_roi = img[300:360, 10:710]
+        button_roi = img[900:1040, 370:690]
+        if header_roi.size == 0 or button_roi.size == 0:
+            return False
+        header_mean = header_roi.mean(axis=(0, 1))
+        button_mean = button_roi.mean(axis=(0, 1))
+        header_is_green = (
+            header_mean[1] > 150
+            and header_mean[1] > header_mean[2] + 20
+            and header_mean[1] > header_mean[0] + 20
+        )
+        button_is_green = (
+            button_mean[1] > 140
+            and button_mean[1] > button_mean[2] + 20
+            and button_mean[1] > button_mean[0] + 20
+        )
+        return bool(header_is_green and button_is_green)
     except Exception:
         return False
 
@@ -148,6 +175,11 @@ def aoharuhai_after_hook(ctx, img):
         ctx.ctrl.click(508, 1196, 'race end2 b')
         return True
     
+    if is_team_showdown_confirmation_popup(img):
+        log.info("Final Aoharu Team Showdown confirmation detected - beginning Team Zenith showdown")
+        ctx.ctrl.click(TEAM_SHOWDOWN_CONFIRM_X, TEAM_SHOWDOWN_CONFIRM_Y, 'team showdown begin')
+        return True
+
     if _is_team_showdown_screen(img):
         log.info("Final Aoharu Team Showdown detected - starting Team Zenith race")
         ctx.ctrl.click(TEAM_SHOWDOWN_RACE_X, TEAM_SHOWDOWN_RACE_Y, 'team showdown race')
