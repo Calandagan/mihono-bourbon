@@ -286,9 +286,11 @@ def plan_main_menu_turn(ctx: UmamusumeContext) -> TurnPlan:
                 requires_training_scan=True,
                 reason="low energy MANT training risk evaluation",
             )
-        if should_use_pal_outing_simple(ctx):
-            return TurnPlan(primary_action="trip", reason="low energy with pal outing available")
-        return TurnPlan(primary_action="rest", reason="low energy fast path")
+        return TurnPlan(
+            primary_action="training",
+            requires_training_scan=True,
+            reason="low energy training risk evaluation",
+        )
 
     return TurnPlan(
         primary_action="training",

@@ -40,10 +40,10 @@ from module.umamusume.script.cultivate_task import race_policy
 from module.umamusume.script.cultivate_task.race_policy import RaceTurnDecision
 
 
-def _make_ctx(date=1, turn_operation=None):
+def _make_ctx(date=1, turn_operation=None, scenario_type=ScenarioType.SCENARIO_TYPE_MANT):
     return SimpleNamespace(
         cultivate_detail=SimpleNamespace(
-            scenario=SimpleNamespace(scenario_type=lambda: ScenarioType.SCENARIO_TYPE_MANT),
+            scenario=SimpleNamespace(scenario_type=lambda: scenario_type),
             turn_info=SimpleNamespace(
                 date=date,
                 turn_operation=turn_operation,
@@ -226,6 +226,31 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.pre_actions, [])
         self.assertFalse(plan.requires_replan_after_pre_action)
         self.assertEqual(plan.reason, "low energy MANT training risk evaluation")
+
+    def test_plan_main_menu_turn_uses_training_scan_for_low_energy_in_ura(self):
+        ctx = _make_ctx(date=20, scenario_type=ScenarioType.SCENARIO_TYPE_URA)
+
+        with patch.object(planner, "get_race_turn_decision", return_value=RaceTurnDecision()), \
+             patch.object(planner, "get_current_energy", return_value=30), \
+             patch.object(planner, "get_rest_threshold", return_value=48):
+            plan = planner.plan_main_menu_turn(ctx)
+
+        self.assertEqual(plan.primary_action, "training")
+        self.assertTrue(plan.requires_training_scan)
+        self.assertEqual(plan.reason, "low energy training risk evaluation")
+
+    def test_plan_main_menu_turn_low_energy_in_aoharu_does_not_short_circuit_to_trip(self):
+        ctx = _make_ctx(date=20, scenario_type=ScenarioType.SCENARIO_TYPE_AOHARUHAI)
+
+        with patch.object(planner, "get_race_turn_decision", return_value=RaceTurnDecision()), \
+             patch.object(planner, "get_current_energy", return_value=30), \
+             patch.object(planner, "get_rest_threshold", return_value=48), \
+             patch.object(planner, "should_use_pal_outing_simple", return_value=True):
+            plan = planner.plan_main_menu_turn(ctx)
+
+        self.assertEqual(plan.primary_action, "training")
+        self.assertTrue(plan.requires_training_scan)
+        self.assertEqual(plan.reason, "low energy training risk evaluation")
 
     def test_plan_main_menu_turn_preserves_pending_training_scan_without_training_prebuffs(self):
         ctx = _make_ctx(date=20)
