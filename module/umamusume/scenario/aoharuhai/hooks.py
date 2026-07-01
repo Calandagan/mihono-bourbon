@@ -11,6 +11,24 @@ import bot.base.log as logger
 
 log = logger.get_logger(__name__)
 
+TEAM_SHOWDOWN_ROI = (0, 0, 230, 48)
+TEAM_SHOWDOWN_RACE_X = 360
+TEAM_SHOWDOWN_RACE_Y = 980
+
+
+def _is_team_showdown_screen(img):
+    try:
+        h, w = img.shape[:2]
+        x1, y1, x2, y2 = TEAM_SHOWDOWN_ROI
+        x1 = max(0, min(w, x1))
+        x2 = max(x1, min(w, x2))
+        y1 = max(0, min(h, y1))
+        y2 = max(y1, min(h, y2))
+        roi = img[y1:y2, x1:x2]
+        return image_match(roi, REF_TEAM_SHOWDOWN).find_match
+    except Exception:
+        return False
+
 
 def aoharuhai_after_hook(ctx, img):
     if image_match(img[984:1025, 297:365], REF_AOHARU_RACE).find_match:
@@ -130,10 +148,9 @@ def aoharuhai_after_hook(ctx, img):
         ctx.ctrl.click(508, 1196, 'race end2 b')
         return True
     
-    if image_match(img[7:31, 24:180], REF_TEAM_SHOWDOWN).find_match:
-        ctx.ctrl.click(354, 961, 'team showdown')
-        time.sleep(0.5)
-        ctx.ctrl.click(522, 930, 'select opp2 cont')
+    if _is_team_showdown_screen(img):
+        log.info("Final Aoharu Team Showdown detected - starting Team Zenith race")
+        ctx.ctrl.click(TEAM_SHOWDOWN_RACE_X, TEAM_SHOWDOWN_RACE_Y, 'team showdown race')
         return True
     
     if image_match(img[1097:1124, 327:393], REF_NEXT).find_match:

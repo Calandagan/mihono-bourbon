@@ -10,6 +10,8 @@ from module.umamusume.asset.ui import (
 )
 
 log = logger.get_logger(__name__)
+TEAM_SHOWDOWN_RACE_X = 360
+TEAM_SHOWDOWN_RACE_Y = 980
 
 
 def script_aoharuhai_race(ctx):
@@ -33,7 +35,7 @@ def script_aoharuhai_race(ctx):
 
 
 def script_aoharuhai_race_final_start(ctx):
-    ctx.ctrl.click(360, 980, "Confirm final opponent")
+    ctx.ctrl.click(TEAM_SHOWDOWN_RACE_X, TEAM_SHOWDOWN_RACE_Y, "Start final team showdown race")
 
 
 def script_aoharuhai_race_select_oponent(ctx):
