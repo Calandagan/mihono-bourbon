@@ -1849,7 +1849,7 @@
       <SupportCardSelectModal v-model:show="showSupportCardSelectModal" @cancel="closeSupportCardSelectModal"
         @confirm="handleSupportCardConfirm"></SupportCardSelectModal>
       
-      <div v-if="showAoharuConfigModal || showSupportCardSelectModal"
+      <div v-if="showSupportCardSelectModal"
         class="modal-backdrop-overlay" @click.stop></div>
       
       <div class="position-fixed" style="z-index: 5; right: 40%; width: 300px;">
