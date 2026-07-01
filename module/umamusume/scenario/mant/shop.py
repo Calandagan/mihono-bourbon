@@ -437,22 +437,84 @@ def detect_mant_shop_coins(img):
     return -1
 
 
+def _match_mant_shop_open_templates(frame):
+    if frame is None or getattr(frame, "size", 0) == 0:
+        return None, {}
+    from bot.recog.image_matcher import image_match
+    from module.umamusume.asset.template import REF_MANT_SHOP_TITLE, REF_SHOP_MANT_CHECK
+
+    scores = {}
+    for label, template in (
+        ("check", REF_SHOP_MANT_CHECK),
+        ("title", REF_MANT_SHOP_TITLE),
+    ):
+        try:
+            result = image_match(frame, template)
+        except Exception:
+            continue
+        scores[label] = float(getattr(result, "score", 0.0) or 0.0)
+        if getattr(result, "find_match", False):
+            return label, scores
+    return None, scores
+
+
+def _looks_like_mant_shop_view(frame):
+    if frame is None or getattr(frame, "size", 0) == 0:
+        return False
+    try:
+        from module.umamusume.scenario.mant.inventory import (
+            has_use_training_items_button,
+            is_items_panel_open,
+        )
+        if is_items_panel_open(frame) or has_use_training_items_button(frame):
+            return False
+    except Exception:
+        pass
+    try:
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        thumb = find_thumb(frame_rgb)
+    except Exception:
+        return False
+    return thumb is not None
+
+
+def _capture_mant_shop_open_state(ctx):
+    frame = ctx.ctrl.get_screen()
+    signal, scores = _match_mant_shop_open_templates(frame)
+    if signal:
+        return True, signal, scores
+    if _looks_like_mant_shop_view(frame):
+        return True, "scrollbar", scores
+    return False, None, scores
+
+
 def open_mant_shop(ctx):
     from module.umamusume.constants.game_constants import is_summer_camp_period
 
     current_date = getattr(ctx.cultivate_detail.turn_info, 'date', 0)
     shop_x = SHOP_OPEN_X_SUMMER if is_summer_camp_period(current_date) else SHOP_OPEN_X
 
-    from bot.recog.image_matcher import image_match
-    from module.umamusume.asset.template import REF_SHOP_MANT_CHECK
-
     ctx.ctrl.click(shop_x, SHOP_OPEN_Y, "MANT shop open")
-    deadline = time.time() + 2.0
+    deadline = time.time() + 3.5
+    best_scores = {}
+    last_signal = None
     while time.time() < deadline:
-        img_check = ctx.ctrl.get_screen(to_gray=True)
-        if image_match(img_check, REF_SHOP_MANT_CHECK).find_match:
+        opened, signal, scores = _capture_mant_shop_open_state(ctx)
+        for key, score in scores.items():
+            best_scores[key] = max(best_scores.get(key, 0.0), score)
+        if opened:
+            last_signal = signal
+            if signal != "check":
+                log.info(f"[SHOP] Open confirmed via {signal} fallback")
             return True
         time.sleep(0.17)
+    log.warning(
+        "[SHOP] Failed to confirm MANT shop open — "
+        f"date={current_date} click=({shop_x},{SHOP_OPEN_Y}) "
+        f"best_check={best_scores.get('check', 0.0):.3f} "
+        f"best_title={best_scores.get('title', 0.0):.3f} "
+        f"last_signal={last_signal or '-'}"
+    )
     return False
 
 

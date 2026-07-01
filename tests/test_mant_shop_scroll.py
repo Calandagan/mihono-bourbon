@@ -85,6 +85,76 @@ class MantShopScrollTests(unittest.TestCase):
         with patch.object(shop, "find_thumb", return_value=None):
             self.assertFalse(shop.at_bottom(_DummyFrame()))
 
+    def test_open_mant_shop_accepts_title_fallback_when_check_template_misses(self):
+        clicks = []
+        frame = _DummyFrame()
+        check_template = object()
+        title_template = object()
+
+        def image_match(_frame, template):
+            return types.SimpleNamespace(find_match=template is title_template, score=0.91)
+
+        ctx = types.SimpleNamespace(
+            ctrl=types.SimpleNamespace(
+                click=lambda x, y, name=None: clicks.append((x, y, name)),
+                get_screen=lambda **_kwargs: frame,
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                turn_info=types.SimpleNamespace(date=13),
+            ),
+        )
+
+        with patch.dict(
+            sys.modules,
+            {
+                "bot.recog.image_matcher": types.SimpleNamespace(image_match=image_match),
+                "module.umamusume.asset.template": types.SimpleNamespace(
+                    REF_SHOP_MANT_CHECK=check_template,
+                    REF_MANT_SHOP_TITLE=title_template,
+                ),
+                "module.umamusume.constants.game_constants": types.SimpleNamespace(
+                    is_summer_camp_period=lambda _date: False,
+                ),
+            },
+        ), patch.object(shop, "_looks_like_mant_shop_view", return_value=False):
+            self.assertTrue(shop.open_mant_shop(ctx))
+
+        self.assertEqual(clicks, [(shop.SHOP_OPEN_X, shop.SHOP_OPEN_Y, "MANT shop open")])
+
+    def test_open_mant_shop_accepts_scrollbar_fallback_when_templates_miss(self):
+        clicks = []
+        frame = _DummyFrame()
+
+        def image_match(_frame, _template):
+            return types.SimpleNamespace(find_match=False, score=0.32)
+
+        ctx = types.SimpleNamespace(
+            ctrl=types.SimpleNamespace(
+                click=lambda x, y, name=None: clicks.append((x, y, name)),
+                get_screen=lambda **_kwargs: frame,
+            ),
+            cultivate_detail=types.SimpleNamespace(
+                turn_info=types.SimpleNamespace(date=13),
+            ),
+        )
+
+        with patch.dict(
+            sys.modules,
+            {
+                "bot.recog.image_matcher": types.SimpleNamespace(image_match=image_match),
+                "module.umamusume.asset.template": types.SimpleNamespace(
+                    REF_SHOP_MANT_CHECK=object(),
+                    REF_MANT_SHOP_TITLE=object(),
+                ),
+                "module.umamusume.constants.game_constants": types.SimpleNamespace(
+                    is_summer_camp_period=lambda _date: False,
+                ),
+            },
+        ), patch.object(shop, "_looks_like_mant_shop_view", return_value=True):
+            self.assertTrue(shop.open_mant_shop(ctx))
+
+        self.assertEqual(clicks, [(shop.SHOP_OPEN_X, shop.SHOP_OPEN_Y, "MANT shop open")])
+
     def test_dedup_detections_uses_majority_buyable_vote(self):
         items = shop.dedup_detections(
             [

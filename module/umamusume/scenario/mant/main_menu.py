@@ -383,7 +383,7 @@ def handle_mant_shop_scan(ctx, current_date):
     log.info(f"[SHOP] Starting scan — date={current_date} chunk={chunk} coins={ctx.cultivate_detail.mant_coins}")
     scan_result = scan_mant_shop(ctx)
     if scan_result is None:
-        log.warning("[SHOP] scan_mant_shop returned None — shop did not open or REF_SHOP_MANT_CHECK not found")
+        log.warning("[SHOP] scan_mant_shop returned None — shop did not open or MANT shop view was not confirmed")
         ctx.ctrl.trigger_decision_reset = True
         return True
 
