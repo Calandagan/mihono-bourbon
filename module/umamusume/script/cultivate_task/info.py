@@ -377,17 +377,23 @@ def script_info(ctx: UmamusumeContext):
             try:
                 if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_AOHARUHAI:
                     from module.umamusume.scenario.aoharuhai.hooks import (
+                        clear_team_showdown_confirmation_pending,
+                        has_team_showdown_confirmation_pending,
                         is_team_showdown_confirmation_popup,
                         TEAM_SHOWDOWN_CONFIRM_X,
                         TEAM_SHOWDOWN_CONFIRM_Y,
                     )
-                    if is_team_showdown_confirmation_popup(ctx.current_screen):
+                    if (
+                        has_team_showdown_confirmation_pending(ctx)
+                        or is_team_showdown_confirmation_popup(ctx.current_screen)
+                    ):
                         log.info("Handling Aoharu Team Showdown confirmation via Begin Showdown button")
                         ctx.ctrl.click(
                             TEAM_SHOWDOWN_CONFIRM_X,
                             TEAM_SHOWDOWN_CONFIRM_Y,
                             "Aoharu Team Showdown confirmation",
                         )
+                        clear_team_showdown_confirmation_pending(ctx)
                         return
             except Exception:
                 pass

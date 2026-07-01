@@ -124,13 +124,15 @@ class _Ctrl:
 class AoharuFinalShowdownTests(unittest.TestCase):
     def test_after_hook_starts_team_showdown_race_with_single_click(self):
         ctrl = _Ctrl()
-        ctx = types.SimpleNamespace(ctrl=ctrl)
+        detail = types.SimpleNamespace()
+        ctx = types.SimpleNamespace(ctrl=ctrl, cultivate_detail=detail)
         img = np.zeros((1280, 720, 3), dtype=np.uint8)
 
         with patch.object(hooks, "_is_team_showdown_screen", return_value=True):
             handled = hooks.aoharuhai_after_hook(ctx, img)
 
         self.assertTrue(handled)
+        self.assertTrue(detail.aoharu_team_showdown_confirm_pending)
         self.assertEqual(
             ctrl.clicks,
             [(hooks.TEAM_SHOWDOWN_RACE_X, hooks.TEAM_SHOWDOWN_RACE_Y, "team showdown race")],
@@ -138,13 +140,15 @@ class AoharuFinalShowdownTests(unittest.TestCase):
 
     def test_after_hook_confirms_team_showdown_popup_with_begin_button(self):
         ctrl = _Ctrl()
-        ctx = types.SimpleNamespace(ctrl=ctrl)
+        detail = types.SimpleNamespace(aoharu_team_showdown_confirm_pending=True)
+        ctx = types.SimpleNamespace(ctrl=ctrl, cultivate_detail=detail)
         img = np.zeros((1280, 720, 3), dtype=np.uint8)
 
         with patch.object(hooks, "is_team_showdown_confirmation_popup", return_value=True):
             handled = hooks.aoharuhai_after_hook(ctx, img)
 
         self.assertTrue(handled)
+        self.assertFalse(detail.aoharu_team_showdown_confirm_pending)
         self.assertEqual(
             ctrl.clicks,
             [(hooks.TEAM_SHOWDOWN_CONFIRM_X, hooks.TEAM_SHOWDOWN_CONFIRM_Y, "team showdown begin")],

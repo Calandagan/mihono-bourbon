@@ -14,8 +14,9 @@ log = logger.get_logger(__name__)
 TEAM_SHOWDOWN_ROI = (0, 0, 230, 48)
 TEAM_SHOWDOWN_RACE_X = 360
 TEAM_SHOWDOWN_RACE_Y = 980
-TEAM_SHOWDOWN_CONFIRM_X = 530
-TEAM_SHOWDOWN_CONFIRM_Y = 975
+TEAM_SHOWDOWN_CONFIRM_X = 520
+TEAM_SHOWDOWN_CONFIRM_Y = 920
+TEAM_SHOWDOWN_CONFIRM_PENDING_TTL = 12.0
 
 
 def _is_team_showdown_screen(img):
@@ -55,6 +56,45 @@ def is_team_showdown_confirmation_popup(img):
         return bool(header_is_green and button_is_green)
     except Exception:
         return False
+
+
+def mark_team_showdown_confirmation_pending(ctx):
+    try:
+        detail = getattr(ctx, 'cultivate_detail', None)
+        if detail is None:
+            return
+        detail.aoharu_team_showdown_confirm_pending = True
+        detail.aoharu_team_showdown_confirm_started_at = time.time()
+    except Exception:
+        pass
+
+
+def has_team_showdown_confirmation_pending(ctx):
+    try:
+        detail = getattr(ctx, 'cultivate_detail', None)
+        if detail is None:
+            return False
+        if not getattr(detail, 'aoharu_team_showdown_confirm_pending', False):
+            return False
+        started_at = getattr(detail, 'aoharu_team_showdown_confirm_started_at', 0.0)
+        if isinstance(started_at, (int, float)) and started_at > 0:
+            if time.time() - started_at > TEAM_SHOWDOWN_CONFIRM_PENDING_TTL:
+                detail.aoharu_team_showdown_confirm_pending = False
+                return False
+        return True
+    except Exception:
+        return False
+
+
+def clear_team_showdown_confirmation_pending(ctx):
+    try:
+        detail = getattr(ctx, 'cultivate_detail', None)
+        if detail is None:
+            return
+        detail.aoharu_team_showdown_confirm_pending = False
+        detail.aoharu_team_showdown_confirm_started_at = 0.0
+    except Exception:
+        pass
 
 
 def aoharuhai_after_hook(ctx, img):
@@ -178,10 +218,12 @@ def aoharuhai_after_hook(ctx, img):
     if is_team_showdown_confirmation_popup(img):
         log.info("Final Aoharu Team Showdown confirmation detected - beginning Team Zenith showdown")
         ctx.ctrl.click(TEAM_SHOWDOWN_CONFIRM_X, TEAM_SHOWDOWN_CONFIRM_Y, 'team showdown begin')
+        clear_team_showdown_confirmation_pending(ctx)
         return True
 
     if _is_team_showdown_screen(img):
         log.info("Final Aoharu Team Showdown detected - starting Team Zenith race")
+        mark_team_showdown_confirmation_pending(ctx)
         ctx.ctrl.click(TEAM_SHOWDOWN_RACE_X, TEAM_SHOWDOWN_RACE_Y, 'team showdown race')
         return True
     

@@ -263,32 +263,6 @@ def script_cultivate_training_select(ctx: UmamusumeContext):
             energy = read_energy()
     ctx.cultivate_detail.turn_info.cached_energy = energy
 
-    if energy <= limit and not mant_skip and not is_mant:
-        turn_info = ctx.cultivate_detail.turn_info
-        date = turn_info.date
-        from module.umamusume.asset.race_data import get_races_for_period
-        available_races = get_races_for_period(date)
-        extra_race_this_turn = [race_id for race_id in ctx.cultivate_detail.extra_race_list if race_id in available_races]
-        if len(extra_race_this_turn) != 0:
-            skip_race = False
-            try:
-                if ctx.cultivate_detail.scenario.scenario_type() == ScenarioType.SCENARIO_TYPE_MANT:
-                    from module.umamusume.scenario.mant.policy import should_skip_race
-                    skip_race = should_skip_race(ctx)
-            except Exception:
-                pass
-            if not skip_race:
-                ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-                return
-
-        log.info(f"rest threshold: energy={energy}, threshold={limit} - prioritizing rest")
-        op = TurnOperation()
-        op.turn_operation_type = TurnOperationType.TURN_OPERATION_TYPE_REST
-        ctx.cultivate_detail.turn_info.turn_operation = op
-        ctx.cultivate_detail.last_decision_stats = None
-        ctx.ctrl.click_by_point(RETURN_TO_CULTIVATE_MAIN_MENU)
-        return
-
     if not ctx.cultivate_detail.turn_info.parse_train_info_finish:
 
         class TrainingDetectionResult:
