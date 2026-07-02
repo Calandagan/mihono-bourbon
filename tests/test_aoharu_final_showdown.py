@@ -138,6 +138,19 @@ class AoharuFinalShowdownTests(unittest.TestCase):
             [(hooks.TEAM_SHOWDOWN_RACE_X, hooks.TEAM_SHOWDOWN_RACE_Y, "team showdown race")],
         )
 
+    def test_after_hook_handles_showdown_result_before_start_screen(self):
+        ctrl = _Ctrl()
+        detail = types.SimpleNamespace()
+        ctx = types.SimpleNamespace(ctrl=ctrl, cultivate_detail=detail)
+        img = np.zeros((1280, 720, 3), dtype=np.uint8)
+
+        with patch.object(hooks, "_handle_aoharu_showdown_result", return_value=True), \
+                patch.object(hooks, "_is_team_showdown_screen", return_value=True):
+            handled = hooks.aoharuhai_after_hook(ctx, img)
+
+        self.assertTrue(handled)
+        self.assertEqual(ctrl.clicks, [])
+
     def test_after_hook_confirms_team_showdown_popup_with_begin_button(self):
         ctrl = _Ctrl()
         detail = types.SimpleNamespace(aoharu_team_showdown_confirm_pending=True)

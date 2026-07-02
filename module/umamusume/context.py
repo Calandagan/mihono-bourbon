@@ -179,6 +179,7 @@ class CultivateContextDetail:
     base_score: list
     max_failure_rate: int
     aggressive_cap_skip: bool
+    retry_lost_aoharu_showdowns: bool
     summer_score_threshold: float
     stat_value_multiplier: list
     wit_special_multiplier: list
@@ -251,6 +252,7 @@ class CultivateContextDetail:
         self.base_score = list(DEFAULT_BASE_SCORES)
         self.max_failure_rate = DEFAULT_MAX_FAILURE_RATE
         self.aggressive_cap_skip = False
+        self.retry_lost_aoharu_showdowns = False
         self.summer_score_threshold = DEFAULT_SUMMER_SCORE_THRESHOLD
         self.stat_value_multiplier = list(DEFAULT_STAT_VALUE_MULTIPLIER)
         self.wit_special_multiplier = list(DEFAULT_WIT_SPECIAL_MULTIPLIER)
@@ -386,6 +388,7 @@ def build_context(task: UmamusumeTask, ctrl) -> UmamusumeContext:
             maximum=100,
         )
         detail.aggressive_cap_skip = bool(getattr(task.detail, 'aggressive_cap_skip', False))
+        detail.retry_lost_aoharu_showdowns = bool(getattr(task.detail, 'retry_lost_aoharu_showdowns', False))
         detail.use_last_parents = getattr(task.detail, 'use_last_parents', False)
         detail.base_score = _normalize_list(
             getattr(task.detail, 'base_score', DEFAULT_BASE_SCORES),

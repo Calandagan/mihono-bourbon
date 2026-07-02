@@ -300,6 +300,12 @@ def script_info(ctx: UmamusumeContext):
         if title_text == TITLE[3]:
             ctx.ctrl.click_by_point(NETWORK_ERROR_CONFIRM)
         if title_text == TITLE[4]:  # Try Again
+            try:
+                from module.umamusume.scenario.aoharuhai.retry import handle_aoharu_showdown_retry_confirm
+                if handle_aoharu_showdown_retry_confirm(ctx):
+                    return
+            except Exception:
+                log.exception("Aoharu showdown retry confirmation check failed")
             # Check if this is actually a race fail screen using image detection
             img = ctx.current_screen
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

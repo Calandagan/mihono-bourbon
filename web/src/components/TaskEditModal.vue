@@ -87,6 +87,15 @@
                     <span class="btn auto-btn" style="width:100%" v-on:click="openAoharuConfigModal">Aoharu Cup Configuration</span>
                   </div>
                 </div>
+                <div class="col-4">
+                  <div class="form-group">
+                    <label class="d-block mb-1">Retry lost Aoharu showdowns</label>
+                    <div class="token-toggle" role="group" aria-label="Retry lost Aoharu showdowns">
+                      <button type="button" class="token" :class="{ active: retryLostAoharuShowdowns }" @click="retryLostAoharuShowdowns = true">Yes</button>
+                      <button type="button" class="token" :class="{ active: !retryLostAoharuShowdowns }" @click="retryLostAoharuShowdowns = false">No</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="row" v-if="selectedScenario === 3">
                 <div class="col-12">
@@ -2327,6 +2336,7 @@ export default {
       expectWillValue: 9999,
       expectIntelligenceValue: 9999,
       aggressiveCapSkip: false,
+      retryLostAoharuShowdowns: false,
 
       supportCardLevel: 50,
 
@@ -2338,6 +2348,7 @@ export default {
         skill_blacklist: "",
         expect_attribute: [9999, 9999, 9999, 9999, 9999],
         aggressive_cap_skip: false,
+        retry_lost_aoharu_showdowns: false,
         follow_support_card: { id: 10001, name: 'Beyond This Shining Moment', desc: 'Silence Suzuka' },
         follow_support_card_level: 50,
         clock_use_limit: 99,
@@ -3670,6 +3681,7 @@ export default {
           "cure_asap_conditions": this.cureAsapConditions,
           "expect_attribute": [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
           "aggressive_cap_skip": this.aggressiveCapSkip,
+          "retry_lost_aoharu_showdowns": this.retryLostAoharuShowdowns,
           "follow_support_card_name": this.selectedSupportCard.name,
           "follow_support_card_level": this.supportCardLevel,
           "extra_race_list": this.extraRace,
@@ -3865,6 +3877,7 @@ export default {
       this.expectWillValue = this.presetsUse.expect_attribute[3]
       this.expectIntelligenceValue = this.presetsUse.expect_attribute[4]
       this.aggressiveCapSkip = !!this.presetsUse.aggressive_cap_skip
+      this.retryLostAoharuShowdowns = !!this.presetsUse.retry_lost_aoharu_showdowns
       this.selectedSupportCard = this.presetsUse.follow_support_card,
         this.supportCardLevel = this.presetsUse.follow_support_card_level,
         this.clockUseLimit = this.presetsUse.clock_use_limit,
@@ -4274,6 +4287,7 @@ export default {
         this.expectIntelligenceValue = data.expect_attribute[4];
       }
       this.aggressiveCapSkip = data.aggressive_cap_skip === true;
+      this.retryLostAoharuShowdowns = data.retry_lost_aoharu_showdowns === true;
       if (data.follow_support_card_name) {
         this.selectedSupportCard = { name: data.follow_support_card_name };
       }
@@ -4622,6 +4636,7 @@ export default {
         cureAsapConditions: this.cureAsapConditions,
         expect_attribute: [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
         aggressive_cap_skip: this.aggressiveCapSkip,
+        retry_lost_aoharu_showdowns: this.retryLostAoharuShowdowns,
         follow_support_card: this.selectedSupportCard,
         follow_support_card_level: this.supportCardLevel,
         clock_use_limit: this.clockUseLimit,
@@ -4827,6 +4842,7 @@ export default {
         cureAsapConditions: this.cureAsapConditions,
         expect_attribute: [this.expectSpeedValue, this.expectStaminaValue, this.expectPowerValue, this.expectWillValue, this.expectIntelligenceValue],
         aggressive_cap_skip: this.aggressiveCapSkip,
+        retry_lost_aoharu_showdowns: this.retryLostAoharuShowdowns,
         follow_support_card: this.selectedSupportCard,
         follow_support_card_level: this.supportCardLevel,
         clock_use_limit: this.clockUseLimit,

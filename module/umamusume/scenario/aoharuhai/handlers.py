@@ -47,6 +47,13 @@ def script_aoharuhai_race_inrace(ctx):
 
 
 def script_aoharuhai_race_end(ctx):
+    try:
+        from module.umamusume.scenario.aoharuhai.retry import handle_aoharu_showdown_result
+        img = ctx.ctrl.get_screen()
+        if handle_aoharu_showdown_result(ctx, img):
+            return
+    except Exception:
+        log.exception("Aoharu showdown result retry check failed")
     ctx.ctrl.click(350, 1110, "Confirm race end")
 
 

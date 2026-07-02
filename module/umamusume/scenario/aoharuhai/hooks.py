@@ -97,7 +97,25 @@ def clear_team_showdown_confirmation_pending(ctx):
         pass
 
 
+def _handle_aoharu_showdown_result(ctx, img):
+    try:
+        from module.umamusume.scenario.aoharuhai.retry import handle_aoharu_showdown_result
+        return handle_aoharu_showdown_result(ctx, img)
+    except Exception:
+        log.exception("Aoharu showdown result retry check failed")
+        return False
+
+
 def aoharuhai_after_hook(ctx, img):
+    if is_team_showdown_confirmation_popup(img):
+        log.info("Final Aoharu Team Showdown confirmation detected - beginning Team Zenith showdown")
+        ctx.ctrl.click(TEAM_SHOWDOWN_CONFIRM_X, TEAM_SHOWDOWN_CONFIRM_Y, 'team showdown begin')
+        clear_team_showdown_confirmation_pending(ctx)
+        return True
+
+    if _handle_aoharu_showdown_result(ctx, img):
+        return True
+
     if image_match(img[984:1025, 297:365], REF_AOHARU_RACE).find_match:
         try:
             cd = getattr(getattr(ctx, 'cultivate_detail', None), 'event_cooldown_until', 0)
@@ -215,12 +233,6 @@ def aoharuhai_after_hook(ctx, img):
         ctx.ctrl.click(508, 1196, 'race end2 b')
         return True
     
-    if is_team_showdown_confirmation_popup(img):
-        log.info("Final Aoharu Team Showdown confirmation detected - beginning Team Zenith showdown")
-        ctx.ctrl.click(TEAM_SHOWDOWN_CONFIRM_X, TEAM_SHOWDOWN_CONFIRM_Y, 'team showdown begin')
-        clear_team_showdown_confirmation_pending(ctx)
-        return True
-
     if _is_team_showdown_screen(img):
         log.info("Final Aoharu Team Showdown detected - starting Team Zenith race")
         mark_team_showdown_confirmation_pending(ctx)
